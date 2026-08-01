@@ -10,3 +10,6 @@ build-dir = "book"
 create-missing = false
 
 [output.html]
+git-repository-url = "https://github.com/RobertDeRose/maison"
+edit-url-template = "https://github.com/RobertDeRose/maison/edit/main/docs/{path}"
+additional-css = ["theme/cobalt.css"]
