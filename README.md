@@ -1,0 +1,66 @@
+
+<!-- dstack:generated-readme -->
+# maison
+
+Provide a reusable public configuration framework for supported macOS and Linux systems.
+
+This repository uses the dstack documentation-first, Beads-backed development workflow.
+
+## Getting started
+
+Install the workflow skills:
+
+```bash
+npx --yes skills@1.5.16 add RobertDeRose/dstack
+```
+
+The setup workflow already validates the scaffold and initializes Beads when `bd` is available. Start a session with:
+
+```bash
+bd prime
+bd ready --type epic --label workflow:feature --json --limit 0
+```
+
+If setup reported Beads as outstanding, install `bd` and rerun dstack's guarded collaborative Beads initialization
+before the first project commit. Do not use `bd init --stealth`: it makes Beads personal and excludes its control files
+from repository tracking. The first project commit must force-add only `.beads/.gitignore`, `.beads/README.md`,
+`.beads/config.yaml`, `.beads/interactions.jsonl`, `.beads/metadata.json`, and the dstack formula; embedded/runtime paths
+remain ignored.
+
+Use the installed lifecycle skills:
+
+```text
+/plan-features
+/start-feature <slug>
+/implement-feature <slug>
+/close-feature <slug>
+/audit-project
+```
+
+Install the locked developer tools, then validate or serve the documentation:
+
+```bash
+mise install --locked
+mise run docs:check
+mise run docs:serve
+```
+
+Run the complete quality contract with `mise run check`; apply deterministic fixes with `mise run fix`.
+
+## Commit scopes
+
+Changelog-visible `feat`, `fix`, `perf`, and `refactor` commits require a semantic subsystem scope. Generated projects
+initially accept any syntactically valid scope because project boundaries are not known to the template.
+
+When the stable subsystems are known:
+
+1. Add a `scopes = ["..."]` allowlist to `cog.toml`.
+2. Replace this guidance with a short table describing when each scope applies.
+3. Update the Commit messages section in `AGENTS.md` so agents use the same taxonomy.
+
+Prefer stable ownership boundaries over feature numbers, ticket identifiers, action names, or incidental files. Run
+`cog check` after changing the allowlist.
+
+The project was generated from `RobertDeRose/dstack` with Copier. Commit the scaffold before applying future template
+updates with `/update-project`. Updates preserve the recorded `stable` or `unstable` channel and always record the exact
+template commit used.
