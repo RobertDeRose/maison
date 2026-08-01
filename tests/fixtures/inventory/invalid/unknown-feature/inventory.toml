@@ -1,0 +1,16 @@
+schema = 1
+
+[users.operator]
+username = "operator"
+full_name = "Example Operator"
+email = "operator@example.invalid"
+github = "example-operator"
+
+[hosts.featured]
+system = "aarch64-linux"
+user = "operator"
+profiles = ["base", "linux"]
+
+[hosts.featured.features]
+personal_cache = true
+future_feature = true

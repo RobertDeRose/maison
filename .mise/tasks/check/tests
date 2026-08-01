@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# [MISE] description="Run repository regression tests"
+set -euo pipefail
+python3 -m unittest discover -s tests -p 'test_*.py' -v

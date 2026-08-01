@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# [MISE] description="Apply the Nix system layer, then converge the mise user layer"
+# [MISE] interactive=true
+#USAGE flag "--host <host>" help="Inventory host"
+#USAGE flag "--system-only" help="Skip the mise user layer"
+#USAGE flag "--user-only" help="Skip the Nix system layer"
+#USAGE flag "--force-dotfiles" help="Replace conflicting user dotfiles"
+set -euo pipefail
+if [ "${usage_system_only:-false}" = true ] && [ "${usage_user_only:-false}" = true ]; then
+  printf 'error: --system-only and --user-only are mutually exclusive\n' >&2
+  exit 2
+fi
+if [ "${usage_user_only:-false}" != true ]; then
+  args=()
+  [ -z "${usage_host:-}" ] || args+=(--host "$usage_host")
+  mise run system:apply -- "${args[@]}"
+fi
+if [ "${usage_system_only:-false}" != true ]; then
+  args=()
+  [ "${usage_force_dotfiles:-false}" != true ] || args+=(--force-dotfiles)
+  mise run user:apply -- "${args[@]}"
+fi

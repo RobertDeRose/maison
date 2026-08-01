@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# [MISE] description="Preview user tools, applications, preferences, and dotfiles"
+#USAGE flag "--force-dotfiles" help="Preview replacement of conflicting whole-file targets"
+set -euo pipefail
+root="${MISE_PROJECT_ROOT:-$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)}"
+args=()
+[ "${usage_force_dotfiles:-false}" != true ] || args+=(--force-dotfiles)
+exec python3 "$root/.mise/lib/user_convergence.py" plan --root "$root" "${args[@]}"

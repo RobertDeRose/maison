@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# [MISE] description="List configured hosts and their profiles"
+
+set -euo pipefail
+TASK_FILE="${BASH_SOURCE[0]}"
+REPO_ROOT="${MISE_PROJECT_ROOT:-$(git -C "$(dirname "$TASK_FILE")" rev-parse --show-toplevel)}"
+cd "$REPO_ROOT"
+source "$REPO_ROOT/.mise/lib/inventory.sh"
+
+printf '%-24s %-18s %-16s %s\n' HOST SYSTEM USER PROFILES
+inventory_hosts "$REPO_ROOT" | while IFS= read -r host; do
+  profiles="$(inventory_host_profiles "$REPO_ROOT" "$host" | paste -sd, -)"
+  printf '%-24s %-18s %-16s %s\n' "$host" "$(inventory_host_system "$REPO_ROOT" "$host")" "$(inventory_host_user "$REPO_ROOT" "$host")" "$profiles"
+done

@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# [MISE] description="List Nix system generations"
+set -euo pipefail
+root="${MISE_PROJECT_ROOT:-$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)}"
+source "$root/.mise/lib/common.sh"
+source "$root/.mise/lib/nix.sh"
+load_nix_environment
+profile="$(system_profile_for_current_os)"
+[ -e "$profile" ] || die "system profile does not exist: $profile"
+sudo nix-env --list-generations --profile "$profile"

@@ -1,0 +1,13 @@
+schema = 1
+
+[users.compat]
+username = "legacy.user"
+full_name = "Compatibility User"
+email = "compat@example.invalid"
+github = "compat-user"
+allow_nonportable = true
+
+[hosts.compat-mac]
+system = "aarch64-darwin"
+user = "compat"
+profiles = ["base", "mac"]

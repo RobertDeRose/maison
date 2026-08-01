@@ -1,0 +1,106 @@
+#!/bin/bash
+set -euo pipefail
+
+DISTRO=jammy
+ENGINE=container
+WKDIR="/$(basename "$(pwd)")"
+SHELL_FILE=".rund-shell.$$"
+args=(run -it --rm -v "$(pwd):$WKDIR" -w "$WKDIR")
+
+cleanup() {
+  rm -f "$SHELL_FILE"
+}
+trap cleanup EXIT
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --engine)
+      if [ $# -lt 2 ]; then
+        echo "Missing value for --engine" >&2
+        exit 1
+      fi
+      ENGINE="$2"
+      shift 2
+      ;;
+    --engine=*)
+      ENGINE="${1#*=}"
+      shift
+      ;;
+    -p)
+      args+=(--privileged)
+      shift
+      ;;
+    -d)
+      if [ $# -lt 2 ]; then
+        echo "Missing value for -d" >&2
+        exit 1
+      fi
+      DISTRO="$2"
+      shift 2
+      ;;
+    -e)
+      if [ $# -lt 2 ]; then
+        echo "Missing value for -e" >&2
+        exit 1
+      fi
+      args+=("-e" "$2")
+      shift 2
+      ;;
+    -h | --help)
+      echo "Usage: rund [options] [command]"
+      echo "Options:"
+      echo "  -d <Ubuntu Codename> Use focal distro (default: jammy)"
+      echo "  -e VAR=VALUE         Add an environment variable"
+      echo "  --engine <engine>    Container engine: container or docker (default: container)"
+      echo "  -h                   Show this help message"
+      exit 0
+      ;;
+    --)
+      shift
+      break
+      ;;
+    -*)
+      echo "Invalid option: $1" >&2
+      exit 1
+      ;;
+    *)
+      break
+      ;;
+  esac
+done
+
+case "$ENGINE" in
+  container | docker) ;;
+  *)
+    echo "Invalid engine: $ENGINE" >&2
+    echo "Expected one of: container, docker" >&2
+    exit 1
+    ;;
+esac
+
+args+=("buildpack-deps:${DISTRO}-curl" /bin/bash "$SHELL_FILE")
+#  command+=" myoung34/github-runner:ubuntu-${DISTRO} /bin/bash .shell"
+# command+=" github-runner:${DISTRO} /bin/bash .shell"
+
+if [ -e "${HOME}/.rund_history" ]; then
+  cp "${HOME}/.rund_history" .bash_history
+fi
+
+# "echo 'PATH=/pie/bin:/opt/python/bin:\$(pwd)/bin:\$PATH' >> ~/.bashrc" \
+printf '%s\n' \
+  "source /etc/os-release" \
+  "RED='\[\e[38;5;196;1m\]'" \
+  "ORANGE='\[\e[38;5;208;1m\]'" \
+  "BLUE='\[\e[38;5;45m\]'" \
+  "RESET='\[\e[0m\]'" \
+  "echo 'export HISTFILE=$WKDIR/.bash_history' >> ~/.bashrc" \
+  "echo \"PS1='╭─[\${RED}\u\${RESET}@\${ORANGE}\${VERSION_CODENAME}\${RESET}] \${BLUE}\w\a\n\${RESET}╰─\\$ '\" >> ~/.bashrc" \
+  "echo \"clear; echo -e 'Welcome to \${VERSION}!\n'\" >> ~/.bashrc" \
+  "echo '\"\e[A\": history-search-backward' >> /etc/inputrc" \
+  "echo '\"\e[B\": history-search-forward' >> /etc/inputrc" \
+  "/bin/bash" > "$SHELL_FILE"
+
+"$ENGINE" "${args[@]}"
+if [ -e .bash_history ]; then
+  mv .bash_history "${HOME}/.rund_history"
+fi

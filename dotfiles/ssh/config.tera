@@ -1,0 +1,5 @@
+Host example-linux
+  HostName example-linux.example.invalid
+  User operator
+
+# Add private host aliases and trusted access material in the private overlay.

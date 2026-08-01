@@ -1,0 +1,65 @@
+#!/usr/bin/env bash
+# [MISE] description="Configure GitHub authentication for Maison, mise, and Nix"
+# [MISE] interactive=true
+#
+#USAGE flag "--method <method>" help="Authentication method: app or gh"
+#USAGE flag "--client-id <id>" help="GitHub App client ID when using app authentication"
+
+set -euo pipefail
+TASK_FILE="${BASH_SOURCE[0]}"
+REPO_ROOT="${MISE_PROJECT_ROOT:-$(git -C "$(dirname "$TASK_FILE")" rev-parse --show-toplevel)}"
+cd "$REPO_ROOT"
+source "$REPO_ROOT/.mise/lib/common.sh"
+method="${usage_method:-}"
+client_id="${usage_client_id:-}"
+prompt_method() {
+  local reply
+  cat >&2 << 'PROMPT'
+Choose a GitHub authentication method:
+  1. GitHub App device flow through mise
+  2. GitHub CLI login
+PROMPT
+  printf 'Selection [1-2]: ' >&2
+  IFS= read -e -r reply < /dev/tty
+  case "$reply" in 1) printf 'app\n' ;; 2) printf 'gh\n' ;; *) die "invalid selection '$reply'" ;; esac
+}
+[ -n "$method" ] || method="$(prompt_method)"
+case "$method" in
+  app)
+    if [ -z "$client_id" ]; then
+      [ -r /dev/tty ] || die "--client-id is required without an interactive terminal"
+      printf 'GitHub App client ID: ' >&2
+      IFS= read -e -r client_id < /dev/tty
+    fi
+    [ -n "$client_id" ] || die "GitHub App client ID cannot be empty"
+    local_config="$REPO_ROOT/mise.local.toml"
+    cat > "$local_config" << EOF
+[settings.github]
+oauth_client_id = "$client_id"
+oauth_scopes = ""
+oauth_export_env = "GITHUB_TOKEN"
+EOF
+    mise trust "$local_config"
+    mise token github --oauth
+    ;;
+  gh)
+    if command -v gh > /dev/null 2>&1; then
+      gh auth login
+      gh auth status
+    else
+      mise install gh
+      mise x gh -- gh auth login
+      mise x gh -- gh auth status
+    fi
+    ;;
+  *) die "unsupported method '$method'; expected app or gh" ;;
+esac
+token="$(mise token github --raw 2> /dev/null || true)"
+if [ -z "$token" ] && command -v gh > /dev/null 2>&1; then
+  token="$(gh auth token 2> /dev/null || true)"
+fi
+if [ -z "$token" ]; then
+  token="$(mise x gh -- gh auth token 2> /dev/null || true)"
+fi
+[ -n "$token" ] || die "GitHub authentication completed but no usable token could be resolved"
+printf 'GitHub authentication configured. Maison, mise, and Nix will use the authenticated API limit.\n'

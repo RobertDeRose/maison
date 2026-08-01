@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# [MISE] description="Compatibility alias for system:apply"
+# [MISE] hide=true
+set -euo pipefail
+exec mise run "system:apply" -- "$@"

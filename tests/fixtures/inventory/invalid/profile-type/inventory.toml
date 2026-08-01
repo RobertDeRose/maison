@@ -1,0 +1,12 @@
+schema = 1
+
+[users.operator]
+username = "operator"
+full_name = "Example Operator"
+email = "operator@example.invalid"
+github = "example-operator"
+
+[hosts.bad-profile-type]
+system = "aarch64-linux"
+user = "operator"
+profiles = "base"
