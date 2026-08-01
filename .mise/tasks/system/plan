@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+# [MISE] description="Build the selected Nix system configuration without activation"
+#USAGE flag "--host <host>" help="Inventory host (defaults to the current hostname)"
+set -euo pipefail
+root="${MISE_PROJECT_ROOT:-$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)}"
+cd "$root"
+source "$root/.mise/lib/common.sh"
+source "$root/.mise/lib/platform.sh"
+source "$root/.mise/lib/inventory.sh"
+source "$root/.mise/lib/nix.sh"
+host="${usage_host:-$(current_hostname)}"
+require_inventory_host "$root" "$host"
+load_nix_environment
+configure_github_access_token
+export NIX_SUPPRESS_DIRTY_WARNING=true
+case "$(inventory_host_system "$root" "$host")" in
+  *-darwin)
+    validate_host_platform "$root" "$host" "$(current_system)"
+    run_nh darwin build "$root" -H "$host"
+    ;;
+  *-linux)
+    mkdir -p .build
+    nix_command build -L --out-link ".build/system-$host" "$root#systemConfigs.\"$host\""
+    ;;
+  *) die "unsupported host: $host" ;;
+esac

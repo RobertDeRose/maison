@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# [MISE] description="Delete old Nix system generations and collect unreferenced store paths"
+#USAGE arg "[older_than]" default="7d" help="Generation retention window accepted by nix-env"
+set -euo pipefail
+root="${MISE_PROJECT_ROOT:-$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)}"
+source "$root/.mise/lib/common.sh"
+source "$root/.mise/lib/nix.sh"
+load_nix_environment
+profile="$(system_profile_for_current_os)"
+[ -e "$profile" ] || die "system profile does not exist: $profile"
+sudo nix-env --delete-generations "${usage_older_than:-7d}" --profile "$profile"
+sudo nix-store --gc

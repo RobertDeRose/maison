@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# [MISE] description="Typecheck and test Pi TypeScript extensions"
+set -euo pipefail
+root="${MISE_PROJECT_ROOT:-$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)}"
+workspace="$root/dotfiles/pi/extensions"
+cleanup() {
+  rm -rf -- "$workspace/node_modules"
+}
+trap cleanup EXIT
+
+cd "$workspace"
+npm ci --ignore-scripts --no-audit --no-fund
+npm run typecheck
+npm test

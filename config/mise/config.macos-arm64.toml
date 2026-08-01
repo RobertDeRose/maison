@@ -1,0 +1,34 @@
+[settings]
+system_packages.managers = ["brew", "brew-cask", "mas"]
+
+# Apple Silicon-only formulae and applications. Cross-platform formulae are
+# declared once in config.toml.
+[bootstrap.packages]
+"brew:azure-cli" = "latest"
+"brew:hunk" = "latest"
+"brew:mosquito" = "latest"
+"brew-cask:anki" = "latest"
+"brew-cask:balenaetcher" = "latest"
+"brew-cask:chatgpt" = "latest"
+"brew-cask:claude" = "latest"
+"brew-cask:cmux" = "latest"
+"brew-cask:docker-desktop" = "latest"
+"brew-cask:dropbox" = "latest"
+"brew-cask:ghostty" = "latest"
+"brew-cask:google-chrome" = "latest"
+"brew-cask:iina" = "latest"
+"brew-cask:imageoptim" = "latest"
+"brew-cask:insomnia" = "latest"
+"brew-cask:maccy" = "latest"
+"brew-cask:obsidian" = "latest"
+"brew-cask:pearcleaner" = "latest"
+"brew-cask:raycast" = "latest"
+"brew-cask:rectangle" = "latest"
+"brew-cask:stats" = "latest"
+"brew-cask:zed" = "latest"
+"mas:937984704" = "latest"
+"mas:1352778147" = "latest"
+"mas:361285480" = "latest"
+"mas:361304891" = "latest"
+"mas:361309726" = "latest"
+"mas:1295203466" = "latest"

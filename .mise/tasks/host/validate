@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# [MISE] description="Validate users, hosts, systems, profiles, deployment paths, and overrides"
+# [MISE] hide=true
+set -euo pipefail
+root="${MISE_PROJECT_ROOT:-$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)}"
+source "$root/.mise/lib/common.sh"
+source "$root/.mise/lib/inventory.sh"
+cd "$root"
+inventory_cli "$root" validate

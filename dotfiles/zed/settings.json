@@ -1,0 +1,21 @@
+{
+  "base_keymap": "VSCode",
+  "helix_mode": true,
+  "line_indicator_format": "long",
+  "preferred_line_length": 120,
+  "minimap": { "show": "auto" },
+  "ui_font_size": 16,
+  "buffer_font_size": 15,
+  "terminal": { "font_family": "MesloLGS Nerd Font", "font_size": 14 },
+  "hard_tabs": false,
+  "tab_size": 2,
+  "format_on_save": "on",
+  "ensure_final_newline_on_save": true,
+  "remove_trailing_whitespace_on_save": true,
+  "edit_predictions": { "provider": "copilot" },
+  "theme": {
+    "mode": "dark",
+    "light": "Dracula Light (Alucard)",
+    "dark": "Ayu Mirage"
+  }
+}
