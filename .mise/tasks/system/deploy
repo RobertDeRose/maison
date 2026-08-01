@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+# [MISE] description="Deploy a Linux system-manager profile through deploy-rs"
+# [MISE] interactive=true
+#USAGE arg "<host>" help="Linux inventory host"
+#USAGE flag "--dry-activate" help="Run deploy-rs dry activation"
+#USAGE flag "--skip-checks" help="Skip deploy-rs preflight checks"
+set -euo pipefail
+root="${MISE_PROJECT_ROOT:-$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)}"
+cd "$root"
+source "$root/.mise/lib/common.sh"
+source "$root/.mise/lib/inventory.sh"
+source "$root/.mise/lib/nix.sh"
+host="${usage_host:?mise did not provide the required host argument}"
+require_inventory_host "$root" "$host"
+case "$(inventory_host_system "$root" "$host")" in *-linux) ;; *) die "deploy supports Linux hosts only" ;; esac
+load_nix_environment
+configure_github_access_token
+
+# deploy-rs expects the parent of an explicit profilePath to exist. Keep the
+# path identical to system-manager's own PROFILE_DIR/PROFILE_NAME contract.
+hostname="$(inventory_deploy_hostname "$root" "$host")"
+ssh_user="$(inventory_deploy_ssh_user "$root" "$host")"
+sudo_prefix=""
+if [ "$ssh_user" != root ]; then
+  sudo_prefix="sudo "
+fi
+# shellcheck disable=SC2029 # sudo prefix intentionally expands locally from validated inventory user
+ssh "$ssh_user@$hostname" "${sudo_prefix}/usr/bin/install -d -m 0755 /nix/var/nix/profiles/system-manager-profiles"
+
+args=("$root#$host.system")
+[ "${usage_dry_activate:-false}" != true ] || args+=(--dry-activate)
+[ "${usage_skip_checks:-false}" != true ] || args+=(--skip-checks)
+if command -v deploy >/dev/null 2>&1; then
+  exec deploy "${args[@]}"
+else
+  nix_command run "$root#deploy" -- "${args[@]}"
+fi

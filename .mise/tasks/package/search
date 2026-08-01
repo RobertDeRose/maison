@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+# [MISE] description="Search mise and Homebrew package sources"
+#USAGE arg "<query>" help="Package name or description"
+set -euo pipefail
+query="${usage_query:?mise did not provide the required query argument}"
+
+printf '%s\n' '== mise registry/backends =='
+mise search "$query" || true
+
+printf '\n%s\n' '== Homebrew formulae and casks =='
+python3 - "$query" <<'PY'
+from __future__ import annotations
+
+import json
+import sys
+import urllib.error
+import urllib.request
+
+query = sys.argv[1].casefold()
+endpoints = (
+    ("formula", "https://formulae.brew.sh/api/formula.json"),
+    ("cask", "https://formulae.brew.sh/api/cask.json"),
+)
+rows: list[tuple[str, str, str, str]] = []
+for kind, url in endpoints:
+    try:
+        with urllib.request.urlopen(url, timeout=15) as response:
+            entries = json.load(response)
+    except (OSError, urllib.error.URLError, json.JSONDecodeError) as exc:
+        print(f"warning: could not query {kind} metadata: {exc}", file=sys.stderr)
+        continue
+    for entry in entries:
+        token = entry.get("name") if kind == "formula" else entry.get("token")
+        names = entry.get("name", []) if kind == "cask" else []
+        if isinstance(names, str):
+            names = [names]
+        description = entry.get("desc") or ""
+        haystack = " ".join([token or "", description, *names]).casefold()
+        if query in haystack:
+            version = (
+                (entry.get("versions") or {}).get("stable")
+                if kind == "formula"
+                else entry.get("version")
+            ) or "unknown"
+            rows.append((kind, token or "", str(version), description))
+
+for kind, token, version, description in sorted(rows, key=lambda row: (row[0], row[1]))[:80]:
+    manager = "brew" if kind == "formula" else "brew-cask"
+    print(f"{manager}:{token:<42} {version:<18} {description}")
+if not rows:
+    print("No Homebrew matches found (or metadata was unavailable).")
+PY

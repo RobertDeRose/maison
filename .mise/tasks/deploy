@@ -1,0 +1,236 @@
+#!/usr/bin/env bash
+# [MISE] description="Deploy Linux system state, then transactionally converge its mise user environment"
+# [MISE] interactive=true
+#USAGE arg "<host>" help="Linux inventory host"
+#USAGE flag "--system-only" help="Skip repository transfer and remote user bootstrap"
+#USAGE flag "--force-dotfiles" help="Replace conflicting remote user dotfiles"
+set -euo pipefail
+root="${MISE_PROJECT_ROOT:-$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)}"
+cd "$root"
+source "$root/.mise/lib/common.sh"
+source "$root/.mise/lib/inventory.sh"
+
+host="${usage_host:?mise did not provide the required host argument}"
+require_inventory_host "$root" "$host"
+[ "$(host_platform_class "$root" "$host")" = linux ] || die "deploy supports Linux inventory hosts only"
+
+archive=""
+remote_archive=""
+remote_helper=""
+remote_recovery_python=""
+remote_recovery_prepare=""
+hostname=""
+ssh_user=""
+cleanup() {
+  local status=$?
+  trap - EXIT HUP INT TERM
+  [ -z "$archive" ] || rm -f "$archive"
+  cleanup_paths=()
+  [ -z "$remote_archive" ] || cleanup_paths+=("$remote_archive")
+  [ -z "$remote_helper" ] || cleanup_paths+=("$remote_helper")
+  [ -z "$remote_recovery_python" ] || cleanup_paths+=("$remote_recovery_python")
+  [ -z "$remote_recovery_prepare" ] || cleanup_paths+=("$remote_recovery_prepare")
+  if [ "${#cleanup_paths[@]}" -gt 0 ] && [ -n "$hostname" ] && [ -n "$ssh_user" ]; then
+    quoted_cleanup=""
+    for cleanup_path in "${cleanup_paths[@]}"; do
+      quoted_cleanup+=" $(printf '%q' "$cleanup_path")"
+    done
+    # shellcheck disable=SC2029 # validated mktemp paths are shell-escaped above
+    ssh "$ssh_user@$hostname" "rm -f -- $quoted_cleanup" > /dev/null 2>&1 || true
+  fi
+  exit "$status"
+}
+trap cleanup EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+if [ "${usage_system_only:-false}" != true ]; then
+  archive="$(mktemp "${TMPDIR:-/tmp}/maison-deploy.XXXXXX.tar.gz")"
+  "$root/scripts/create-deploy-archive.sh" "$root" "$archive"
+fi
+
+mise run system:deploy -- "$host"
+[ "${usage_system_only:-false}" != true ] || exit 0
+
+hostname="$(inventory_deploy_hostname "$root" "$host")"
+ssh_user="$(inventory_deploy_ssh_user "$root" "$host")"
+user="$(inventory_deploy_user_ssh_user "$root" "$host")"
+repo_path="$(inventory_deploy_repo_path "$root" "$host")"
+remote_archive="$(ssh "$ssh_user@$hostname" 'umask 077; mktemp /tmp/maison-deploy.XXXXXX.tar.gz')"
+[[ $remote_archive =~ ^/tmp/maison-deploy\.[A-Za-z0-9]+\.tar\.gz$ ]] ||
+  die "remote mktemp returned an unsafe archive path: $remote_archive"
+remote_helper="$(ssh "$ssh_user@$hostname" 'umask 077; mktemp /tmp/maison-deploy-helper.XXXXXX.py')"
+[[ $remote_helper =~ ^/tmp/maison-deploy-helper\.[A-Za-z0-9]+\.py$ ]] ||
+  die "remote mktemp returned an unsafe helper path: $remote_helper"
+remote_recovery_python="$(ssh "$ssh_user@$hostname" 'umask 077; mktemp /tmp/maison-recovery-helper.XXXXXX.py')"
+[[ $remote_recovery_python =~ ^/tmp/maison-recovery-helper\.[A-Za-z0-9]+\.py$ ]] ||
+  die "remote mktemp returned an unsafe recovery helper path: $remote_recovery_python"
+remote_recovery_prepare="$(ssh "$ssh_user@$hostname" 'umask 077; mktemp /tmp/maison-recovery-prepare.XXXXXX.sh')"
+[[ $remote_recovery_prepare =~ ^/tmp/maison-recovery-prepare\.[A-Za-z0-9]+\.sh$ ]] ||
+  die "remote mktemp returned an unsafe recovery prepare path: $remote_recovery_prepare"
+
+quoted_archive="$(printf '%q' "$remote_archive")"
+quoted_helper="$(printf '%q' "$remote_helper")"
+quoted_recovery_python="$(printf '%q' "$remote_recovery_python")"
+quoted_recovery_prepare="$(printf '%q' "$remote_recovery_prepare")"
+# shellcheck disable=SC2029 # destinations are shell-escaped above
+ssh "$ssh_user@$hostname" "cat > $quoted_archive" < "$archive"
+# shellcheck disable=SC2029 # destinations are shell-escaped above
+ssh "$ssh_user@$hostname" "cat > $quoted_helper" < "$root/scripts/maison_deploy_transaction.py"
+# shellcheck disable=SC2029 # destinations are shell-escaped above
+ssh "$ssh_user@$hostname" "cat > $quoted_recovery_python" < "$root/.mise/lib/user_convergence.py"
+# shellcheck disable=SC2029 # destinations are shell-escaped above
+ssh "$ssh_user@$hostname" "cat > $quoted_recovery_prepare" < "$root/scripts/user-prepare.sh"
+# shellcheck disable=SC2029 # paths are shell-escaped above
+ssh "$ssh_user@$hostname" "chmod 0644 $quoted_recovery_python; chmod 0755 $quoted_recovery_prepare"
+
+quoted_repo="$(printf '%q' "$repo_path")"
+quoted_user="$(printf '%q' "$user")"
+sudo_prefix=""
+if [ "$ssh_user" != root ]; then
+  sudo_prefix="sudo "
+fi
+# shellcheck disable=SC2029 # argument escaping handled above
+if ! ssh "$ssh_user@$hostname" "${sudo_prefix}/usr/bin/python3 $quoted_helper recover $quoted_repo $quoted_user"; then
+  printf 'error: existing transaction state recovery failed for %s\n' "$repo_path" >&2
+  exit 1
+fi
+
+quoted_remote_archive="$(printf '%q' "$remote_archive")"
+# shellcheck disable=SC2029 # all arguments are shell-escaped above
+ssh "$ssh_user@$hostname" \
+  "${sudo_prefix}/usr/bin/python3 $quoted_helper stage $quoted_repo $quoted_user $quoted_remote_archive"
+# The staging helper removes the remote archive after extracting it. Avoid a
+# second SSH cleanup attempt on every successful deployment.
+remote_archive=""
+# shellcheck disable=SC2029 # validated repository path is intentionally expanded on the client
+failed_revision="$(ssh "$user@$hostname" "cat -- $quoted_repo/.maison-revision")"
+[[ $failed_revision =~ ^[0-9a-f]{40}$ ]] || die "staged repository has an invalid revision: $failed_revision"
+quoted_failed_revision="$(printf '%q' "$failed_revision")"
+
+remote_args=()
+[ "${usage_force_dotfiles:-false}" != true ] || remote_args+=(--force-dotfiles)
+quoted_user_args=""
+for arg in "${remote_args[@]}"; do
+  quoted_user_args+=" $(printf '%q' "$arg")"
+done
+quoted_args=" $quoted_failed_revision$quoted_user_args"
+# shellcheck disable=SC2029 # repository and optional arguments are shell-escaped
+if ssh "$user@$hostname" "bash -s -- $quoted_repo$quoted_args" << 'REMOTE_USER'; then
+set -eu
+repo_path="$1"
+failed_revision="$2"
+shift 2
+if ! command -v mise >/dev/null 2>&1; then
+  # shellcheck source=.mise/lib/common.sh
+  . "$repo_path/.mise/lib/common.sh"
+  # shellcheck source=.mise/lib/platform.sh
+  . "$repo_path/.mise/lib/platform.sh"
+  # shellcheck source=.mise/lib/bootstrap.sh
+  . "$repo_path/.mise/lib/bootstrap.sh"
+  install_mise_if_missing
+fi
+cd "$repo_path"
+export MISE_TRUSTED_CONFIG_PATHS="$repo_path${MISE_TRUSTED_CONFIG_PATHS:+:$MISE_TRUSTED_CONFIG_PATHS}"
+recovery_dir="$HOME/.local/state/maison/recovery"
+phase_file="$recovery_dir/.remote-convergence-$failed_revision.events.json"
+report_file="$recovery_dir/remote-convergence-$failed_revision.json"
+mkdir -p -m 700 "$recovery_dir"
+rm -f -- "$phase_file" "$report_file"
+export MAISON_CONVERGENCE_EVENT_FILE="$phase_file"
+mise trust "$repo_path/mise.toml" >/dev/null
+if mise run user:apply -- "$@"; then
+  rm -f -- "$phase_file"
+else
+  status=$?
+  exit "$status"
+fi
+REMOTE_USER
+  action=commit
+  user_status=0
+else
+  action=rollback
+  user_status=$?
+fi
+
+quoted_action="$(printf '%q' "$action")"
+# shellcheck disable=SC2029 # all arguments are shell-escaped above
+if ! ssh "$ssh_user@$hostname" \
+  "${sudo_prefix}/usr/bin/python3 $quoted_helper finalize $quoted_repo $quoted_user $quoted_action"; then
+  if [ "$action" = rollback ]; then
+    printf 'error: remote user convergence failed and repository rollback also failed; inspect the root-owned Maison transaction state for %s\n' "$repo_path" >&2
+  else
+    printf 'error: remote convergence succeeded but repository transaction cleanup failed; the previous repository remains recoverable\n' >&2
+  fi
+  exit 1
+fi
+
+if [ "$user_status" -ne 0 ]; then
+  # shellcheck disable=SC2029 # validated repository path is intentionally expanded on the client
+  restored_revision="$(ssh "$user@$hostname" "cat -- $quoted_repo/.maison-revision" 2> /dev/null || true)"
+  [[ $restored_revision =~ ^[0-9a-f]{40}$ ]] || {
+    printf 'error: remote user convergence failed and no verified prior repository is available for recovery\n' >&2
+    exit "$user_status"
+  }
+  quoted_restored_revision="$(printf '%q' "$restored_revision")"
+  quoted_initial_exit_code="$(printf '%q' "$user_status")"
+  # shellcheck disable=SC2029 # repository and recovery arguments are shell-escaped above
+  quoted_recovery_python="$(printf '%q' "$remote_recovery_python")"
+  quoted_recovery_prepare="$(printf '%q' "$remote_recovery_prepare")"
+  # shellcheck disable=SC2029 # repository, helper, and recovery arguments are shell-escaped above
+  if ! ssh "$user@$hostname" \
+    "bash -s -- $quoted_repo $quoted_failed_revision $quoted_restored_revision $quoted_initial_exit_code $quoted_recovery_python $quoted_recovery_prepare$quoted_user_args" << 'REMOTE_RECOVERY'; then
+set -eu
+repo_path="$1"
+failed_revision="$2"
+restored_revision="$3"
+initial_exit_code="$4"
+recovery_python="$5"
+recovery_prepare="$6"
+shift 6
+actual_restored_revision="$(cat -- "$repo_path/.maison-revision")"
+[ "$actual_restored_revision" = "$restored_revision" ] || {
+  printf 'error: restored repository revision changed before restricted recovery\n' >&2
+  exit 1
+}
+recovery_dir="$HOME/.local/state/maison/recovery"
+phase_file="$recovery_dir/.remote-convergence-$failed_revision.events.json"
+report_file="$recovery_dir/remote-convergence-$failed_revision.json"
+export MAISON_CONVERGENCE_EVENT_FILE="$phase_file"
+export MAISON_RECOVERY_REPORT="$report_file"
+export MAISON_RECOVERY_FAILED_REVISION="$failed_revision"
+export MAISON_RECOVERY_RESTORED_REVISION="$restored_revision"
+export MAISON_RECOVERY_INITIAL_EXIT_CODE="$initial_exit_code"
+export MAISON_RECOVERY_PREPARE_SCRIPT="$recovery_prepare"
+cd "$repo_path"
+export MISE_TRUSTED_CONFIG_PATHS="$repo_path${MISE_TRUSTED_CONFIG_PATHS:+:$MISE_TRUSTED_CONFIG_PATHS}"
+run_recovery() {
+  python3 "$recovery_python" recovery --root "$repo_path" --report "$report_file" \
+    --failed-revision "$failed_revision" --restored-revision "$restored_revision" \
+    --initial-exit-code "$initial_exit_code" --event-file "$phase_file" "$@"
+}
+if command -v mise >/dev/null 2>&1 && mise trust "$repo_path/mise.toml" >/dev/null; then
+  if [ -f "$repo_path/.mise/tasks/user/recover" ] &&
+    grep -q 'MAISON_RECOVERY_REPORT' "$repo_path/.mise/tasks/user/recover" &&
+    grep -q 'build_recovery_report' "$repo_path/.mise/lib/user_convergence.py"; then
+    mise run user:recover -- "$@"
+  else
+    run_recovery "$@"
+  fi
+else
+  run_recovery "$@"
+fi
+REMOTE_RECOVERY
+    recovery_status=0
+  else
+    recovery_status=$?
+    printf 'error: restricted remote recovery failed; inspect the reported recovery artifact\n' >&2
+  fi
+  if [ "$recovery_status" -ne 0 ]; then
+    printf 'error: remote user convergence failed; the previous repository was restored but recovery also failed\n' >&2
+  else
+    printf 'error: remote user convergence failed; the previous repository was restored and restricted recovery completed\n' >&2
+  fi
+  exit "$user_status"
+fi

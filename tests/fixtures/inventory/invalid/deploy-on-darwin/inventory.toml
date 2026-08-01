@@ -1,0 +1,15 @@
+schema = 1
+
+[users.operator]
+username = "operator"
+full_name = "Example Operator"
+email = "operator@example.invalid"
+github = "example-operator"
+
+[hosts.mac-deploy]
+system = "aarch64-darwin"
+user = "operator"
+profiles = ["base", "mac"]
+
+[hosts.mac-deploy.deploy]
+enable = true

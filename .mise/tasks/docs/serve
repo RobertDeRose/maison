@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# [MISE] description="Serve the mdBook documentation with repository tooling"
+# [MISE] interactive=true
+#USAGE flag "--open" help="Open the documentation in the default browser"
+#USAGE flag "--hostname <hostname>" help="Bind hostname" default="127.0.0.1"
+#USAGE flag "--port <port>" help="Bind port" default="3000"
+set -euo pipefail
+TASK_FILE="${BASH_SOURCE[0]}"
+REPO_ROOT="${MISE_PROJECT_ROOT:-$(git -C "$(dirname "$TASK_FILE")" rev-parse --show-toplevel)}"
+cd "$REPO_ROOT"
+
+mise install github:rust-lang/mdBook
+args=(serve docs --hostname "${usage_hostname:-127.0.0.1}" --port "${usage_port:-3000}")
+[ "${usage_open:-false}" != true ] || args+=(--open)
+exec mise exec -- mdbook "${args[@]}"

@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+# [MISE] description="Roll back and reactivate the previous Nix system generation"
+# [MISE] interactive=true
+#USAGE flag "-y --yes" help="Skip confirmation"
+set -euo pipefail
+root="${MISE_PROJECT_ROOT:-$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)}"
+source "$root/.mise/lib/common.sh"
+source "$root/.mise/lib/nix.sh"
+load_nix_environment
+profile="$(system_profile_for_current_os)"
+[ -e "$profile" ] || die "system profile does not exist: $profile"
+[ "${usage_yes:-false}" = true ] || confirm "Roll back $profile to its previous generation?" || die "rollback cancelled"
+
+case "$(uname -s)" in
+  Darwin)
+    # darwin-rebuild --rollback selects the previous generation and activates it.
+    # Do not move the profile with nix-env first or the rollback advances twice.
+    if command -v darwin-rebuild >/dev/null 2>&1; then
+      exec sudo darwin-rebuild switch --rollback
+    elif [ -x /run/current-system/sw/bin/darwin-rebuild ]; then
+      exec sudo /run/current-system/sw/bin/darwin-rebuild switch --rollback
+    fi
+
+    # Recovery fallback for installations without darwin-rebuild on PATH.
+    sudo nix-env --rollback --profile "$profile"
+    exec sudo "$profile/activate"
+    ;;
+  Linux)
+    sudo nix-env --rollback --profile "$profile"
+    exec sudo "$profile/bin/activate"
+    ;;
+  *)
+    die "unsupported operating system: $(uname -s)"
+    ;;
+esac

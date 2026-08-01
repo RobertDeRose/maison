@@ -1,0 +1,25 @@
+[
+  {
+    "context": "Workspace",
+    "bindings": {
+      "ctrl-s": "workspace::Save",
+      "ctrl-p": "file_finder::Toggle",
+      "ctrl-shift-p": "command_palette::Toggle",
+      "ctrl-b": "project_panel::ToggleFocus",
+      "ctrl-/": "editor::ToggleComments"
+    }
+  },
+  {
+    "context": "Editor",
+    "bindings": {
+      "alt-up": "editor::MoveLineUp",
+      "alt-down": "editor::MoveLineDown"
+    }
+  },
+  {
+    "context": "Terminal",
+    "bindings": {
+      "ctrl-n": ["terminal::SendKeystroke", "ctrl-n"]
+    }
+  }
+]

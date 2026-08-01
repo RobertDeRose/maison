@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# [MISE] description="Install/repair Nix, apply system configuration, and converge user state"
+# [MISE] interactive=true
+#USAGE flag "--host <host>" help="Inventory host (defaults to current hostname)"
+#USAGE flag "--overlay <source>" help="Private overlay Git URL or path"
+#USAGE flag "--user-only" help="Do not install or apply Nix"
+set -euo pipefail
+root="${MISE_PROJECT_ROOT:-$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)}"
+source "$root/.mise/lib/common.sh"
+source "$root/.mise/lib/platform.sh"
+source "$root/.mise/lib/bootstrap.sh"
+host="${usage_host:-$(current_hostname)}"
+if [ -n "${usage_overlay:-}" ]; then
+  "$root/scripts/maison_overlay.py" --overlay "$usage_overlay" prepare > /dev/null
+elif [ "${MAISON_REQUIRE_OVERLAY:-false}" = true ]; then
+  "$root/scripts/maison_overlay.py" --required prepare > /dev/null
+fi
+if [ "${usage_user_only:-false}" != true ]; then
+  install_nix_or_lix_if_missing
+  mise run system:apply -- --host "$host"
+fi
+mise run user:apply
