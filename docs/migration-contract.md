@@ -8,10 +8,9 @@ This document records where behavior moved before Home Manager and bespoke deplo
 
 The MAISON-017 transition completed after the public/private validation gate:
 
-- `https://github.com/RobertDeRose/maison` is the public framework and defaults to `main`.
-- `https://github.com/RobertDeRose/terroir` is the private overlay and defaults to `main`.
-- `https://github.com/RobertDeRose/nix-config` is the private archived historical source; its local checkout and
-  history remain preserved for recovery.
+- The Maison repository is the public framework and defaults to `main`.
+- A user-selected private overlay is the private configuration source and defaults to `main`.
+- The original source repository may be retained as a private archived historical source for recovery.
 
 The approved owner-only migration manifest and Bitwarden remain the recovery sources for excluded private material.
 
