@@ -1,0 +1,23 @@
+# This file is managed by Copier. Do not edit it manually.
+_commit: 5fe50b5e3bd5a64f1150b3440c28cdd3bc4a2e9f
+_src_path: gh:RobertDeRose/dstack
+dstack_template_channel: stable
+language_profiles:
+- python
+- typescript
+- nix
+project_boundaries: Personal identity, real infrastructure metadata, trusted private
+  material, secrets, and host-specific configuration belong in Terroir or Bitwarden;
+  Intel macOS and Home Manager remain unsupported.
+project_kind: infrastructure
+project_name: maison
+project_purpose: Provide a reusable public configuration framework for supported macOS
+  and Linux systems.
+project_scope: Nix/Lix system state, mise user state, inventory, local and remote
+  deployment, convergence, recovery, and validation for Apple Silicon macOS and supported
+  Linux.
+project_slug: maison
+project_users: Maison maintainers and operators managing supported personal or site
+  hosts.
+repository_default_branch: main
+repository_layout: single-package

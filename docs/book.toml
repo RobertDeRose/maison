@@ -1,0 +1,12 @@
+[book]
+title = "maison"
+description = "Provide a reusable public configuration framework for supported macOS and Linux systems."
+authors = []
+language = "en"
+src = "src"
+
+[build]
+build-dir = "book"
+create-missing = false
+
+[output.html]
