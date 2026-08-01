@@ -36,7 +36,7 @@ class OwnershipBoundaryTest(unittest.TestCase):
     def test_user_defaults_do_not_claim_privileged_domains(self) -> None:
         with (ROOT / "config/mise/config.macos.toml").open("rb") as handle:
             data = tomllib.load(handle)
-        defaults = data["bootstrap"]["macos"]["defaults"]
+        defaults = data.get("bootstrap", {}).get("macos", {}).get("defaults", {})
         banned = {
             "com.apple.loginwindow",
             "/Library/Preferences/com.apple.loginwindow",
@@ -44,8 +44,7 @@ class OwnershipBoundaryTest(unittest.TestCase):
             "com.apple.security",
         }
         self.assertTrue(banned.isdisjoint(defaults))
-        self.assertIn("com.apple.dock", defaults)
-        self.assertIn("com.apple.finder", defaults)
+        self.assertEqual(defaults, {})
 
     def test_system_integrations_remain_nix_owned(self) -> None:
         fonts = read("nix/modules/darwin/fonts.nix")
@@ -72,15 +71,9 @@ class OwnershipBoundaryTest(unittest.TestCase):
 
     def test_global_mise_config_and_platform_files_are_deployed(self) -> None:
         root_config = read("mise.toml")
-        for name in (
-            "config.toml",
-            "config.macos.toml",
-            "config.macos-arm64.toml",
-            "config.linux.toml",
-        ):
-            self.assertIn(f"~/.config/mise/{name}", root_config)
-        self.assertNotIn("config.macos-x64.toml", root_config)
-        self.assertNotIn('"~/.config/mise/mise.lock"', root_config)
+        self.assertNotIn("[dotfiles]", root_config)
+        self.assertNotIn("~/.config/mise/", root_config)
+        self.assertNotIn("dotfiles/", root_config)
 
         lock_script = read("scripts/user-link-mise-lock.sh")
         self.assertIn("mise.lock", lock_script)
@@ -95,15 +88,12 @@ class OwnershipBoundaryTest(unittest.TestCase):
         common_packages = common["bootstrap"]["packages"]
         mac_packages = mac_arm["bootstrap"]["packages"]
         self.assertNotIn("bootstrap", linux)
-        for package in ("brew:direnv", "brew:helix", "brew:git", "brew:starship", "brew:yazi"):
-            self.assertIn(package, common_packages)
-        for package in ("brew-cask:ghostty", "brew-cask:zed", "mas:1352778147"):
-            self.assertIn(package, mac_packages)
+        self.assertEqual(common_packages, {})
+        self.assertEqual(mac_packages, {})
         self.assertFalse(set(common_packages) & set(mac_packages))
 
         tools = common["tools"]
-        self.assertIn("bat", tools)
-        self.assertNotIn("brew:bat", common_packages)
+        self.assertEqual(tools, {})
 
         active_tool_tables = {
             "common": tools,
@@ -123,14 +113,7 @@ class OwnershipBoundaryTest(unittest.TestCase):
         brew_formulae = {package.removeprefix("brew:") for package in common_packages if package.startswith("brew:")}
         self.assertFalse(set(tools) & brew_formulae)
 
-        for ai_tool in (
-            "codex",
-            "npm:@earendil-works/pi-coding-agent",
-            "npm:@fission-ai/openspec",
-            "opencode",
-        ):
-            self.assertIn(ai_tool, mac["tools"])
-            self.assertNotIn(ai_tool, tools)
+        self.assertEqual(mac["tools"], {})
 
     def test_intel_darwin_is_removed_from_supported_surface(self) -> None:
         candidates = [
@@ -155,8 +138,8 @@ class OwnershipBoundaryTest(unittest.TestCase):
     def test_repository_tools_are_isolated_from_machine_convergence(self) -> None:
         base = tomllib.loads(read("mise.toml"))
         user_tools = tomllib.loads(read("config/mise/config.toml"))["tools"]
-        self.assertEqual(user_tools["usage"], "4.0.0")
-        for tool in ("actionlint", "hk", "shellcheck", "shfmt", "tombi"):
+        self.assertEqual(user_tools, {})
+        for tool in ("actionlint", "hk", "shellcheck", "shfmt", "tombi", "usage"):
             self.assertIn(tool, base["tools"])
             self.assertNotIn(tool, user_tools)
         self.assertNotIn("jq", base["tools"])
@@ -164,10 +147,7 @@ class OwnershipBoundaryTest(unittest.TestCase):
         self.assertNotIn("mise install", user_apply)
         self.assertIn("mise install", read(".mise/tasks/check/_default"))
 
-    def test_nix_direnv_uses_pinned_direnvrc(self) -> None:
-        root_config = read("mise.toml")
-        direnvrc = read("dotfiles/direnv/direnvrc")
-        self.assertIn("~/.config/direnv/direnvrc", root_config)
-        self.assertIn("nix_direnv_version 3.1.1", direnvrc)
-        self.assertIn("nix-community/nix-direnv/3.1.1/direnvrc", direnvrc)
-        self.assertIn("sha256-p+fzQdrms/hDa7g+soShAybJNo4bN4SIAeSfqNKgD5I=", direnvrc)
+    def test_public_repository_has_no_user_dotfiles(self) -> None:
+        self.assertFalse((ROOT / "dotfiles/direnv/direnvrc").exists())
+        self.assertFalse((ROOT / "dotfiles/zsh/zshrc").exists())
+        self.assertTrue((ROOT / "examples/terroir/dotfiles/README.md").is_file())

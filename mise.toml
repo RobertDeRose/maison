@@ -27,6 +27,7 @@ tombi = "latest"
 ty = "latest"
 typos = "latest"
 uv = "latest"
+usage = "4.0.0"
 
 [env]
 GIT_CONFIG_PARAMETERS = "'merge.ff=only'"
@@ -50,40 +51,4 @@ run = "uv run scripts/check-docs.py"
 description = "Enable GitHub Pages deployment"
 run = "python3 scripts/enable-docs-deployment.py"
 
-# The repository config owns framework dotfiles. The global mise config owns
-# user tools, applications, packages, and per-user preferences.
-[dotfiles]
-"~/.config/mise/config.toml" = { source = "config/mise/config.toml", mode = "symlink" }
-"~/.config/mise/config.macos.toml" = { source = "config/mise/config.macos.toml", mode = "symlink" }
-"~/.config/mise/config.macos-arm64.toml" = { source = "config/mise/config.macos-arm64.toml", mode = "symlink" }
-"~/.config/mise/config.linux.toml" = { source = "config/mise/config.linux.toml", mode = "symlink" }
-"~/.miserc.toml" = { source = "config/mise/.miserc.toml", mode = "symlink" }
-
-"~/.config/git/config" = { source = "dotfiles/git/config", mode = "symlink" }
-"~/.config/git/ignore" = { source = "dotfiles/git/ignore", mode = "symlink" }
-"~/.config/git/identity" = { source = "dotfiles/git/identity", mode = "symlink" }
-"~/.config/git/platform" = { source = "dotfiles/git/platform.tera", mode = "template" }
-"~/.config/git/allowed_signers" = { source = "dotfiles/git/allowed_signers", mode = "symlink" }
-
-"~/.config/helix/config.toml" = { source = "dotfiles/helix/config.toml", mode = "symlink" }
-"~/.config/helix/languages.toml" = { source = "dotfiles/helix/languages.toml", mode = "symlink" }
-"~/.config/starship.toml" = { source = "dotfiles/starship/starship.toml", mode = "symlink" }
-"~/.config/starship/minimal.toml" = { source = "dotfiles/starship/starship-minimal.toml", mode = "symlink" }
-"~/.config/ghostty/config" = { source = "dotfiles/ghostty/config", mode = "symlink" }
-"~/.config/zed/settings.json" = { source = "dotfiles/zed/settings.json", mode = "symlink" }
-"~/.config/zed/keymap.json" = { source = "dotfiles/zed/keymap.json", mode = "symlink" }
-"~/.config/htop/htoprc" = { source = "dotfiles/htop/htoprc", mode = "copy" }
-"~/.config/yazi/yazi.toml" = { source = "dotfiles/yazi/yazi.toml", mode = "symlink" }
-"~/.config/direnv/direnvrc" = { source = "dotfiles/direnv/direnvrc", mode = "symlink" }
-"~/.config/direnv/lib/maison-mise.sh" = { source = "dotfiles/direnv/lib/mise.sh", mode = "symlink" }
-"~/.ssh/config" = { source = "dotfiles/ssh/config.tera", mode = "template" }
-
-"~/.config/maison/zsh" = { source = "dotfiles/zsh", mode = "symlink" }
-"~/.zshrc" = { source = "dotfiles/zsh/zshrc", mode = "symlink" }
-"~/.local/bin" = { source = "dotfiles/bin", mode = "symlink-each" }
-
-"~/.pi/agent/themes/ayu-mirage.json" = { source = "dotfiles/pi/themes/ayu-mirage.json", mode = "symlink" }
-"~/.pi/agent/extensions/ayu-footer.ts" = { source = "dotfiles/pi/extensions/footer.ts", mode = "symlink" }
-"~/.pi/agent/extensions/markdown-pager.ts" = { source = "dotfiles/pi/extensions/pager.ts", mode = "symlink" }
-"~/.pi/agent/extensions/bookmark.ts" = { source = "dotfiles/pi/extensions/bookmark.ts", mode = "symlink" }
-"~/.pi/agent/AGENTS.md" = { source = "dotfiles/pi/AGENTS.md", mode = "symlink" }
+# Maison does not define user dotfiles here. A private overlay owns optional user configuration.
