@@ -94,8 +94,8 @@ class VerifiedBootstrapContractTest(unittest.TestCase):
             self.assertIn("checksum", refused.stderr.lower())
 
     def test_bootstrap_runtime_plugins_and_tools_are_immutable(self) -> None:
-        user_config = tomllib.loads(read("config/mise/config.toml"))
-        runtime_tools = {"usage": user_config["tools"]["usage"]}
+        project_config = tomllib.loads(read("mise.toml"))
+        runtime_tools = {"usage": project_config["tools"]["usage"]}
         for name, value in runtime_tools.items():
             with self.subTest(tool=name):
                 self.assertNotEqual(value, "latest")
@@ -110,11 +110,11 @@ class VerifiedBootstrapContractTest(unittest.TestCase):
         self.assertEqual(mutable_plugins, [])
 
     def test_non_bootstrap_latest_tools_remain_allowed_when_locked(self) -> None:
-        config = tomllib.loads(read("config/mise/config.toml"))["tools"]
-        lock = tomllib.loads(read("config/mise/mise.lock"))["tools"]
-        ordinary_latest_tools = {name for name, version in config.items() if version == "latest" and name != "usage"}
-        self.assertTrue(ordinary_latest_tools)
-        self.assertLessEqual(ordinary_latest_tools, set(lock))
+        config = tomllib.loads(read("config/mise/config.toml")).get("tools", {})
+        lock = tomllib.loads(read("config/mise/mise.lock")).get("tools", {})
+        ordinary_latest_tools = {name for name, version in config.items() if version == "latest"}
+        self.assertEqual(ordinary_latest_tools, set())
+        self.assertEqual(set(lock), set())
 
 
 class DeploymentContractTest(unittest.TestCase):

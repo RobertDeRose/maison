@@ -15,7 +15,7 @@ if [ -e "$old_extension" ]; then
 fi
 mkdir -p "$(dirname "$settings")"
 [ -s "$settings" ] || printf '{}\n' > "$settings"
-if command -v jq > /dev/null 2>&1; then
+if command -v jq > /dev/null 2>&1 && [ -f "$defaults" ]; then
   tmp="$(mktemp)"
   if jq --slurpfile defaults "$defaults" '
     . * $defaults[0]
