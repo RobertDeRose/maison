@@ -73,8 +73,9 @@ magic_rollback = true
 
 ## Migration and archive boundary
 
-Do not archive `nix-config` until both new repositories have passed local privacy, overlay, fresh-history, and remote
-visibility checks. Keep the source checkout and migration backups available until the new topology has been exercised.
+The validation gate passed before the source transition: `RobertDeRose/maison` is public, `RobertDeRose/terroir` is
+private, and `RobertDeRose/nix-config` is now private and archived. Keep the source checkout and migration backups
+available until the new topology has been exercised successfully; archiving does not delete local recovery data.
 
 ## Safety boundary
 
