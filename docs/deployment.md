@@ -1,8 +1,8 @@
 # Remote deployment
 
-The canonical source pair is public `RobertDeRose/maison` plus private `RobertDeRose/terroir`. Linux deployment is
-intentionally split into a deploy-rs system transaction and a Maison repository/user transaction. The archived
-`RobertDeRose/nix-config` repository is historical recovery material, not a deployment source.
+The canonical source pair is the public Maison framework plus a private overlay selected by the operator. Linux
+deployment is intentionally split into a deploy-rs system transaction and a Maison repository/user transaction. The
+archived source repository is historical recovery material, not a deployment source.
 
 ## System only
 
@@ -73,8 +73,8 @@ magic_rollback = true
 
 ## Migration and archive boundary
 
-The validation gate passed before the source transition: `RobertDeRose/maison` is public, `RobertDeRose/terroir` is
-private, and `RobertDeRose/nix-config` is now private and archived. Keep the source checkout and migration backups
+The validation gate must pass before archiving any source repository. The public Maison framework and selected private
+overlay are the active source pair; archived source history remains recovery material. Keep the source checkout and migration backups
 available until the new topology has been exercised successfully; archiving does not delete local recovery data.
 
 ## Safety boundary
