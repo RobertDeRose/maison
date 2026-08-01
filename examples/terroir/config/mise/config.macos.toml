@@ -1,0 +1,6 @@
+# Add private macOS tools, preferences, and environment here.
+[tools]
+# "npm:example-tool" = "latest"
+
+[env]
+# EDITOR = "..."

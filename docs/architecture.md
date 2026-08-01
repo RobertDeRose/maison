@@ -21,15 +21,13 @@ mise user layer
 
 The supported systems are `aarch64-darwin`, `aarch64-linux`, and `x86_64-linux`. Intel macOS is rejected by bootstrap, inventory validation, mise lock platforms, Nix outputs, and CI.
 
-## Public Maison, private Terroir, and archived source
+## Public Maison and private overlays
 
-`RobertDeRose/maison` is the public framework repository. It owns reusable code, validators, task machinery, Nix modules,
-and neutral starter examples. `RobertDeRose/terroir` is a private plain-Git overlay repository that owns real site state:
-inventory, host override modules, personal or organization package declarations, dotfile overrides, preferences, and
-non-secret trusted key material. `RobertDeRose/nix-config` is retained privately as the complete archived migration source;
-it is not an active clone target.
+Maison is the public framework repository. It owns reusable code, validators, task machinery, Nix modules, and neutral
+starter examples. Each user or organization may create a private plain-Git overlay for real site state: inventory, host
+overrides, package declarations, dotfiles, preferences, and non-secret trusted configuration.
 
-Secrets, passwords, tokens, SSH private keys, and signing private keys belong in Bitwarden, not in Maison or Terroir.
+Secrets, passwords, tokens, SSH private keys, and signing private keys belong in Bitwarden, not in Maison or an overlay.
 
 Overlay state is local and untracked:
 
@@ -38,9 +36,9 @@ ${XDG_STATE_HOME:-$HOME/.local/state}/maison/overlay.toml
 ${XDG_DATA_HOME:-$HOME/.local/share}/maison/overlay
 ```
 
-`--overlay` has run-local precedence over `MAISON_OVERLAY_SOURCE`, and both precede the saved state record. The cloned Terroir overlay mirrors Maison's layout for owned data: `inventory.toml`, `hosts/`, `config/mise/*.toml`,
-`dotfiles/`, and trusted key files. Overlay state is local and untracked; no checkout or state file is committed to
-Maison.
+`--overlay` has run-local precedence over `MAISON_OVERLAY_SOURCE`, and both precede the saved state record. A private
+overlay mirrors Maison's layout for owned data: `inventory.toml`, `hosts/`, `config/mise/*.toml`, `dotfiles/`, and
+trusted key files. Overlay state is local and untracked; no checkout or state file is committed to Maison.
 
 ## Nix system layer
 
@@ -85,22 +83,24 @@ The local deploy-rs adapter uses the same `pkgs.deploy-rs` package for the CLI, 
 
 ## mise user layer
 
-The repository `mise.toml` owns repository development tools, task discovery, and dotfile declarations. The installed global configuration owns the Maison runtime tool (`usage`) and ordinary user tools. Repository development tools are installed explicitly for this checkout by `maison check`, documentation tasks, and CI.
+The repository `mise.toml` owns repository development tools and task discovery. The installed global configuration owns
+the Maison runtime tool (`usage`) and any user tools supplied by a private overlay. Repository development tools are
+installed explicitly for this checkout by `maison check`, documentation tasks, and CI.
 
 Node is intentionally scoped at both levels: the global configuration keeps a user runtime for standalone Pi use, while
 repository `mise.toml` pins Node 24 for reproducible TypeScript validation. The repository declaration wins inside the
 checkout and does not converge or replace the global user runtime.
 
-The installed global user configuration owns:
+A private overlay may own:
 
-- Cross-platform versioned tools in `config.toml`.
-- Cross-platform ordinary Homebrew formulae in `config.toml`.
-- macOS-only tools, including AI coding tools, in `config.macos.toml`.
-- Apple Silicon casks, MAS applications, and macOS-only formulae in `config.macos-arm64.toml`.
-- Linux-specific policy in `config.linux.toml`.
-- Current-user macOS preferences and environment variables.
+- Cross-platform tools and ordinary Homebrew formulae in `config/mise/config.toml`.
+- macOS-only tools and preferences in `config/mise/config.macos.toml`.
+- Apple Silicon casks and MAS applications in `config/mise/config.macos-arm64.toml`.
+- Linux-specific policy in `config/mise/config.linux.toml`.
+- Application configuration in native formats under `dotfiles/`; Tera is used only where host, user, or platform
+  interpolation is required.
 
-Application configuration remains in native formats under `dotfiles/`; Tera is used only where host, user, or platform interpolation is required.
+Public Maison keeps these policy files empty and schema-valid.
 
 ## macOS defaults boundary
 
@@ -108,7 +108,9 @@ Mise may write current-user preference domains such as Dock, Finder, trackpad, s
 
 ## Single ownership
 
-Package declarations merge across mise's configuration hierarchy, so common packages are declared once in `config.toml`. Platform files contain only platform-specific additions. A binary must not be declared simultaneously as a mise tool and a bootstrap package; for example, `bat` is owned only by `brew:bat`. The scoped Node runtime exception above is the only tool declared in both global and repository scope: each declaration serves a different execution boundary.
+Package declarations merge across mise's configuration hierarchy. A private overlay should declare common packages once
+in `config/mise/config.toml` and platform additions in the matching files. Public Maison declares no user packages or
+applications. A binary must not be declared simultaneously as a mise tool and a bootstrap package.
 
 ## Inventory interface
 

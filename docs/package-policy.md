@@ -15,12 +15,15 @@ Darwin's system closure contains `nh`, `deploy-rs`, `nixd`, system-wide fonts, a
 
 ## User package files
 
-Public Maison keeps neutral starter package files. Personal, organization, or site package policy belongs in the private overlay's matching `config/mise/*.toml` files.
+Public Maison keeps empty, schema-valid package stubs and installs no user applications by default. Personal,
+organization, or site package policy belongs in a private overlay based on `examples/terroir/config/mise/`.
 
-- `config/mise/config.toml`: cross-platform versioned tools and ordinary Homebrew formulae.
-- `config/mise/config.macos.toml`: macOS-only tools, including AI coding tools, and current-user preferences.
-- `config/mise/config.macos-arm64.toml`: Apple Silicon casks, MAS applications, and macOS-only formulae.
-- `config/mise/config.linux.toml`: Linux-specific package-manager and locale policy.
+- `config/mise/config.toml`: neutral cross-platform policy stub.
+- `config/mise/config.macos.toml`: neutral macOS policy stub.
+- `config/mise/config.macos-arm64.toml`: neutral Apple Silicon policy stub.
+- `config/mise/config.linux.toml`: neutral Linux policy stub.
+
+Copy the examples into a private overlay before adding tools, formulae, casks, MAS applications, or preferences.
 
 Intel macOS is unsupported; there is no placeholder configuration pretending to provide package parity.
 
