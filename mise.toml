@@ -1,52 +1,89 @@
-#:schema https://mise.jdx.dev/schema/mise.json
+[settings]
+experimental = true
+env_shell_expand = true
+dotfiles.default_mode = "symlink"
+lockfile = true
+lockfile_platforms = ["macos-arm64", "linux-arm64", "linux-x64"]
 
+# Repository tools are pinned in mise.lock. User tools, applications, and
+# preferences live in config/mise and are separate from this project toolchain.
 [tools]
-hk = "1.49.0"
-cocogitto = "latest"
-harper-cli = "latest"
-"npm:@contextlint/cli" = { version = "latest", aube_args = "--allow-low-downloads" }
-node = "lts"
-mdbook = "latest"
-uv = "latest"
-rumdl = "latest"
-typos = "latest"
-"npm:markdown-table-formatter" = "latest"
-ruff = "latest"
-ty = "latest"
+actionlint = "latest"
+"aqua:Mic92/nixfmt-rs" = "latest"
 aube = "latest"
 biome = "latest"
-"github:Mic92/nixfmt-rs" = { version = "latest", os = ["linux", "macos/arm64"] }
+cocogitto = "latest"
+harper-cli = "latest"
+hk = "1.49.0"
+"github:rust-lang/mdBook" = "latest"
+node = "24"
+"npm:@contextlint/cli" = { version = "latest", aube_args = "--allow-low-downloads" }
+"npm:markdown-table-formatter" = "latest"
+rumdl = "latest"
+ruff = "latest"
+shellcheck = "latest"
+shfmt = "latest"
+tombi = "latest"
+ty = "latest"
+typos = "latest"
+uv = "latest"
 
 [env]
 GIT_CONFIG_PARAMETERS = "'merge.ff=only'"
 HK_MISE = 1
 
-[tasks.check]
-description = "Run repository validation"
-run = "hk check -a"
+[hooks]
+postinstall = "command -v hk >/dev/null && hk install --mise || true"
+
+[task_config]
+includes = [".mise/tasks"]
 
 [tasks.fix]
 description = "Apply deterministic repository fixes"
 run = "hk fix -a"
 
 [tasks."docs:check"]
-description = "Validate and build the documentation"
-depends = ["docs:build"]
+description = "Validate the documentation structure"
 run = "uv run scripts/check-docs.py"
-
-[tasks."docs:build"]
-description = "Build the documentation site"
-run = "mdbook build docs"
 
 [tasks."docs:deployment:enable"]
 description = "Enable GitHub Pages deployment"
 run = "python3 scripts/enable-docs-deployment.py"
 
-[tasks."docs:serve"]
-description = "Serve the documentation site locally"
-usage = 'arg "[port]" help="Port to serve on" default="3000"'
-run = '''
-#!/usr/bin/env bash
-set -euo pipefail
-mdbook serve docs --port "${usage_port:-3000}"
-'''
+# The repository config owns framework dotfiles. The global mise config owns
+# user tools, applications, packages, and per-user preferences.
+[dotfiles]
+"~/.config/mise/config.toml" = { source = "config/mise/config.toml", mode = "symlink" }
+"~/.config/mise/config.macos.toml" = { source = "config/mise/config.macos.toml", mode = "symlink" }
+"~/.config/mise/config.macos-arm64.toml" = { source = "config/mise/config.macos-arm64.toml", mode = "symlink" }
+"~/.config/mise/config.linux.toml" = { source = "config/mise/config.linux.toml", mode = "symlink" }
+"~/.miserc.toml" = { source = "config/mise/.miserc.toml", mode = "symlink" }
+
+"~/.config/git/config" = { source = "dotfiles/git/config", mode = "symlink" }
+"~/.config/git/ignore" = { source = "dotfiles/git/ignore", mode = "symlink" }
+"~/.config/git/identity" = { source = "dotfiles/git/identity", mode = "symlink" }
+"~/.config/git/platform" = { source = "dotfiles/git/platform.tera", mode = "template" }
+"~/.config/git/allowed_signers" = { source = "dotfiles/git/allowed_signers", mode = "symlink" }
+
+"~/.config/helix/config.toml" = { source = "dotfiles/helix/config.toml", mode = "symlink" }
+"~/.config/helix/languages.toml" = { source = "dotfiles/helix/languages.toml", mode = "symlink" }
+"~/.config/starship.toml" = { source = "dotfiles/starship/starship.toml", mode = "symlink" }
+"~/.config/starship/minimal.toml" = { source = "dotfiles/starship/starship-minimal.toml", mode = "symlink" }
+"~/.config/ghostty/config" = { source = "dotfiles/ghostty/config", mode = "symlink" }
+"~/.config/zed/settings.json" = { source = "dotfiles/zed/settings.json", mode = "symlink" }
+"~/.config/zed/keymap.json" = { source = "dotfiles/zed/keymap.json", mode = "symlink" }
+"~/.config/htop/htoprc" = { source = "dotfiles/htop/htoprc", mode = "copy" }
+"~/.config/yazi/yazi.toml" = { source = "dotfiles/yazi/yazi.toml", mode = "symlink" }
+"~/.config/direnv/direnvrc" = { source = "dotfiles/direnv/direnvrc", mode = "symlink" }
+"~/.config/direnv/lib/maison-mise.sh" = { source = "dotfiles/direnv/lib/mise.sh", mode = "symlink" }
+"~/.ssh/config" = { source = "dotfiles/ssh/config.tera", mode = "template" }
+
+"~/.config/maison/zsh" = { source = "dotfiles/zsh", mode = "symlink" }
+"~/.zshrc" = { source = "dotfiles/zsh/zshrc", mode = "symlink" }
+"~/.local/bin" = { source = "dotfiles/bin", mode = "symlink-each" }
+
+"~/.pi/agent/themes/ayu-mirage.json" = { source = "dotfiles/pi/themes/ayu-mirage.json", mode = "symlink" }
+"~/.pi/agent/extensions/ayu-footer.ts" = { source = "dotfiles/pi/extensions/footer.ts", mode = "symlink" }
+"~/.pi/agent/extensions/markdown-pager.ts" = { source = "dotfiles/pi/extensions/pager.ts", mode = "symlink" }
+"~/.pi/agent/extensions/bookmark.ts" = { source = "dotfiles/pi/extensions/bookmark.ts", mode = "symlink" }
+"~/.pi/agent/AGENTS.md" = { source = "dotfiles/pi/AGENTS.md", mode = "symlink" }

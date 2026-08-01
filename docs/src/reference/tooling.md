@@ -2,25 +2,30 @@
 
 ## Files
 
-| File                                | Contract                                                                    |
-|-------------------------------------|-----------------------------------------------------------------------------|
-| `mise.toml`                         | Declares project tools, environment, and named tasks.                       |
-| `mise.lock`                         | Project-owned resolved downloads; commit it.                                |
-| `hk.pkl`                            | Defines the shared check/fix/pre-commit step map.                           |
-| `.config/rumdl.toml`                | Configures Markdown linting and deterministic fixes.                        |
-| `.editorconfig`                     | Keeps editor output on UTF-8, LF, final newlines, and no trailing spaces.   |
-| `_typos.toml`                       | Ignores hash-like identifiers while retaining typo checks elsewhere.        |
-| `contextlint.config.json`           | Checks documentation links, anchors, and image targets.                     |
-| `cog.toml`                          | Configures Conventional Commits and concise changelogs.                     |
-| `.config/cog-changelog.tera`        | Renders plain Markdown changelogs without author noise.                     |
-| `scripts/setup-tooling.py`          | Resolves the lock, installs tools, installs hooks, and returns JSON status. |
-| `scripts/enable-docs-deployment.py` | Configures workflow-built Pages through external `gh`.                      |
-| `.github/workflows/validate.yml`    | Runs locked `mise run check` on pushes and pull requests.                   |
-| `.github/workflows/docs.yml`        | Builds gated docs from the default branch or manual dispatch.               |
+| File                                       | Contract                                                                    |
+|--------------------------------------------|-----------------------------------------------------------------------------|
+| `mise.toml`                                | Declares project tools, environment, and named tasks.                       |
+| `mise.lock`                                | Project-owned resolved downloads; commit it.                                |
+| `dotfiles/pi/extensions/package.json`      | Pinned Pi extension validation scripts and dependencies.                    |
+| `dotfiles/pi/extensions/package-lock.json` | Reproducible npm dependency resolution for Pi validation.                   |
+| `dotfiles/pi/extensions/tsconfig.json`     | Strict no-emit TypeScript compiler boundary for Pi extensions.              |
+| `hk.pkl`                                   | Defines the shared check/fix/pre-commit step map.                           |
+| `.config/rumdl.toml`                       | Configures Markdown linting and deterministic fixes.                        |
+| `.editorconfig`                            | Keeps editor output on UTF-8, LF, final newlines, and no trailing spaces.   |
+| `_typos.toml`                              | Ignores hash-like identifiers while retaining typo checks elsewhere.        |
+| `contextlint.config.json`                  | Checks documentation links, anchors, and image targets.                     |
+| `cog.toml`                                 | Configures Conventional Commits and concise changelogs.                     |
+| `.config/cog-changelog.tera`               | Renders plain Markdown changelogs without author noise.                     |
+| `scripts/setup-tooling.py`                 | Resolves the lock, installs tools, installs hooks, and returns JSON status. |
+| `schemas/inventory.toml`                   | Shared public inventory schema contract for Python and Nix validators.      |
+| `scripts/enable-docs-deployment.py`        | Configures workflow-built Pages through external `gh`.                      |
+| `.github/workflows/validate.yml`           | Runs locked `mise run check` on pushes and pull requests.                   |
+| `.github/workflows/docs.yml`               | Builds gated docs from the default branch or manual dispatch.               |
+| `.github/workflows/cache-refresh.yml`      | Warms cache targets and opens or updates flake refresh PRs without merging. |
 
 ## Tools
 
-The universal tool set is hk `1.49.0`, Node `lts`, and the `latest` Cocogitto, Harper CLI, Contextlint, mdBook, uv,
+The universal tool set is hk `1.49.0`, Node `24`, and the `latest` Cocogitto, Harper CLI, Contextlint, mdBook, uv,
 rumdl, typos, and `npm:markdown-table-formatter` releases. Contextlint checks documentation links, anchors, and image
 targets. Its reviewed low-download aube exception applies only to `@contextlint/cli`. Both hk Pkl imports use `1.49.0`.
 Equivalent native hk steps own matching formatter and linter commands. Independent steps have no explicit `depends`
@@ -32,7 +37,7 @@ configuration without a changed-file argument; documentation and Markdown-table 
 no built-in; rumdl avoids the built-in diff header while discovering `.config/rumdl.toml`; Go, Elixir, and Nix commands
 lack matching built-ins; and test, compiler, linter, and module checks must remain gated by their project manifests.
 
-Recorded language profiles: `python, typescript, nix`.
+Recorded language profiles: `other`.
 
 ## Template updates
 
@@ -53,55 +58,41 @@ The generated `cog.toml` initially accepts any syntactically valid scope. To con
 allowlist, document each stable subsystem in README when present or on this page otherwise, and update `AGENTS.md` so
 agents apply the same taxonomy. Run `cog check` after changing the allowlist.
 
-### Python profile
-
-| Step        | Check                                        | Fix           | Files                                                  |
-|-------------|----------------------------------------------|---------------|--------------------------------------------------------|
-| Ruff lint   | `ruff check --force-exclude`                 | add `--fix`   | `**/*.py`, `**/*.pyi`                                  |
-| Ruff format | `ruff format --quiet --force-exclude --diff` | omit `--diff` | `**/*.py`, `**/*.pyi`                                  |
-| ty          | `ty check`                                   | none          | `**/*.py`, `**/*.pyi`                                  |
-| pytest      | `uv run pytest`                              | none          | root `pyproject.toml` plus `tests/**/*.py`; check only |
-
-Ruff and ty are mise-managed at `latest`; pytest is project-owned. The profile ignores `.venv/`, `__pycache__/`,
-`*.py[cod]`, `.pytest_cache/`, and `.ruff_cache/`.
-
-### TypeScript profile
-
-| Step   | Check                                  | Fix           | Files                                                                    |
-|--------|----------------------------------------|---------------|--------------------------------------------------------------------------|
-| Biome  | `biome check --no-errors-on-unmatched` | add `--write` | `**/*.{ts,tsx,mts,cts}`                                                  |
-| Vitest | `aube exec vitest run`                 | none          | root `package.json` plus `**/*.{test,spec}.{ts,tsx,mts,cts}`; check only |
-
-Biome and Aube are mise-managed at `latest`; Vitest is project-owned. Universal Node `lts` is reused and never
-duplicated. The profile ignores `node_modules/` and `coverage/`.
-
-### Nix profile
-
-| Step   | Check                        | Fix                  | Gate                                              |
-|--------|------------------------------|----------------------|---------------------------------------------------|
-| nixfmt | `nixfmt --check {{ files }}` | `nixfmt {{ files }}` | `**/*.nix`; all hooks; Linux/macOS ARM64          |
-| flake  | `nix flake check`            | none                 | root `flake.nix`; check only; system Nix required |
-
-`github:Mic92/nixfmt-rs` is mise-managed at `latest` with `os = ["linux", "macos/arm64"]`. Matching Nix inputs on macOS
-x64 fail with `Nix profile does not support macOS x64`. A missing system Nix executable for a flake fails with
-`Nix profile requires system nix for flake checks`. The profile ignores `.direnv/`, `result`, and `result-*`.
+No recognized language profile is active; only the universal tooling baseline is
+configured.
 
 ## Tasks
 
-| Task                     | Behavior                                                              |
-|--------------------------|-----------------------------------------------------------------------|
-| `check`                  | Run all hk checks without requesting fixes.                           |
-| `fix`                    | Apply deterministic hk fixes to the working tree.                     |
-| `docs:check`             | Build the book, then validate documentation metadata and navigation.  |
-| `docs:build`             | Build the mdBook site.                                                |
-| `docs:deployment:enable` | Configure Pages and enable its repository gate through external `gh`. |
-| `docs:serve`             | Serve mdBook on port 3000 by default or a supplied port.              |
+| Task                     | Behavior                                                                                 |
+|--------------------------|------------------------------------------------------------------------------------------|
+| `check`                  | Install repository tools, then run TypeScript, data, shell, Python test, and Nix checks. |
+| `check:typescript`       | Install the locked Pi workspace, run `tsc --noEmit`, and run its focused tests.          |
+| `check:tests`            | Run bounded Python `unittest` discovery across `tests/test_*.py`.                        |
+| `fix`                    | Apply deterministic hk fixes to the working tree.                                        |
+| `docs:check`             | Build the book, then validate documentation metadata and navigation.                     |
+| `docs:build`             | Build the mdBook site.                                                                   |
+| `docs:deployment:enable` | Configure Pages and enable its repository gate through external `gh`.                    |
+| `docs:serve`             | Serve mdBook on port 3000 by default or a supplied port.                                 |
 
-The committed lock targets `linux-x64`, `linux-arm64`, `macos-x64`, and `macos-arm64`. Windows is not part of this
+The committed lock targets `linux-x64`, `linux-arm64`, and `macos-arm64`. Intel macOS and Windows are not part of this
 POSIX-shell task contract.
+
+Inventory validation fixtures live under `tests/fixtures/inventory/` and are consumed by both Python tests and Nix
+evaluation checks. Add fixture cases when changing inventory fields, defaults, profile compatibility, deploy path rules,
+or overlay host override layout.
+
+Python tests are partitioned by subsystem: inventory and overlay behavior, deployment and bootstrap contracts,
+migration behavior, ownership boundaries, repository contracts and mutation locking, transaction behavior, configuration
+editing, deploy-transaction internals, and shared inventory schema fixtures. External processes in tests must run
+through `tests/support/processes.py`, which provides process-group cleanup, stdout/stderr capture, bounded diagnostics,
+a 30 second default timeout, and explicit per-call overrides up to 300 seconds. Document any override at the call site.
 
 The mise environment routes hooks through mise with `HK_MISE=1` and sets `GIT_CONFIG_PARAMETERS="'merge.ff=only'"`, so
 Git rejects merges that require a merge commit.
+
+The cache-refresh workflow may create or update `automation/refresh-flake-lock` after cache warming, but dependency
+approval is not automated. That workflow must not invoke `gh pr merge`, pass `--admin`, enable auto-merge, or otherwise
+bypass branch protection.
 
 The universal tool count remains ten; `gh` is an external administrative prerequisite, not a mise tool. Pages requires
 `build_type=workflow` plus `DOCS_DEPLOYMENT_ENABLED=true`. The build job has `contents: read`; only the deploy job has
