@@ -1,0 +1,43 @@
+# BEGIN DSTACK WORKFLOW
+# Generated mdBook output
+docs/book/
+
+# Local tooling and secret overrides
+mise.local.toml
+.mise.local.toml
+.env
+.env.local
+.env.*.local
+.rumdl_cache/
+
+# Python environments and cache files
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+
+
+# TypeScript dependencies and coverage
+node_modules/
+coverage/
+
+
+
+
+
+# Nix development and build links
+.direnv/
+result
+result-*
+
+
+# Local editor and OS files
+.DS_Store
+# END DSTACK WORKFLOW
+
+# Beads / Dolt files (added by bd init)
+.dolt/
+*.db
+.beads-credential-key
+.beads/proxieddb/
