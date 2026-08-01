@@ -1,3 +1,0 @@
-[dotfiles]
-"~/Library/Services/Open in Ghostty.workflow" = { source = "files/workflows/Open in Ghostty.workflow", mode = "copy" }
-"~/Library/Services/Open in cmux.workflow" = { source = "files/workflows/Open in cmux.workflow", mode = "copy" }
