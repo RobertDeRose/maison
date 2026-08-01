@@ -4,6 +4,17 @@ Baseline bundle commit: `49e34f89715a5500e4aa15042dd65cc4483586e8`.
 
 This document records where behavior moved before Home Manager and bespoke deployment logic were removed.
 
+## Final repository boundary
+
+The MAISON-017 transition completed after the public/private validation gate:
+
+- `https://github.com/RobertDeRose/maison` is the public framework and defaults to `main`.
+- `https://github.com/RobertDeRose/terroir` is the private overlay and defaults to `main`.
+- `https://github.com/RobertDeRose/nix-config` is the private archived historical source; its local checkout and
+  history remain preserved for recovery.
+
+The approved owner-only migration manifest and Bitwarden remain the recovery sources for excluded private material.
+
 | Previous behavior                                      | New owner / implementation                                                                                 | Validation                                                                            |
 |--------------------------------------------------------|------------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------|
 | Darwin build and switch                                | `nh darwin` through `system:plan` / `system:apply`                                                         | Build and switch the inventory host                                                   |

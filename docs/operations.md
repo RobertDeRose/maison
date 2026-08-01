@@ -122,9 +122,9 @@ journal directory. Read-only plan, status, list, validate, and search commands d
 
 Scheduled cache refresh automation may update `flake.lock`, build the proposed dependency graph, warm Cachix, and open or refresh an `automation/refresh-flake-lock` pull request. It does not merge that PR or bypass branch protection; accepting dependency changes remains a normal reviewed PR merge.
 
-The archived `RobertDeRose/nix-config` repository and the approved migration manifest remain recovery references until the
-new Maison/Terroir workflow has been confirmed on the managed hosts. Do not archive or remove local migration backups
-before that confirmation.
+The private archived `RobertDeRose/nix-config` repository and the approved migration manifest remain recovery
+references until the new Maison/Terroir workflow has been confirmed on the managed hosts. Do not remove local migration
+backups before that confirmation; the remote archive does not delete local recovery data.
 
 ## Clean
 
