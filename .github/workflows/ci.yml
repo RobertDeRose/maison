@@ -1,0 +1,96 @@
+name: Validate
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_call:
+    inputs:
+      ref:
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.event_name == 'workflow_call' && format('{0}-{1}-reusable', github.workflow, github.run_id) || format('{0}-{1}', github.workflow, github.event.pull_request.number || github.ref) }}
+  cancel-in-progress: true
+
+jobs:
+  repository-checks:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.ref != 'automation/refresh-flake-lock'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ inputs.ref != '' && inputs.ref || github.sha }}
+      - uses: cachix/install-nix-action@96951a368ba55167b55f1c916f7d416bac6505fe # v31.10.3
+        with:
+          github_access_token: ""
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+      - uses: DeterminateSystems/magic-nix-cache-action@1828eb4e5414b8dfe36daae53ea3e4b8c3fdec7a # main
+      - uses: jdx/mise-action@4444d8fd7a1b92f1821c12f435db40f58b743d26 # v4.0.1
+        with:
+          install: false
+      - name: Install repository validation tools
+        run: mise install
+      - name: Run the repository contract
+        run: mise run check
+
+  build-configurations:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.ref != 'automation/refresh-flake-lock'
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - ubuntu-24.04-arm
+          - macos-15
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ inputs.ref != '' && inputs.ref || github.sha }}
+      - uses: cachix/install-nix-action@96951a368ba55167b55f1c916f7d416bac6505fe # v31.10.3
+        with:
+          github_access_token: ""
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+      - uses: DeterminateSystems/magic-nix-cache-action@1828eb4e5414b8dfe36daae53ea3e4b8c3fdec7a # main
+      - name: Evaluate and build this runner's targets
+        run: |
+          kernel="$(uname -s | tr '[:upper:]' '[:lower:]')"
+          arch="$(uname -m)"
+          case "$arch" in
+            arm64 | aarch64) arch=aarch64 ;;
+            x86_64 | amd64) arch=x86_64 ;;
+            *) echo "Unsupported architecture: $arch" >&2; exit 1 ;;
+          esac
+          bash .github/scripts/build-platform-targets.sh "$arch-$kernel"
+
+  bootstrap-steps:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.ref != 'automation/refresh-flake-lock'
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-15
+    env:
+      CI: "true"
+      GITHUB_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ inputs.ref != '' && inputs.ref || github.sha }}
+      - name: Exercise the pre-mise bootstrap boundary
+        run: |
+          bash -n bootstrap.sh
+          ./bootstrap.sh --help
+          cat bootstrap.sh | bash -s -- --help
+          PYTHONPATH=tests python3 -m unittest -v \
+            test_topology.MigrationBehaviorTest.test_bootstrap_help_pipe_and_clone_handoff
