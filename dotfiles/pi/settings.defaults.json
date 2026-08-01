@@ -1,0 +1,15 @@
+{
+  "packages": [
+  ],
+  "theme": "ayu-mirage",
+  "steeringMode": "one-at-a-time",
+  "transport": "auto",
+  "defaultProvider": "openai",
+  "defaultModel": "gpt-5.6-sol",
+ "defaultThinkingLevel": "low",
+  "terminal": { "showTerminalProgress": true },
+  "enableInstallTelemetry": false,
+  "editorPaddingX": 1,
+  "autocompleteMaxVisible": 8,
+  "collapseChangelog": true
+}

@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+# [MISE] description="Validate task metadata and shell/Python syntax"
+set -euo pipefail
+root="${MISE_PROJECT_ROOT:-$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)}"
+cd "$root"
+mise tasks validate
+find .mise/tasks .mise/lib scripts .github/scripts -type f \( -name '*.sh' -o -path '.mise/tasks/*' \) -exec bash -n {} +
+bash -n bootstrap.sh bin/maison
+python3 -m compileall -q .mise/lib scripts tests
+if command -v shellcheck >/dev/null 2>&1; then
+  find .mise/tasks .mise/lib scripts .github/scripts -type f \( -name '*.sh' -o -path '.mise/tasks/*' \) -exec shellcheck -x {} +
+  shellcheck -x bootstrap.sh bin/maison
+fi

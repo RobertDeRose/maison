@@ -1,0 +1,28 @@
+{
+  "$schema": "https://raw.githubusercontent.com/earendil-works/pi/main/packages/coding-agent/src/modes/interactive/theme/theme-schema.json",
+  "name": "ayu-mirage",
+  "vars": {
+    "background": "#1F2430", "black": "#191E2A", "currentLine": "#44475A", "foreground": "#CBCCC6",
+    "dim": "#707A8C", "blue": "#73D0FF", "brightBlue": "#59C2FF", "cyan": "#95E6CB",
+    "green": "#AAD94C", "lightGreen": "#D5FF80", "purple": "#D4BFFF", "red": "#F28779",
+    "orange": "#FFAD66", "yellow": "#FFD173"
+  },
+  "colors": {
+    "accent": "blue", "border": "currentLine", "borderAccent": "cyan", "borderMuted": "dim",
+    "success": "green", "error": "#FF6B5F", "warning": "#FFB454", "muted": "dim", "dim": 240,
+    "text": "foreground", "thinkingText": "dim", "selectedBg": "#2A3140", "userMessageBg": "#28384A",
+    "userMessageText": "#E6F4FF", "customMessageBg": "#252B38", "customMessageText": "foreground",
+    "customMessageLabel": "cyan", "toolPendingBg": "#1A202B", "toolSuccessBg": "#1B261D",
+    "toolErrorBg": "#2A1D20", "toolTitle": "#5FAFD7", "toolOutput": "#AEB6BF",
+    "mdHeading": "orange", "mdLink": "blue", "mdLinkUrl": "dim", "mdCode": "cyan",
+    "mdCodeBlock": "foreground", "mdCodeBlockBorder": "currentLine", "mdQuote": "purple",
+    "mdQuoteBorder": "dim", "mdHr": "currentLine", "mdListBullet": "cyan",
+    "toolDiffAdded": "green", "toolDiffRemoved": "red", "toolDiffContext": "dim",
+    "syntaxComment": "dim", "syntaxKeyword": "purple", "syntaxFunction": "blue", "syntaxVariable": "orange",
+    "syntaxString": "green", "syntaxNumber": "yellow", "syntaxType": "cyan", "syntaxOperator": "purple",
+    "syntaxPunctuation": "dim", "thinkingOff": "#3A4150", "thinkingMinimal": "#5F87AF",
+    "thinkingLow": "#73D0FF", "thinkingMedium": "#AAD94C", "thinkingHigh": "#FFAD66",
+    "thinkingXhigh": "#FF4D6D", "bashMode": "yellow"
+  },
+  "export": { "pageBg": "#191E2A", "cardBg": "#1F2430", "infoBg": "#252B38" }
+}

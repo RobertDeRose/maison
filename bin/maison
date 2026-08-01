@@ -1,0 +1,303 @@
+#!/usr/bin/env -S usage bash
+# shellcheck shell=bash
+# Maison is the location-independent command interface to the repository's mise tasks.
+#
+#USAGE about "Put your workstation in order."
+#USAGE long_about "Nix/Lix owns OS-level state; mise owns user tools, applications, preferences, and dotfiles."
+#USAGE flag "-V --version" help="Show the installed Maison revision"
+#USAGE cmd "apply" help="Apply system and user configuration" { arg "[args]..." }
+#USAGE cmd "bootstrap" help="Bootstrap or repair a host" { arg "[args]..." }
+#USAGE cmd "check" help="Validate repository contracts" { arg "[args]..." }
+#USAGE cmd "deploy" help="Deploy a Linux system and user environment" { arg "[args]..." }
+#USAGE cmd "doctor" help="Diagnose both ownership layers" { arg "[args]..." }
+#USAGE cmd "plan" help="Preview system and user changes" { arg "[args]..." }
+#USAGE cmd "rollback" help="Roll back the Nix system layer" { arg "[args]..." }
+#USAGE cmd "update" help="Update Nix inputs and mise-managed software" { arg "[args]..." }
+#USAGE cmd "tasks" help="List Maison tasks" { arg "[args]..." }
+#USAGE cmd "completion" help="Generate shell completion" {
+#USAGE   arg "<shell>" { choices "bash" "zsh" "fish" }
+#USAGE }
+#USAGE cmd "system" help="Manage OS-level Nix state" {
+#USAGE   cmd "plan" help="Build without activation" { arg "[args]..." }
+#USAGE   cmd "apply" help="Build and activate" { arg "[args]..." }
+#USAGE   cmd "deploy" help="Deploy with deploy-rs" { arg "[args]..." }
+#USAGE   cmd "history" help="List system generations" { arg "[args]..." }
+#USAGE   cmd "rollback" help="Activate the prior generation" { arg "[args]..." }
+#USAGE   cmd "clean" help="Clean old generations" { arg "[args]..." }
+#USAGE }
+#USAGE cmd "user" help="Manage mise-owned user state" {
+#USAGE   cmd "plan" help="Preview bootstrap changes" { arg "[args]..." }
+#USAGE   cmd "apply" help="Converge tools, apps, preferences, and dotfiles" { arg "[args]..." }
+#USAGE   cmd "status" help="Show drift" { arg "[args]..." }
+#USAGE   cmd "update" help="Upgrade tools and packages" { arg "[args]..." }
+#USAGE }
+#USAGE cmd "host" help="Manage hosts" {
+#USAGE   cmd "add" help="Add a host" { arg "[args]..." }
+#USAGE   cmd "list" help="List hosts" { arg "[args]..." }
+#USAGE   cmd "validate" help="Validate inventory" { arg "[args]..." }
+#USAGE }
+#USAGE cmd "tool" help="Manage global mise tools" {
+#USAGE   cmd "add" help="Add a tool" { arg "[args]..." }
+#USAGE   cmd "remove" help="Remove a tool" { arg "[args]..." }
+#USAGE }
+#USAGE cmd "package" help="Manage mise bootstrap packages" {
+#USAGE   cmd "add" help="Add a package" { arg "[args]..." }
+#USAGE   cmd "remove" help="Remove a package" { arg "[args]..." }
+#USAGE   cmd "search" help="Search package sources" { arg "[args]..." }
+#USAGE   cmd "update" help="Upgrade Homebrew formulae" { arg "[args]..." }
+#USAGE }
+#USAGE cmd "app" help="Manage macOS applications" {
+#USAGE   cmd "add" help="Add a cask" { arg "[args]..." }
+#USAGE   cmd "remove" help="Remove a cask" { arg "[args]..." }
+#USAGE   cmd "update" help="Upgrade casks and Mac App Store apps" { arg "[args]..." }
+#USAGE }
+#USAGE cmd "docs" help="Manage documentation" {
+#USAGE   cmd "build" help="Build documentation" { arg "[args]..." }
+#USAGE   cmd "serve" help="Serve documentation" { arg "[args]..." }
+#USAGE }
+#USAGE cmd "github" help="Manage GitHub authentication" {
+#USAGE   cmd "auth" help="Configure GitHub API authentication" { arg "[args]..." }
+#USAGE }
+#USAGE cmd "activate" hide=#true { arg "[args]..." }
+#USAGE cmd "__task-names" hide=#true
+#USAGE cmd "__command-paths" hide=#true
+
+set -euo pipefail
+
+log_error() {
+  printf 'maison: %s\n' "$*" >&2
+}
+
+die() {
+  log_error "$*"
+  exit 1
+}
+
+resolve_script_maison_home() {
+  local script_path="${BASH_SOURCE[0]}" script_dir link_target
+
+  while [ -L "$script_path" ]; do
+    script_dir="$(cd -P "$(dirname "$script_path")" > /dev/null 2>&1 && pwd)"
+    link_target="$(readlink "$script_path")"
+    case "$link_target" in
+      /*) script_path="$link_target" ;;
+      *) script_path="$script_dir/$link_target" ;;
+    esac
+  done
+
+  script_dir="$(cd -P "$(dirname "$script_path")" > /dev/null 2>&1 && pwd)"
+  cd "$script_dir/.." > /dev/null 2>&1 && pwd
+}
+
+script_maison_home="$(resolve_script_maison_home || true)"
+if [ -n "${MAISON_HOME:-}" ]; then
+  maison_home="$MAISON_HOME"
+elif [ -n "${NIX_CONFIG_DIR:-}" ]; then
+  maison_home="$NIX_CONFIG_DIR"
+elif [ -f "$script_maison_home/mise.toml" ] && [ -f "$script_maison_home/flake.nix" ]; then
+  maison_home="$script_maison_home"
+else
+  maison_home="$HOME/.maison"
+fi
+
+if [ ! -d "$maison_home" ]; then
+  die "installation not found at $maison_home; set MAISON_HOME or rerun bootstrap"
+fi
+if [ ! -f "$maison_home/mise.toml" ] || [ ! -f "$maison_home/flake.nix" ]; then
+  die "$maison_home does not look like a Maison installation"
+fi
+
+if command -v mise > /dev/null 2>&1; then
+  mise_bin="$(command -v mise)"
+elif [ -x "$HOME/.local/bin/mise" ]; then
+  mise_bin="$HOME/.local/bin/mise"
+else
+  die "mise is unavailable; rerun Maison bootstrap"
+fi
+
+export MISE_PROJECT_ROOT="$maison_home"
+export MISE_TRUSTED_CONFIG_PATHS="$maison_home${MISE_TRUSTED_CONFIG_PATHS:+:$MISE_TRUSTED_CONFIG_PATHS}"
+
+list_task_names() {
+  find "$maison_home/.mise/tasks" -type f -perm -u+x -print \
+    | sed "s#^$maison_home/.mise/tasks/##; s#/#:#g" \
+    | LC_ALL=C sort -u
+}
+
+list_public_task_names() {
+  local task compatibility
+  while IFS= read -r task; do
+    compatibility="${task//-/:}"
+    if [ "$compatibility" != "$task" ] && list_task_names | grep -Fxq "$compatibility"; then
+      continue
+    fi
+    printf '%s\n' "$task"
+  done < <(list_task_names)
+}
+
+list_command_paths() {
+  list_public_task_names | tr ':' ' '
+}
+
+resolve_task() {
+  local -a words=("$@")
+  local candidate="" best="" index best_count=0 task
+
+  for ((index = 0; index < ${#words[@]}; index++)); do
+    if [ -z "$candidate" ]; then
+      candidate="${words[index]}"
+    else
+      candidate+="${candidate:+:}${words[index]}"
+    fi
+
+    while IFS= read -r task; do
+      if [ "$candidate" = "$task" ]; then
+        best="$task"
+        best_count=$((index + 1))
+        break
+      fi
+    done < <(list_task_names)
+  done
+
+  [ -n "$best" ] || return 1
+  printf '%s\t%s\n' "$best" "$best_count"
+}
+
+show_help() {
+  cat <<'HELP'
+Maison — put your workstation in order
+
+Nix/Lix owns OS-level state. Mise owns user-level state.
+
+Usage:
+  maison <command> [subcommand...] [arguments...]
+  maison help [command] [subcommand...]
+  maison tasks
+  maison completion <bash|zsh|fish>
+  maison --version
+
+Common tasks:
+  doctor                 Diagnose local configuration problems
+  plan                   Preview configuration changes
+  apply                  Apply system state, then user state
+  check                  Validate Maison and every configured host
+  update                 Update Nix inputs and mise-managed software
+  bootstrap              Bootstrap or repair a host
+  deploy                 Deploy Linux system state and user state
+  github auth            Configure GitHub API authentication
+  system plan            Build the OS configuration without switching
+  user status            Show user-environment drift
+
+Task help and argument parsing are generated from each task's #USAGE metadata:
+  maison help package search
+  maison package search --help
+
+Shell completion is generated specifically for Maison through Usage.
+
+Run `maison tasks` for the complete task list.
+HELP
+}
+
+case "${1:-}" in
+  "" | -h | --help)
+    show_help
+    exit 0
+    ;;
+  -V | --version)
+    if git -C "$maison_home" rev-parse --short HEAD > /dev/null 2>&1; then
+      revision="$(git -C "$maison_home" rev-parse --short HEAD)"
+    elif [ -s "$maison_home/.maison-revision" ]; then
+      revision="$(cut -c1-12 "$maison_home/.maison-revision")"
+    else
+      revision=unknown
+    fi
+    printf 'maison %s\n' "$revision"
+    exit 0
+    ;;
+  help)
+    shift
+    if [ "$#" -eq 0 ]; then
+      show_help
+      exit 0
+    fi
+    resolution="$(resolve_task "$@" || true)"
+    [ -n "$resolution" ] || die "unknown command '$*'"
+    task="${resolution%%$'\t'*}"
+    cd "$maison_home"
+    case "$task" in
+      github:auth | bootstrap | tool:add | tool:remove)
+        exec "$mise_bin" run --skip-tools "$task" --help
+        ;;
+    esac
+    exec "$mise_bin" run "$task" --help
+    ;;
+  tasks)
+    shift
+    cd "$maison_home"
+    exec "$mise_bin" tasks "$@"
+    ;;
+  completion)
+    [ "$#" -eq 2 ] || die "usage: maison completion <bash|zsh|fish>"
+    exec usage generate completion "$2" maison -f "$maison_home/bin/maison"
+    ;;
+  __task-names)
+    list_task_names
+    exit 0
+    ;;
+  __command-paths)
+    list_command_paths
+    exit 0
+    ;;
+esac
+
+resolution="$(resolve_task "$@" || true)"
+[ -n "$resolution" ] || die "unknown command '$*'; run 'maison tasks' to list commands"
+task="${resolution%%$'\t'*}"
+consumed="${resolution##*$'\t'}"
+shift "$consumed"
+
+cd "$maison_home"
+
+# Tool configuration must remain repairable when an invalid entry prevents
+# mise from resolving the project configuration at all.
+case "$task" in
+  tool:add | tool:remove)
+    exec env -u usage_tool -u usage_version \
+      usage bash "$maison_home/.mise/tasks/${task/:/\/}" "$@"
+    ;;
+esac
+
+run_task() {
+  local output_file status
+  local -a command=("$mise_bin" run)
+
+  case "$task" in
+    github:auth | bootstrap | tool:add | tool:remove) command+=(--skip-tools) ;;
+  esac
+  command+=("$task" -- "$@")
+
+  output_file="$(mktemp "${TMPDIR:-/tmp}/maison-output.XXXXXX")"
+
+  set +e
+  if [ -t 2 ]; then
+    # Keep the real terminal attached for nested package operations that may
+    # legitimately prompt through sudo. mise's native log file preserves the
+    # error text needed for the GitHub-authentication hint without changing
+    # the command's terminal semantics.
+    MISE_LOG_FILE="$output_file" MISE_LOG_FILE_LEVEL=info "${command[@]}"
+  else
+    "${command[@]}" > >(tee "$output_file") 2> >(tee -a "$output_file" >&2)
+  fi
+  status=$?
+  set -e
+
+  if grep -Eqi 'rate limit exceeded|API rate limit|HTTP error 403|403 Forbidden|No GitHub token' "$output_file"; then
+    printf '\nmaison: GitHub authentication is required or the API rate limit was exceeded.\n' >&2
+    printf 'Run: maison github auth\n' >&2
+  fi
+
+  rm -f "$output_file"
+  return "$status"
+}
+
+run_task "$@"

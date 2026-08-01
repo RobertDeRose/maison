@@ -1,0 +1,51 @@
+# Managed by Maison through mise dotfiles.
+
+export PATH="$HOME/.local/bin:$PATH"
+if [[ -d /opt/homebrew/bin ]]; then
+  export PATH="/opt/homebrew/bin:/opt/homebrew/sbin:$PATH"
+fi
+if [[ -d /home/linuxbrew/.linuxbrew/bin ]]; then
+  export PATH="/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:$PATH"
+fi
+if [[ -d /run/current-system/sw/bin ]]; then
+  export PATH="/run/current-system/sw/bin:$PATH"
+fi
+if [[ -d "$HOME/.nix-profile/bin" ]]; then
+  export PATH="$HOME/.nix-profile/bin:$PATH"
+fi
+if [[ -d "$HOME/.local/state/nix/profiles/profile/bin" ]]; then
+  export PATH="$HOME/.local/state/nix/profiles/profile/bin:$PATH"
+fi
+if [[ -d /usr/local/bin ]]; then
+  export PATH="/usr/local/bin:/usr/local/sbin:$PATH"
+fi
+
+# Home Manager previously initialized completion. Keep that behavior in the
+# user-owned shell rather than relying on system activation.
+autoload -Uz compinit
+compinit
+
+source "$HOME/.config/maison/zsh/functions.zsh"
+source "$HOME/.config/maison/zsh/aliases.zsh"
+source "$HOME/.config/maison/zsh/interactive.zsh"
+source "$HOME/.config/maison/zsh/integrations.zsh"
+
+for plugin in \
+  /opt/homebrew/share/zsh-autosuggestions/zsh-autosuggestions.zsh \
+  /home/linuxbrew/.linuxbrew/share/zsh-autosuggestions/zsh-autosuggestions.zsh; do
+  [[ -r $plugin ]] && source "$plugin" && break
+done
+for plugin in \
+  /opt/homebrew/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh \
+  /home/linuxbrew/.linuxbrew/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh; do
+  [[ -r $plugin ]] && source "$plugin" && break
+done
+
+if command -v starship >/dev/null 2>&1; then
+  eval "$(starship init zsh)"
+fi
+if command -v maison >/dev/null 2>&1 && command -v usage >/dev/null 2>&1; then
+  source <(maison completion zsh)
+fi
+
+if command -v wt >/dev/null 2>&1; then eval "$(command wt config shell init zsh)"; fi

@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# [MISE] description="Restore a manifest-backed dotfile handoff backup"
+#USAGE arg "<backup_directory>" help="Maison dotfile backup directory"
+#USAGE flag "--force" help="Replace existing target paths"
+set -euo pipefail
+root="${MISE_PROJECT_ROOT:-$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)}"
+[ "${usage_force:-false}" = true ] || {
+  printf 'error: restore-dotfiles requires --force\n' >&2
+  exit 2
+}
+# shellcheck disable=SC2154 # mise injects the declared positional argument.
+backup_directory="${usage_backup_directory:?mise did not provide the backup directory}"
+exec python3 "$root/.mise/lib/dotfile_backups.py" restore \
+  --home "$HOME" --backup-dir "$backup_directory" --force

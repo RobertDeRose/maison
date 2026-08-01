@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# [MISE] description="Roll back only the Nix system layer"
+# [MISE] interactive=true
+#USAGE flag "-y --yes" help="Skip confirmation"
+set -euo pipefail
+args=()
+[ "${usage_yes:-false}" != true ] || args+=(--yes)
+exec mise run system:rollback -- "${args[@]}"

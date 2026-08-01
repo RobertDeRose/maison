@@ -1,0 +1,9 @@
+theme = Ayu Mirage
+font-family = DejaVu SansM Nerd Font
+font-size = 16
+quick-terminal-position = top
+quick-terminal-size = 35%,60%
+quick-terminal-screen = macos-menu-bar
+shell-integration-features = sudo,title,ssh-env
+app-notifications = clipboard-copy,config-reload
+copy-on-select = clipboard

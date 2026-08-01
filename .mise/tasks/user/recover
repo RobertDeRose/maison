@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+# [MISE] description="Repair reversible user state from the restored remote repository"
+# [MISE] interactive=true
+#USAGE flag "--force-dotfiles" help="Replace conflicting whole-file targets"
+set -euo pipefail
+
+root="${MISE_PROJECT_ROOT:-$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)}"
+report="${MAISON_RECOVERY_REPORT:?missing MAISON_RECOVERY_REPORT}"
+failed_revision="${MAISON_RECOVERY_FAILED_REVISION:?missing MAISON_RECOVERY_FAILED_REVISION}"
+restored_revision="${MAISON_RECOVERY_RESTORED_REVISION:?missing MAISON_RECOVERY_RESTORED_REVISION}"
+initial_exit_code="${MAISON_RECOVERY_INITIAL_EXIT_CODE:?missing MAISON_RECOVERY_INITIAL_EXIT_CODE}"
+
+arguments=(
+  recovery
+  --root "$root"
+  --report "$report"
+  --failed-revision "$failed_revision"
+  --restored-revision "$restored_revision"
+  --initial-exit-code "$initial_exit_code"
+)
+[ -z "${MAISON_CONVERGENCE_EVENT_FILE:-}" ] || arguments+=(--event-file "$MAISON_CONVERGENCE_EVENT_FILE")
+[ "${usage_force_dotfiles:-false}" != true ] || arguments+=(--force-dotfiles)
+
+exec python3 "$root/.mise/lib/user_convergence.py" "${arguments[@]}"

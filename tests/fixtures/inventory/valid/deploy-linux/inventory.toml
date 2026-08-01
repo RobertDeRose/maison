@@ -1,0 +1,25 @@
+schema = 1
+
+[users.operator]
+username = "operator"
+full_name = "Example Operator"
+email = "operator@example.invalid"
+github = "example-operator"
+
+[hosts.example-linux]
+system = "x86_64-linux"
+user = "operator"
+profiles = ["base", "dev", "linux"]
+
+[hosts.example-linux.features]
+personal_cache = true
+
+[hosts.example-linux.deploy]
+enable = true
+hostname = "example-linux.example.invalid"
+ssh_user = "maison-deploy"
+user_ssh_user = "operator"
+repo_path = "/home/operator/.maison"
+remote_build = false
+auto_rollback = true
+magic_rollback = true

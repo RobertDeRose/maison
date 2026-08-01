@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+# [MISE] description="Validate TOML/JSON and the system/user ownership boundary"
+set -euo pipefail
+root="${MISE_PROJECT_ROOT:-$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)}"
+cd "$root"
+python3 - <<'PY'
+from pathlib import Path
+import json, tomllib
+paths = sorted(Path('.').glob('*.toml')) + sorted(Path('config/mise').glob('*.toml'))
+paths += [path for path in (Path('mise.lock'),) if path.exists()]
+paths += sorted(Path('config/mise').glob('*.lock'))
+for p in paths:
+    with p.open('rb') as f: tomllib.load(f)
+for p in sorted(Path('dotfiles').rglob('*.json')):
+    if 'node_modules' in p.parts:
+        continue
+    json.loads(p.read_text())
+PY
+if grep -R -n -E 'home-manager|homeConfigurations|homeConfig' flake.nix nix; then
+  echo "Home Manager references remain in the Nix system layer" >&2
+  exit 1
+fi
+if [ -e packages.toml ]; then
+  echo "Legacy packages.toml still exists" >&2
+  exit 1
+fi
+mise run host:validate

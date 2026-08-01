@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# [MISE] description="Diagnose the Nix system and mise user layers without changing them"
+#USAGE flag "--host <host>" help="Inventory host"
+set -euo pipefail
+root="${MISE_PROJECT_ROOT:-$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)}"
+source "$root/.mise/lib/common.sh"
+source "$root/.mise/lib/platform.sh"
+source "$root/.mise/lib/inventory.sh"
+host="${usage_host:-$(current_hostname)}"
+errors=0
+for cmd in git mise nix; do
+  if command -v "$cmd" >/dev/null 2>&1; then printf '[ok]      %-18s %s\n' "$cmd" "$(command -v "$cmd")"; else printf '[error]   %-18s missing\n' "$cmd"; errors=$((errors+1)); fi
+done
+if command -v nh >/dev/null 2>&1; then printf '[ok]      %-18s %s\n' nh "$(command -v nh)"; else printf '[warning] %-18s will run through nix until the system is switched\n' nh; fi
+if command -v deploy >/dev/null 2>&1; then printf '[ok]      %-18s %s\n' deploy-rs "$(command -v deploy)"; else printf '[warning] %-18s will run through nix when needed\n' deploy-rs; fi
+if inventory_has_host "$root" "$host"; then printf '[ok]      %-18s %s\n' host "$host ($(inventory_host_system "$root" "$host"))"; else printf '[error]   %-18s %s is not in inventory.toml\n' host "$host"; errors=$((errors+1)); fi
+if grep -R -n -E 'home-manager|homeConfigurations|homeConfig' flake.nix nix >/dev/null 2>&1; then printf '[error]   %-18s stale Home Manager reference\n' topology; errors=$((errors+1)); else printf '[ok]      %-18s no Home Manager references in the Nix graph\n' topology; fi
+if [ -f "$HOME/.config/mise/config.toml" ]; then printf '[ok]      %-18s installed\n' user-config; else printf '[warning] %-18s run: maison user apply\n' user-config; fi
+exit "$errors"

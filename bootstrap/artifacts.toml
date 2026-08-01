@@ -1,0 +1,33 @@
+[artifacts.mise]
+version = "2026.7.17"
+systems = ["aarch64-darwin", "aarch64-linux", "x86_64-linux"]
+recovery_hint = "Download the pinned mise binary manually, verify its sha256, install it as ~/.local/bin/mise, then rerun bootstrap."
+
+[artifacts.mise.platforms.aarch64-darwin]
+url = "https://github.com/jdx/mise/releases/download/v2026.7.17/mise-v2026.7.17-macos-arm64"
+sha256 = "sha256:db3423b55cb5cfb6f7331d9c0416d6817c85a32101bc7fee6f553b42bbcc9adb"
+
+[artifacts.mise.platforms.aarch64-linux]
+url = "https://github.com/jdx/mise/releases/download/v2026.7.17/mise-v2026.7.17-linux-arm64"
+sha256 = "sha256:b8c9ab040a3877724795a14f7ced3707f49e202ba5c43838b8d4c215f569ae26"
+
+[artifacts.mise.platforms.x86_64-linux]
+url = "https://github.com/jdx/mise/releases/download/v2026.7.17/mise-v2026.7.17-linux-x64"
+sha256 = "sha256:8aba14e84ffeb312ca600f1a16b23c217c0d7f55c64d93f867f754efed3d8a43"
+
+[artifacts.lix]
+version = "2026-05-04"
+systems = ["aarch64-darwin", "aarch64-linux", "x86_64-linux"]
+recovery_hint = "Download the pinned lix-installer binary for this system, verify its sha256, run it with install, then rerun bootstrap."
+
+[artifacts.lix.platforms.aarch64-darwin]
+url = "https://install.lix.systems/lix/lix-installer-aarch64-darwin"
+sha256 = "sha256:3c71fdcfeddac8fa075b626b6e0ddd9ba73af930e47b4fa027e22c7279f596ae"
+
+[artifacts.lix.platforms.aarch64-linux]
+url = "https://install.lix.systems/lix/lix-installer-aarch64-linux"
+sha256 = "sha256:c3433d8b6c63ed19edf43ceb6c8db50fea9da46d24d27423b1f4fcd0ec3cc536"
+
+[artifacts.lix.platforms.x86_64-linux]
+url = "https://install.lix.systems/lix/lix-installer-x86_64-linux"
+sha256 = "sha256:57564e78a6d57126661fe5e793de70a72bacf9835ddb7c5c0cbfadf3db21545e"

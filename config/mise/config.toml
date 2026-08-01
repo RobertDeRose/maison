@@ -1,0 +1,79 @@
+[settings]
+experimental = true
+env_shell_expand = true
+lockfile = true
+lockfile_platforms = ["macos-arm64", "linux-arm64", "linux-x64"]
+
+[plugins]
+nix = "https://github.com/jbadeau/mise-nix.git#e310c4c20e8273ba850298c10fbe97d0c858c300"
+
+# Cross-platform user tools. macOS-only AI tools and App Store integration live
+# in config.macos.toml so Linux hosts never resolve or install them.
+[tools]
+acli = "latest"
+"aqua:gastownhall/beads" = "latest"
+"aqua:sethvargo/ratchet" = "latest"
+bat = "latest"
+"github:ctxrs/ctx" = "latest"
+"github:max-sixty/worktrunk" = "latest"
+"github:ogulcancelik/herdr" = "latest"
+"github:peterldowns/nix-search-cli" = "latest"
+"nix:deadnix" = "nixos/nixpkgs#deadnix"
+"nix:devenv" = "nixos/nixpkgs#devenv"
+node = ["24", "lts"]
+pkl = "latest"
+python = "latest"
+usage = "4.0.0"
+
+[bootstrap.packages]
+"brew-cask:google-gemini" = "latest"
+"brew:bash" = "latest"
+"brew:bitwarden-cli" = "latest"
+"brew:btop" = "latest"
+"brew:curl" = "latest"
+"brew:difftastic" = "latest"
+"brew:direnv" = "latest"
+"brew:eza" = "latest"
+"brew:fastfetch" = "latest"
+"brew:fzf" = "latest"
+"brew:gawk" = "latest"
+"brew:gh" = "latest"
+"brew:git" = "latest"
+"brew:git-absorb" = "latest"
+"brew:git-filter-repo" = "latest"
+"brew:git-town" = "latest"
+"brew:git-trim" = "latest"
+"brew:gnu-sed" = "latest"
+"brew:gnu-tar" = "latest"
+"brew:harper" = "latest"
+"brew:helix" = "latest"
+"brew:htop" = "latest"
+"brew:jq" = "latest"
+"brew:lazygit" = "latest"
+"brew:markdown-oxide" = "latest"
+"brew:marksman" = "latest"
+"brew:nmap" = "latest"
+"brew:pstree" = "latest"
+"brew:pv" = "latest"
+"brew:ripgrep" = "latest"
+"brew:rlwrap" = "latest"
+"brew:rumdl" = "latest"
+"brew:snitch" = "latest"
+"brew:socat" = "latest"
+"brew:starship" = "latest"
+"brew:tmux" = "latest"
+"brew:unzip" = "latest"
+"brew:wget" = "latest"
+"brew:xz" = "latest"
+"brew:yazi" = "latest"
+"brew:yq" = "latest"
+"brew:zip" = "latest"
+"brew:zsh-autosuggestions" = "latest"
+"brew:zsh-syntax-highlighting" = "latest"
+"brew:zstd" = "latest"
+
+[env]
+EDITOR = "hx"
+GIT_EDITOR = "hx"
+GIT_SEQUENCE_EDITOR = "hx"
+VISUAL = "hx"

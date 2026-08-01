@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# [MISE] description="Upgrade configured macOS applications"
+# [MISE] interactive=true
+set -euo pipefail
+[ "$(uname -s)" = Darwin ] || {
+  printf 'Application updates are only supported on macOS.\n'
+  exit 0
+}
+root="${MISE_PROJECT_ROOT:-$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)}"
+config="$HOME/.config/mise/config.toml"
+[ -f "$config" ] || config="$root/config/mise/config.toml"
+(
+  cd "$HOME"
+  MISE_AUTO_ENV=true MISE_GLOBAL_CONFIG_FILE="$config" \
+    mise bootstrap packages upgrade --manager brew-cask --yes
+  MISE_AUTO_ENV=true MISE_GLOBAL_CONFIG_FILE="$config" \
+    mise bootstrap packages upgrade --manager mas --yes
+)

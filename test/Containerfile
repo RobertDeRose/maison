@@ -1,0 +1,38 @@
+FROM ubuntu:24.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV container=oci
+
+STOPSIGNAL SIGRTMIN+3
+
+RUN apt-get update && apt-get install -y \
+    ca-certificates \
+    curl \
+    git \
+    openssh-server \
+    sudo \
+    systemd \
+    systemd-sysv \
+    xz-utils \
+    zsh \
+  && rm -rf /var/lib/apt/lists/*
+
+RUN useradd -m -s /usr/bin/zsh tester \
+  && mkdir -p /home/tester/.ssh /var/run/sshd \
+  && chown -R tester:tester /home/tester/.ssh \
+  && chmod 700 /home/tester/.ssh \
+  && printf 'tester ALL=(ALL) NOPASSWD:ALL\n' > /etc/sudoers.d/tester \
+  && chmod 440 /etc/sudoers.d/tester \
+  && install -d -m755 /etc/systemd/system/ssh.service.requires
+
+RUN ssh-keygen -A \
+  && systemctl enable ssh.socket \
+  && systemctl mask \
+    console-getty.service \
+    dev-hugepages.mount \
+    getty.target \
+    sys-fs-fuse-connections.mount \
+    systemd-logind.service \
+    systemd-remount-fs.service
+
+CMD ["/bin/bash"]

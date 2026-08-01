@@ -1,0 +1,52 @@
+schema_version = 1
+supported_systems = ["aarch64-darwin", "aarch64-linux", "x86_64-linux"]
+profiles = ["base", "dev", "mac", "linux"]
+
+[patterns]
+host_label = "[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?"
+username = "[a-z_][a-z0-9_-]*"
+github = "[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?"
+path_component = "[A-Za-z0-9._-]+"
+
+[features.personal_cache]
+type = "bool"
+default = false
+
+[deploy.enable]
+type = "bool"
+default = false
+
+[deploy.hostname]
+type = "string"
+default = "host-name"
+
+[deploy.ssh_user]
+type = "string"
+default = "maison-deploy"
+
+[deploy.user_ssh_user]
+type = "string"
+default = "managed-user"
+
+[deploy.repo_path]
+type = "string"
+default = "/home/<managed-user>/.maison"
+
+[deploy.remote_build]
+type = "bool"
+default = false
+
+[deploy.auto_rollback]
+type = "bool"
+default = true
+
+[deploy.magic_rollback]
+type = "bool"
+default = true
+
+[constraints]
+allow_root_user = false
+allow_root_deploy_ssh_user = true
+deploy_ssh_user_must_differ_from_managed_user = true
+deploy_user_ssh_user_must_match_managed_user = true
+deploy_repo_path_scope = "/home/<managed-user>/*"

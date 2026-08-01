@@ -1,0 +1,98 @@
+#!/usr/bin/env bash
+# [MISE] description="Install a global mise tool, then atomically commit config and lock changes"
+#USAGE arg "<tool>" help="Backend-qualified tool name"
+#USAGE arg "[version]" default="latest" help="Version"
+set -euo pipefail
+root="${MISE_PROJECT_ROOT:-$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)}"
+source "$root/.mise/lib/transaction.sh"
+version="${usage_version:-latest}"
+config="$root/config/mise/config.toml"
+lock="$root/config/mise/mise.lock"
+tool="${usage_tool:?mise did not provide the required tool argument}"
+transaction_require_authoring_checkout "$root" tool:add
+transaction_require_lock "$root" "${BASH_SOURCE[0]}" "$@"
+transaction_dir="$(transaction_directory)"
+original_config="$transaction_dir/config.original.toml"
+original_lock="$transaction_dir/mise.original.lock"
+candidate_config="$transaction_dir/config.toml"
+candidate_lock="$transaction_dir/mise.lock"
+cp -p "$config" "$original_config"
+cp -p "$config" "$candidate_config"
+lock_existed=false
+if [ -e "$lock" ]; then
+  cp -p "$lock" "$original_lock"
+  cp -p "$lock" "$candidate_lock"
+  lock_existed=true
+else
+  : >"$candidate_lock"
+fi
+config_attempted=false
+lock_attempted=false
+success=false
+
+cleanup() {
+  local status=$?
+  trap - EXIT HUP INT TERM
+  if [ "$success" != true ]; then
+    rollback_status=0
+    if [ "$config_attempted" = true ]; then
+      transaction_restore_file "$original_config" "$config" || rollback_status=$?
+    fi
+    if [ "$lock_attempted" = true ]; then
+      if [ "$lock_existed" = true ]; then
+        transaction_restore_file "$original_lock" "$lock" || rollback_status=$?
+      else
+        rm -f "$lock" || rollback_status=$?
+      fi
+    fi
+    if [ "${MAISON_REPOSITORY_MUTATION_JOURNAL:-}" ]; then
+      if [ "$rollback_status" -eq 0 ]; then
+        transaction_journal_complete || rollback_status=$?
+      else
+        printf 'tool:add: rollback failed; preserved mutation journal at %s\n' \
+          "$MAISON_REPOSITORY_MUTATION_JOURNAL" >&2
+      fi
+    fi
+    [ "$rollback_status" -eq 0 ] || status="$rollback_status"
+  fi
+  rm -rf "$transaction_dir"
+  exit "$status"
+}
+trap cleanup EXIT
+transaction_set_signal_traps
+
+python3 "$root/.mise/lib/config_edit.py" tool \
+  --file "$candidate_config" \
+  --name "$tool" \
+  --version "$version"
+
+suffix="${tool##*@}"
+if [[ "$tool" == *@* && "$suffix" != */* ]]; then
+  install_spec="$tool"
+else
+  install_spec="${tool}@${version}"
+fi
+
+set +e
+install_output="$(MISE_AUTO_ENV=false MISE_GLOBAL_CONFIG_FILE="$candidate_config" mise install "$install_spec" 2>&1)"
+install_status=$?
+set -e
+printf '%s\n' "$install_output"
+if [ "$install_status" -ne 0 ] ||
+  grep -Eq 'mise ERROR|Failed to resolve tool version list' <<<"$install_output"; then
+  printf 'tool:add: installation failed; repository config and lock were not changed\n' >&2
+  exit 1
+fi
+
+python3 "$root/.mise/lib/config_edit.py" validate "$candidate_config" "$candidate_lock"
+transaction_journal_begin "$root" tool:add "$config" "$lock"
+transaction_journal_mark validated
+# Commit the generated lock first and the declaration second. If either rename
+# fails, the EXIT trap restores both repository files to their original state.
+lock_attempted=true
+atomic_replace "$candidate_lock" "$lock"
+config_attempted=true
+atomic_replace "$candidate_config" "$config"
+success=true
+transaction_journal_complete
+printf 'Installed and added %s to %s.\n' "$install_spec" "${config#"$root"/}"

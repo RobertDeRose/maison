@@ -1,0 +1,53 @@
+add_newline = false
+continuation_prompt = "> "
+format = "$username$hostname$directory$git_branch$git_status$cmd_duration$character"
+
+[username]
+format = "[$user]($style)"
+show_always = true
+style_root = "bold red"
+style_user = "bold cyan"
+
+[hostname]
+format = "[@$hostname]($style) "
+ssh_only = false
+style = "bold cyan"
+
+[directory]
+format = "[$path]($style) "
+home_symbol = "~"
+read_only = " ro"
+read_only_style = "bold red"
+style = "bold blue"
+truncate_to_repo = false
+truncation_length = 3
+truncation_symbol = ".../"
+
+[git_branch]
+format = "[git:$branch]($style) "
+style = "bold green"
+
+[git_status]
+ahead = ">"
+behind = "<"
+conflicted = "!"
+deleted = "x"
+diverged = "<>"
+format = "([$all_status$ahead_behind]($style) )"
+modified = "*"
+renamed = "r"
+staged = "+"
+stashed = "s"
+style = "bold yellow"
+untracked = "?"
+up_to_date = ""
+
+[cmd_duration]
+format = "[$duration]($style) "
+min_time = 500
+style = "yellow"
+
+[character]
+error_symbol = "[!](bold red)"
+format = "$symbol "
+success_symbol = "[>](bold green)"

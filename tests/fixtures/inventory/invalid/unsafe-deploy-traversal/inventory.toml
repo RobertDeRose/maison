@@ -1,0 +1,15 @@
+schema = 1
+
+[users.operator]
+username = "operator"
+full_name = "Example Operator"
+email = "operator@example.invalid"
+github = "example-operator"
+
+[hosts.traversal]
+system = "aarch64-linux"
+user = "operator"
+profiles = ["base", "linux"]
+
+[hosts.traversal.deploy]
+repo_path = "/home/operator/../other/.maison"

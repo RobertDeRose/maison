@@ -1,0 +1,17 @@
+{
+	"name": "maison-pi-extensions",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"typecheck": "tsc --noEmit",
+		"test": "tsx --test"
+	},
+	"devDependencies": {
+		"@earendil-works/pi-ai": "0.83.0",
+		"@earendil-works/pi-coding-agent": "0.83.0",
+		"@earendil-works/pi-tui": "0.83.0",
+		"@types/node": "24.13.3",
+		"tsx": "4.23.1",
+		"typescript": "5.9.3"
+	}
+}

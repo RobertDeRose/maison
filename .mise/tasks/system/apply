@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+# [MISE] description="Build and activate the selected Nix system configuration"
+# [MISE] interactive=true
+#USAGE flag "--host <host>" help="Inventory host (defaults to the current hostname)"
+#USAGE flag "--no-activate" help="Build without switching"
+set -euo pipefail
+root="${MISE_PROJECT_ROOT:-$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)}"
+cd "$root"
+source "$root/.mise/lib/common.sh"
+source "$root/.mise/lib/platform.sh"
+source "$root/.mise/lib/inventory.sh"
+source "$root/.mise/lib/nix.sh"
+host="${usage_host:-$(current_hostname)}"
+require_inventory_host "$root" "$host"
+validate_host_platform "$root" "$host" "$(current_system)"
+load_nix_environment
+configure_github_access_token
+export NIX_SUPPRESS_DIRTY_WARNING=true
+if [ "${usage_no_activate:-false}" = true ]; then
+  exec mise run system:plan -- --host "$host"
+fi
+case "$(inventory_host_system "$root" "$host")" in
+  *-darwin)
+    prepare_darwin_activation
+    run_nh darwin switch "$root" -H "$host"
+    ;;
+  *-linux)
+    nix_command run "$root#system-manager" -- switch --flake "$root#$host" --sudo
+    if ! systemctl is-active --quiet system-manager.target ||
+      ! systemctl is-active --quiet maison-runtime-verification.service; then
+      die "Linux runtime verification failed: inspect system-manager.target and maison-runtime-verification.service"
+    fi
+    ;;
+  *) die "unsupported host: $host" ;;
+esac
