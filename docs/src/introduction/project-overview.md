@@ -3,7 +3,7 @@
 
 - Project kind: `infrastructure`
 - Public repository: `RobertDeRose/maison`
-- Private overlay: `RobertDeRose/terroir`
+- Private overlay: a user-selected private Git repository
 
 ## Purpose
 
@@ -23,7 +23,7 @@ Future behavior belongs in [Planned features](../planned-features.md) until deli
 
 Public Maison owns reusable framework code, neutral examples, tests, documentation, dstack/Copier controls, and
 validation tooling. Private Terroir owns real inventory, hosts, site package policy, personal dotfiles, and non-secret
-trusted configuration. The former `RobertDeRose/nix-config` repository is retained as a private archived migration source.
+trusted configuration. The original source repository may be retained as a private archived migration source.
 Bitwarden owns passwords, tokens, secret values, SSH private keys, signing private keys, and other private key material.
 
 ## Boundaries

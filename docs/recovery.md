@@ -8,9 +8,8 @@ For Lix installer failures after checksum verification, fix the reported Nix ins
 
 ## Overlay recovery
 
-The supported repository pair is public `RobertDeRose/maison` plus private `RobertDeRose/terroir`. The former
-`RobertDeRose/nix-config` repository is a private archived source and should be used only for migration recovery or
-historical rollback.
+The supported repository pair is the public Maison framework plus a user-selected private overlay. The archived source
+repository should be used only for migration recovery or historical rollback.
 
 Maison's overlay selection is local state:
 
@@ -19,7 +18,7 @@ ${XDG_STATE_HOME:-$HOME/.local/state}/maison/overlay.toml
 ${XDG_DATA_HOME:-$HOME/.local/share}/maison/overlay
 ```
 
-If setup cannot find Terroir, rerun bootstrap with `--overlay git@github.com:RobertDeRose/terroir.git` or restore the
+If setup cannot find the private overlay, rerun bootstrap with `--overlay GIT-URL-OR-PATH` or restore the
 state file. If the clone is corrupt, move it aside and rerun bootstrap so Maison can clone it again. Do not put private
 inventory, trusted keys, or real deploy endpoints into public Maison as a recovery shortcut.
 
