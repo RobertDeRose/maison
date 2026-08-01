@@ -1,5 +1,9 @@
 # Developer tooling
 
+This page applies to the public `RobertDeRose/maison` framework repository. Maison uses dstack/Copier controls and
+Beads for project lifecycle work; private `RobertDeRose/terroir` is plain Git and does not install or run this tooling.
+The former `nix-config` repository is an archived migration source, not the public development checkout.
+
 The repository uses mise to provide project tools and named tasks. Install mise, then run:
 
 ```bash
@@ -10,6 +14,13 @@ Use the same commands locally and in automation:
 
 ```bash
 mise run check
+mise run check:tests
+python3 -m unittest -v tests.test_inventory_behavior
+python3 -m unittest -v tests.test_deployment_contracts
+python3 -m unittest -v tests.test_migration_behavior
+python3 -m unittest -v tests.test_ownership_boundary
+python3 -m unittest -v tests.test_repository_contracts tests.test_repository_mutation
+python3 -m unittest -v tests.test_transaction_behavior
 mise run fix
 mise run docs:check
 mise run docs:build
@@ -29,29 +40,56 @@ to preview the concise user-facing changelog. The hk policy uses native built-in
 hk's file locking coordinates independent steps. No dependency chain serializes unrelated checks. Go projects retain
 two output-sensitive edges: `gofumpt` follows `goimports`, then fix-only module tidy observes the final imports.
 
-## Python
+No recognized language profile is active; only the universal tooling baseline
+runs.
 
-Ruff lint and formatting plus ty type checking run on Python files in check, fix, and pre-commit. When root
-`pyproject.toml` and `tests/**/*.py` both exist, `mise run check` also runs `uv run pytest`. Pytest must be declared by
-the project; setup does not add or download it.
+## Pi extension TypeScript
 
-## TypeScript
+Pi extensions are validated in the repository-owned workspace at `dotfiles/pi/extensions`. The workspace metadata and
+lockfile are not symlinked into the user's Pi directory. Run the complete boundary through mise:
 
-Biome check/write runs on TypeScript files in check, fix, and pre-commit. The profile reuses the universal Node runtime
-and installs Aube. When root `package.json` and TypeScript test/spec files both exist, `mise run check` runs
-`aube exec vitest run`. Vitest must be declared by the project; setup does not add or download
-it.
+```bash
+mise run check:typescript
+```
 
-## Nix
+The task installs the committed npm lockfile without lifecycle scripts, then runs `tsc --noEmit` and the focused
+behavioral test suite. For direct iteration inside the workspace, use:
 
-nixfmt checks and fixes Nix files on Linux and macOS ARM64. Matching Nix inputs fail clearly on unsupported macOS x64.
-Root `flake.nix` enables check-only `nix flake check` and requires system Nix; setup provisions no Nix executable.
+```bash
+cd dotfiles/pi/extensions
+npm ci --ignore-scripts --no-audit --no-fund
+npm run typecheck
+npm test
+```
+
+The Python regression suite is split by subsystem. `check:tests` runs `unittest` discovery across every
+`tests/test_*.py` file and is expected to complete within five minutes on a warm supported development checkout. Use the
+focused commands above while editing a subsystem, then run `mise -E dev run check` once before committing broad or shared
+test changes.
+
+Tests that execute external commands use the shared helper in `tests/support/processes.py`. It defaults to a 30 second
+timeout, starts commands in an isolated process group where supported, terminates the group on timeout, captures stdout
+and stderr, and truncates failure diagnostics. Longer timeouts must be explicit, documented at the call site, and no
+longer than 300 seconds.
+
+Maison's TOML mutation helper uses a pinned `tomlkit` wheel checked in under `.mise/vendor/`. The helper verifies the
+wheel digest before importing it, so configuration repair commands still work when normal mise project tool resolution
+is skipped or broken and do not depend on ambient Python site-packages.
 
 ## GitHub validation
 
 `.github/workflows/validate.yml` runs on every push and pull request. It isolates user-global mise configuration,
 installs only the committed lock with `mise install --locked`, and runs `mise run check`. CI does not regenerate the
 lock or maintain a separate validation policy.
+
+`.github/workflows/cache-refresh.yml` is dependency-update automation, not an approval path. It may refresh `flake.lock`,
+build cache targets, push or update the `automation/refresh-flake-lock` branch, open or edit the matching pull request,
+and run the reusable hk and CI workflows against that branch. It must leave the pull request open for ordinary review
+and branch protection; it must not run `gh pr merge`, use `--admin`, or enable auto-merge.
+
+The private overlay is selected locally with `--overlay` or `MAISON_OVERLAY_SOURCE`; the resulting XDG state and clone
+are untracked. Do not commit Terroir contents, overlay state, or Bitwarden material to Maison while running development
+checks.
 
 ## Hooks and recovery
 
