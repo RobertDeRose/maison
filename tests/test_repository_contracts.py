@@ -146,9 +146,87 @@ class RepositoryContractTest(unittest.TestCase):
 
     def test_maison_exposes_layered_commands(self) -> None:
         cli = read("bin/maison")
-        for command in ('cmd "check"', 'cmd "system"', 'cmd "user"', 'cmd "deploy"'):
+        for command in ('cmd "check"', 'cmd "system"', 'cmd "user"', 'cmd "deploy"', 'cmd "sync"'):
             self.assertIn(command, cli)
         self.assertIn('export MISE_PROJECT_ROOT="$maison_home"', cli)
+
+    def test_sync_pulls_maison_and_overlay_before_apply(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            temp = Path(directory)
+            overlay = temp / "overlay"
+            overlay.mkdir()
+            fake_bin = temp / "bin"
+            fake_bin.mkdir()
+            log = temp / "sync.log"
+            executable(
+                fake_bin / "git",
+                '#!/bin/sh\nprintf \'git %s\\n\' "$*" >>"$SYNC_LOG"\nstatus=0\n[ "${3:-}" != pull ] || status="${SYNC_GIT_STATUS:-0}"\nexit "$status"\n',
+            )
+            executable(
+                fake_bin / "mise",
+                '#!/bin/sh\nprintf \'mise %s\\n\' "$*" >>"$SYNC_LOG"\n',
+            )
+            env = os.environ.copy()
+            env.update(
+                {
+                    "MISE_PROJECT_ROOT": str(ROOT),
+                    "MAISON_OVERLAY_PATH": str(overlay),
+                    "PATH": f"{fake_bin}{os.pathsep}{env['PATH']}",
+                    "SYNC_LOG": str(log),
+                }
+            )
+            result = run(
+                ["bash", str(ROOT / ".mise/tasks/sync")],
+                cwd=ROOT,
+                env=env,
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(
+                [line for line in log.read_text().splitlines() if "pull" in line or line.startswith("mise ")],
+                [
+                    f"git -C {ROOT} pull --ff-only --autostash",
+                    f"git -C {overlay} pull --ff-only --autostash",
+                    "mise run apply --",
+                ],
+            )
+
+    def test_sync_does_not_apply_when_a_pull_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            temp = Path(directory)
+            overlay = temp / "overlay"
+            overlay.mkdir()
+            fake_bin = temp / "bin"
+            fake_bin.mkdir()
+            log = temp / "sync.log"
+            executable(
+                fake_bin / "git",
+                '#!/bin/sh\nprintf \'git %s\\n\' "$*" >>"$SYNC_LOG"\nstatus=0\n[ "${3:-}" != pull ] || status="${SYNC_GIT_STATUS:-0}"\nexit "$status"\n',
+            )
+            executable(
+                fake_bin / "mise",
+                '#!/bin/sh\nprintf \'mise %s\\n\' "$*" >>"$SYNC_LOG"\n',
+            )
+            env = os.environ.copy()
+            env.update(
+                {
+                    "MISE_PROJECT_ROOT": str(ROOT),
+                    "MAISON_OVERLAY_PATH": str(overlay),
+                    "PATH": f"{fake_bin}{os.pathsep}{env['PATH']}",
+                    "SYNC_LOG": str(log),
+                    "SYNC_GIT_STATUS": "7",
+                }
+            )
+            result = run(
+                ["bash", str(ROOT / ".mise/tasks/sync")],
+                cwd=ROOT,
+                env=env,
+                capture_output=True,
+                text=True,
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertNotIn("mise", log.read_text())
 
     def test_inventory_flake_app_is_built_on_every_supported_system(self) -> None:
         outputs = read("nix/outputs.nix")

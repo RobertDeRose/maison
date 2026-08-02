@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+# [MISE] description="Pull Maison and the private overlay, then apply both layers"
+# [MISE] interactive=true
+#USAGE flag "--host <host>" help="Inventory host"
+#USAGE flag "--system-only" help="Skip the mise user layer"
+#USAGE flag "--user-only" help="Skip the Nix system layer"
+#USAGE flag "--force-dotfiles" help="Replace conflicting user dotfiles"
+set -euo pipefail
+
+root="${MISE_PROJECT_ROOT:-$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)}"
+source "$root/.mise/lib/common.sh"
+source "$root/.mise/lib/overlay.sh"
+
+pull_repository() {
+  local label="$1" repository="$2"
+  if ! git -C "$repository" rev-parse --show-toplevel > /dev/null 2>&1; then
+    die "$label is not a Git checkout: $repository"
+  fi
+  log_info "Pulling $label: $repository"
+  git -C "$repository" pull --ff-only --autostash
+}
+
+pull_repository "Maison" "$root"
+overlay_path="$(maison_overlay_path "$root")"
+if [ -n "$overlay_path" ]; then
+  pull_repository "private overlay" "$overlay_path"
+else
+  log_info "No private overlay is configured; skipping overlay pull"
+fi
+
+apply_args=()
+[ -z "${usage_host:-}" ] || apply_args+=(--host "$usage_host")
+[ "${usage_system_only:-false}" != true ] || apply_args+=(--system-only)
+[ "${usage_user_only:-false}" != true ] || apply_args+=(--user-only)
+[ "${usage_force_dotfiles:-false}" != true ] || apply_args+=(--force-dotfiles)
+mise run apply -- "${apply_args[@]}"
