@@ -1,6 +1,6 @@
 # Private Maison overlay
 
-This repository was generated from Maison's `examples/terroir` Copier template. It owns private inventory, user mise
+This repository was generated from Maison's `examples/template` Copier template. It owns private inventory, user mise
 policy, host overrides, trusted public material, and dotfiles; Maison remains the public framework.
 
 ## Update the template

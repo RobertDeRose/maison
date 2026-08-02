@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# [MISE] description="Install repository tooling, then validate TypeScript, topology, data, scripts, tests, and Nix outputs"
+# [MISE] description="Install repository tooling, then validate topology, data, scripts, tests, and Nix outputs"
 set -euo pipefail
 root="${MISE_PROJECT_ROOT:-$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)}"
 cd "$root"
@@ -7,6 +7,6 @@ cd "$root"
 # Repository tools are owned by the root mise.toml and are not installed by
 # ordinary machine convergence.
 mise install
-for task in typescript data shell tests nix; do
+for task in data shell tests nix; do
   mise run "check:$task"
 done

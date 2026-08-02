@@ -1,0 +1,10 @@
+# Add private cross-platform tools and Homebrew formulae here.
+[tools]
+# python = "latest"
+
+[bootstrap.packages]
+# "brew:ripgrep" = "latest"
+
+# Uncomment entries after adding the matching sources under dotfiles/.
+[dotfiles]
+# "~/.config/example/config.toml" = { source = "../../dotfiles/example/config.toml", mode = "symlink" }

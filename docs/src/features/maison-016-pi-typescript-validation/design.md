@@ -10,6 +10,10 @@
 - Status: draft
 - Review priority: `P1`
 
+> Historical reconciliation: this design describes the original public Maison delivery. After the Maison/Terroir
+> ownership split, the Pi extension sources and validation workspace moved to private Terroir; the current Maison
+> framework no longer owns the `dotfiles/pi/extensions` workspace or its `check:typescript` task.
+
 ## Feature Summary
 
 Add a real TypeScript workspace, Pi types, typecheck, pure modules, and behavioral tests for Pi extensions.

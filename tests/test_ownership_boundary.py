@@ -100,7 +100,7 @@ class OwnershipBoundaryTest(unittest.TestCase):
             "mac": mac["tools"],
             "repo": tomllib.loads(read("mise.toml"))["tools"],
         }
-        scoped_runtime_tools = {"node"}
+        scoped_runtime_tools: set[str] = set()
         for left_name, left in active_tool_tables.items():
             for right_name, right in active_tool_tables.items():
                 if left_name >= right_name:
@@ -150,4 +150,5 @@ class OwnershipBoundaryTest(unittest.TestCase):
     def test_public_repository_has_no_user_dotfiles(self) -> None:
         self.assertFalse((ROOT / "dotfiles/direnv/direnvrc").exists())
         self.assertFalse((ROOT / "dotfiles/zsh/zshrc").exists())
-        self.assertTrue((ROOT / "examples/terroir/dotfiles/README.md").is_file())
+        self.assertFalse((ROOT / "dotfiles/pi/extensions").exists())
+        self.assertTrue((ROOT / "examples/template/dotfiles/README.md").is_file())

@@ -1,6 +1,0 @@
-# Add private cross-platform tools and Homebrew formulae here.
-[tools]
-# python = "latest"
-
-[bootstrap.packages]
-# "brew:ripgrep" = "latest"

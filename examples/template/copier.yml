@@ -3,7 +3,7 @@ answers_file: .copier-answers.yml
 
 username:
   type: str
-  help: Unix username to manage in the Maison inventory
+  help: Unix username to manage in the Maison inventory (bootstrap pre-fills the current user)
   validator: >-
     {% if not username or username == "root" or username[0] not in "abcdefghijklmnopqrstuvwxyz_"
        or not username.replace("-", "").replace("_", "").isalnum() %}

@@ -10,27 +10,20 @@
 
 ## Delivered Capability
 
-Maison now validates its Pi extensions through a repository-owned TypeScript workspace. The workspace pins the Pi API
-packages, TypeScript compiler, test runner, and Node type definitions without changing the files symlinked into the
-user's Pi installation. The 983-line pager now delegates pure Markdown parsing, key decoding, navigation, timer, and
-terminal-layout behavior to testable modules.
+At delivery, Maison validated its Pi extensions through a repository-owned TypeScript workspace. The workspace pinned
+the Pi API packages, TypeScript compiler, test runner, and Node type definitions without changing the files symlinked
+into the user's Pi installation. The 983-line pager delegated pure Markdown parsing, key decoding, navigation, timer,
+and terminal-layout behavior to testable modules.
+
+After the Maison/Terroir ownership split, the Pi extension sources and validation workspace were relocated to the private
+Terroir repository. Maison now retains only public Pi settings defaults and does not publish or validate personal
+extensions.
 
 ## User-Facing Behavior
 
-Operators and contributors keep the existing Maison and Pi command surfaces. Repository validation now includes:
-
-```bash
-mise run check:typescript
-```
-
-The task installs the committed npm lockfile without lifecycle scripts, runs `tsc --noEmit`, executes the focused
-behavioral tests, and removes its local dependency tree before downstream repository and Nix checks. Direct iteration
-is available from `dotfiles/pi/extensions` with `npm ci --ignore-scripts --no-audit --no-fund`, `npm run typecheck`, and
-`npm test`.
-
-Pi extension registration, existing command names, clipboard behavior, and pager rendering remain in `pager.ts`. The
-workspace metadata is validation-only and is not installed as a Pi runtime file. The global Node runtime remains the
-standalone Pi runtime; repository `mise.toml` pins Node 24 within the checkout for reproducible validation.
+The historical delivery preserved Pi extension registration, command names, clipboard behavior, and pager rendering.
+The relocated Terroir workspace retains direct validation with `npm ci --ignore-scripts --no-audit --no-fund`,
+`npm run typecheck`, and `npm test`; those commands are no longer Maison tasks.
 
 ## Design Integration
 
@@ -44,25 +37,26 @@ repository configuration serves locked validation without replacing global user 
 
 ## Operational Impact
 
-Contributors should run `mise run check:typescript` after changing Pi extensions. The command may access the npm registry
-to install the committed dependency lock, but ignores package lifecycle scripts and cleans `node_modules` before exiting.
-This cleanup keeps generated third-party JSON out of repository data validation and prevents Nix source evaluation from
-traversing the local dependency tree. No Pi or OpenCode runtime configuration is changed by the workspace.
+Terroir contributors should run the pinned npm validation commands after changing Pi extensions and remove
+`node_modules` afterward. Maison's public checks no longer install or traverse the private Pi workspace. No Pi or
+OpenCode runtime configuration is changed by the validation metadata.
 
 ## Reference and Contracts
 
 - [Architecture](../../architecture.md)
 - [Developer tooling](../../development/tooling.md)
 - [Tooling reference](../../reference/tooling.md)
-- Pi contributor guidance: `dotfiles/pi/AGENTS.md`
+- Pi contributor guidance: private Terroir `dotfiles/pi/AGENTS.md`
 - OpenCode boundary: `dotfiles/opencode/README.md`
 - [Feature design](design.md)
 
 ## Validation Evidence
 
-- `mise run check:typescript` — passed: `tsc --noEmit` and 10 focused behavioral tests.
+- Historical delivery evidence: `mise run check:typescript` passed with `tsc --noEmit` and 10 focused behavioral tests
+  before the workspace moved to Terroir.
 - `uv run scripts/check-docs.py` — passed after documentation reconciliation.
-- `shellcheck .mise/tasks/check/_default .mise/tasks/check/typescript` — passed.
+- Historical delivery evidence: `shellcheck .mise/tasks/check/_default .mise/tasks/check/typescript` passed before the
+  workspace moved to Terroir.
 - `git diff --check` — passed.
 - `mise -E dev run check` — passed: 152 Python tests plus data, shell, and Nix checks.
 - Pure-module boundary inspection — passed: pager modules contain no Pi, TUI, process, or terminal imports.
@@ -80,8 +74,10 @@ traversing the local dependency tree. No Pi or OpenCode runtime configuration is
 
 ### Intentional Changes
 
-- Repository Node 24 is a scoped validation override while global configuration retains the standalone Pi runtime. The
-  ownership test and architecture documentation now describe this boundary explicitly.
+- Repository Node 24 was a scoped validation override while global configuration retained the standalone Pi runtime.
+  The ownership test and architecture documentation described this boundary explicitly.
+- The extension sources and validation workspace moved to private Terroir after the repository split; Maison's public
+  framework no longer owns personal Pi behavior.
 - The TypeScript validation task removes its temporary npm dependency tree on exit so repository data and Nix checks do
   not inspect third-party files.
 - `check:data` skips `node_modules` defensively for any local Node workspace, while committed package and lock metadata
@@ -109,7 +105,7 @@ traversing the local dependency tree. No Pi or OpenCode runtime configuration is
 - `docs/src/features/index.md`
 - `docs/src/planned-features.md`
 - `docs/src/SUMMARY.md`
-- `dotfiles/pi/AGENTS.md`
+- Terroir `dotfiles/pi/AGENTS.md`
 - `dotfiles/opencode/README.md`
 
 ## Audit Trail

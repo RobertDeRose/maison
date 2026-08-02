@@ -33,7 +33,7 @@ You can also create an overlay explicitly from an existing Maison checkout:
 mise install uv
 MAISON_HOME="$PWD" MAISON_HOST="$(hostname -s)" \
   mise exec -- uvx --from copier copier copy --trust \
-    examples/terroir "$HOME/src/my-maison-overlay"
+    --data "username=$(id -un)" examples/template "$HOME/src/my-maison-overlay"
 ```
 
 The overlay repository can use any name, hosting service, or access model. Commit it and rerun bootstrap with
@@ -100,23 +100,24 @@ user layer. A user-layer failure does not roll back the active Nix generation.
 flake.nix                     system inputs
 inventory.toml                neutral starter inventory and schema example
 hosts/example-darwin/         neutral example host override
-examples/terroir/              Copier template for private overlays
+examples/template/              Copier template for private overlays
 nix/                          OS-level modules and deployment definitions
 .mise/tasks/                  Maison framework workflows
 scripts/                      bootstrap, validation, and deployment transactions
 mise.toml                     repository development tools and task discovery
 mise.lock                     locked repository development tool artifacts
-dotfiles/pi/extensions/       repository-owned Pi validation workspace
+dotfiles/pi/settings.defaults.json  public Pi settings defaults; personal extensions stay in Terroir
 ```
 
 The root `mise.toml` contains only tools required to develop and validate Maison. User applications, packages,
 preferences, and dotfiles belong in the private overlay. `config/mise/` contains empty public policy stubs so a checkout
-without an overlay remains valid; use the `examples/terroir` Copier template for private policy.
+without an overlay remains valid; use the `examples/template` Copier template for private policy. Personal Pi
+extensions and their validation workspace are maintained privately in Terroir.
 
 ## Private overlay
 
 A private overlay mirrors Maison-owned paths such as `inventory.toml`, `hosts/`, `config/mise/`, and `dotfiles/`.
-The Copier template in `examples/terroir/` supplies that layout and registers the current host through Maison's
+The Copier template in `examples/template/` supplies that layout and registers the current host through Maison's
 validated `host:add` task. The overlay owns real users, hosts, deploy targets, tools, applications, preferences, and
 dotfiles without making them part of the public framework.
 
