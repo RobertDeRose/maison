@@ -3,9 +3,9 @@
 #
 # Usage:
 #   ./bootstrap.sh [--host HOST] [--overlay GIT-URL-OR-PATH] [--repo OWNER/REPO|URL|PATH] [--ref REF]
-#   Download this file from a reviewed release, verify it against the published
-#   checksum, then run:
-#     bash bootstrap.sh --host HOST --overlay git@github.com:RobertDeRose/terroir.git --repo RobertDeRose/maison --ref main
+#   Set MAISON_OVERLAY instead of passing --overlay to select an existing private repository.
+#   Download this file from a reviewed release, verify it against the published checksum, then run:
+#     bash bootstrap.sh --host HOST --overlay GIT-URL-OR-PATH --repo RobertDeRose/maison --ref main
 
 set -euo pipefail
 
@@ -19,10 +19,15 @@ Usage:
 
 Options:
   --host HOST       Inventory host; defaults to the short local hostname.
-  --overlay SOURCE  Private overlay Git URL or path.
+  --overlay SOURCE  Existing private overlay Git URL or local repository path.
   --repo REPO       GitHub owner/repository, Git URL, or local repository path.
-  --ref REF         Branch or tag to clone; defaults to dev.
+  --ref REF         Branch or tag to clone; defaults to main.
   -h, --help        Show this help text.
+
+Environment:
+  MAISON_OVERLAY          Existing private overlay Git URL or local repository path.
+  MAISON_OVERLAY_HOME     Copier destination; defaults to ~/src/maison-overlay.
+  MAISON_REQUIRE_OVERLAY  Fail instead of deferring when no overlay is available.
 HELP
 }
 
@@ -36,7 +41,7 @@ host="$(hostname -s)"
 repo="${REPO:-RobertDeRose/maison}"
 ref="${REF:-${BRANCH:-main}}"
 profiles="${PROFILES:-}"
-overlay="${MAISON_OVERLAY_SOURCE:-}"
+overlay="${MAISON_OVERLAY:-${MAISON_OVERLAY_SOURCE:-}}"
 
 while [ "$#" -gt 0 ]; do
   case "$1" in
@@ -125,6 +130,67 @@ install_macos_prerequisites() {
   run_root softwareupdate -i "$product" --verbose
 }
 
+print_overlay_setup_help() {
+  log "Maison CLI installed at $HOME/.local/bin/maison"
+  printf '%s\n' "No private overlay was selected, so Nix and user activation were skipped."
+  printf '%s\n' "Create an overlay with the Copier template, then rerun bootstrap with --overlay or MAISON_OVERLAY."
+  printf '%s\n' "Read: $repo_root/README.md#private-overlay"
+  printf '%s\n' "Template: $repo_root/examples/terroir"
+}
+
+setup_overlay_with_copier() {
+  local destination="${MAISON_OVERLAY_HOME:-$HOME/src/maison-overlay}"
+  [ -e "$destination" ] && [ ! -d "$destination" ] && bootstrap_die "overlay destination is not a directory: $destination"
+  mkdir -p "$destination"
+  destination="$(cd "$destination" && pwd -P)"
+  log "Installing the temporary Copier runner"
+  mise install uv
+  log "Creating private overlay at $destination"
+  MAISON_HOME="$repo_root" MAISON_OVERLAY_PATH="$destination" MAISON_HOST="$host" \
+    mise exec -- uvx --from copier copier copy --trust "$repo_root/examples/terroir" "$destination"
+  [ -d "$destination/.git" ] || bootstrap_die "Copier did not initialize the overlay Git repository: $destination"
+  overlay="$destination"
+}
+
+select_overlay_or_defer() {
+  local saved reply
+  if [ -n "$overlay" ]; then
+    return 0
+  fi
+  if command -v python3 > /dev/null 2>&1 && [ -f "$repo_root/scripts/maison_overlay.py" ]; then
+    saved="$(python3 "$repo_root/scripts/maison_overlay.py" resolve 2> /dev/null || true)"
+    if [ -n "$saved" ]; then
+      overlay="$saved"
+      return 0
+    fi
+  fi
+  if [ "${MAISON_REQUIRE_OVERLAY:-false}" = true ] && [ ! -t 0 ]; then
+    bootstrap_die "overlay source is required in non-interactive mode; pass --overlay or set MAISON_OVERLAY"
+  fi
+  if [ ! -t 0 ]; then
+    print_overlay_setup_help
+    return 1
+  fi
+  printf 'No private overlay selected. Set one up now with Copier? [Y/n] ' >&2
+  IFS= read -r reply || reply=n
+  case "$reply" in
+    "" | y | Y | yes | YES | Yes)
+      setup_overlay_with_copier
+      return 0
+      ;;
+    n | N | no | NO | No)
+      if [ "${MAISON_REQUIRE_OVERLAY:-false}" = true ]; then
+        bootstrap_die "overlay source is required; pass --overlay or set MAISON_OVERLAY"
+      fi
+      print_overlay_setup_help
+      return 1
+      ;;
+    *)
+      bootstrap_die "answer yes or no when choosing whether to create a private overlay"
+      ;;
+  esac
+}
+
 case "$(uname -s)" in
   Darwin)
     case "$(uname -m)" in
@@ -185,14 +251,18 @@ source "$repo_root/.mise/lib/bootstrap.sh"
 install_mise_if_missing
 command -v mise > /dev/null 2>&1 || bootstrap_die "mise installation did not place the executable on PATH"
 
-install_nix_or_lix_if_missing
-
 log "Installing Maison command"
 mkdir -p "$HOME/.local/bin"
 ln -sfn "$repo_root/bin/maison" "$HOME/.local/bin/maison"
 
 log "Trusting repository configuration"
 mise trust "$repo_root/mise.toml" > /dev/null
+
+if ! select_overlay_or_defer; then
+  exit 0
+fi
+
+install_nix_or_lix_if_missing
 
 log "Handing off to Maison for host $host"
 bootstrap_args=(--host "$host")
