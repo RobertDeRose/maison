@@ -7,7 +7,7 @@
 - Design path: `docs/src/features/maison-overlay-copier-bootstrap/design.md`
 - Implemented record: `docs/src/features/maison-overlay-copier-bootstrap/index.md`
 - Base branch: `main`
-- Status: draft
+- Status: delivered
 
 ## Feature Summary
 
