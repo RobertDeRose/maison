@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import filecmp
 import json
 import os
 import subprocess
@@ -9,6 +10,8 @@ import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
+
+import tomllib
 
 Mode = Literal["plan", "apply", "recovery"]
 PACKAGE_PHASES = frozenset({"not-started", "started", "completed", "failed", "unknown"})
@@ -314,7 +317,10 @@ def _path_exists(path: Path) -> bool:
     return path.exists() or path.is_symlink()
 
 
-def _hide_installed_overlay_config(plan: CommandPlan) -> tuple[Path, Path] | None:
+ConfigGuard = tuple[tuple[Path, Path], ...]
+
+
+def _hide_installed_overlay_config(plan: CommandPlan) -> ConfigGuard | None:
     mise_command = plan.command("mise")
     config_root = mise_command.env.get("MAISON_USER_CONFIG_ROOT")
     if not config_root:
@@ -326,35 +332,108 @@ def _hide_installed_overlay_config(plan: CommandPlan) -> tuple[Path, Path] | Non
         project_root = mise_command.cwd
     if overlay == project_root.resolve():
         return None
-    installed = mise_command.cwd / ".config/mise/config.toml"
-    if not _path_exists(installed):
-        return None
-    active_config = overlay / "config/mise/config.toml"
-    if not installed.is_symlink() or installed.resolve() != active_config.resolve():
-        return None
-    backup = installed.parent / f".{installed.name}.maison-backup-{os.getpid()}"
-    if _path_exists(backup):
-        raise RuntimeError(f"temporary overlay config backup already exists: {backup}")
-    os.replace(installed, backup)
-    return installed, backup
+
+    installed_root = mise_command.cwd / ".config/mise"
+    guards: list[tuple[Path, Path]] = []
+    try:
+        for active_config in sorted((overlay / "config/mise").glob("config*.toml")):
+            installed = installed_root / active_config.name
+            if not _path_exists(installed):
+                continue
+            if not installed.is_symlink() or installed.resolve() != active_config.resolve():
+                continue
+            backup = installed.parent / f".{installed.name}.maison-backup-{os.getpid()}"
+            if _path_exists(backup):
+                raise RuntimeError(f"temporary overlay config backup already exists: {backup}")
+            os.replace(installed, backup)
+            guards.append((installed, backup))
+    except BaseException:
+        _restore_installed_overlay_config(tuple(guards), retain_new_config=False)
+        raise
+    return tuple(guards) or None
 
 
 def _restore_installed_overlay_config(
-    guard: tuple[Path, Path] | None,
+    guard: ConfigGuard | None,
     *,
     retain_new_config: bool,
 ) -> None:
     if guard is None:
         return
-    installed, backup = guard
-    if retain_new_config and _path_exists(installed):
-        backup.unlink()
-        return
-    if _path_exists(installed):
-        if installed.is_dir() and not installed.is_symlink():
-            raise RuntimeError(f"refusing to remove directory {installed}")
-        installed.unlink()
-    os.replace(backup, installed)
+    for installed, backup in reversed(guard):
+        if retain_new_config and _path_exists(installed):
+            backup.unlink()
+            continue
+        if _path_exists(installed):
+            if installed.is_dir() and not installed.is_symlink():
+                raise RuntimeError(f"refusing to remove directory {installed}")
+            installed.unlink()
+        os.replace(backup, installed)
+
+
+def _expand_user_path(value: str, home: Path) -> Path:
+    if value == "~":
+        return home
+    if value.startswith("~/"):
+        return home / value[2:]
+    return Path(value).expanduser()
+
+
+def _paths_equal(left: Path, right: Path) -> bool:
+    if left.is_dir() or right.is_dir():
+        if not left.is_dir() or not right.is_dir():
+            return False
+        left_entries = {path.relative_to(left) for path in left.rglob("*") if path.is_file()}
+        right_entries = {path.relative_to(right) for path in right.rglob("*") if path.is_file()}
+        if left_entries != right_entries:
+            return False
+        return all(filecmp.cmp(left / path, right / path, shallow=False) for path in left_entries)
+    return left.is_file() and right.is_file() and filecmp.cmp(left, right, shallow=False)
+
+
+def _dotfile_status(target: Path, source: Path, mode: str) -> str:
+    if not source.exists():
+        return "source missing"
+    if mode == "symlink":
+        if target.is_symlink() and target.resolve() == source:
+            return "applied"
+        return "missing" if not _path_exists(target) else "differs"
+    if mode == "symlink-each":
+        if not target.is_dir():
+            return "missing" if not _path_exists(target) else "differs"
+        source_entries = {path.name for path in source.iterdir()}
+        target_entries = {path.name for path in target.iterdir()}
+        if source_entries != target_entries:
+            return "differs"
+        if all(
+            (target / name).is_symlink() and (target / name).resolve() == (source / name).resolve()
+            for name in source_entries
+        ):
+            return "applied"
+        return "differs"
+    if not _path_exists(target):
+        return "missing"
+    if mode == "template":
+        return "present"
+    return "applied" if _paths_equal(target, source) else "differs"
+
+
+def _iter_dotfile_mappings(configuration_root: Path, home: Path) -> list[tuple[str, Path, Path, str]]:
+    mappings: list[tuple[str, Path, Path, str]] = []
+    config_root = configuration_root / "config/mise"
+    for config in sorted(config_root.glob("*.toml")):
+        data = tomllib.loads(config.read_text(encoding="utf-8"))
+        dotfiles = data.get("dotfiles", {})
+        if not isinstance(dotfiles, dict):
+            continue
+        for target, entry in dotfiles.items():
+            if not isinstance(target, str) or not isinstance(entry, dict):
+                continue
+            source_value = entry.get("source")
+            mode = entry.get("mode", "symlink")
+            if isinstance(source_value, str) and isinstance(mode, str):
+                mappings.append((target, config.parent / source_value, _expand_user_path(target, home), mode))
+    return mappings
 
 
 def run_user_status(
@@ -364,21 +443,25 @@ def run_user_status(
     runner: Any = subprocess.run,
 ) -> None:
     plan = build_command_plan(mode="plan", force_dotfiles=False, root=root, home=home)
-    guard = _hide_installed_overlay_config(plan)
     environment = os.environ.copy()
     environment.update(plan.command("mise").env)
-    try:
-        runner(
-            ("mise", "bootstrap", "dotfiles", "status"),
-            cwd=root,
-            env=environment,
-            check=True,
+    configuration_root = Path(environment["MAISON_USER_CONFIG_ROOT"]).resolve()
+    status = runner(
+        ("mise", "bootstrap", "status"),
+        cwd=root,
+        env=environment,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    aggregate_output = getattr(status, "stdout", "")
+    if aggregate_output:
+        print("\n".join(line for line in aggregate_output.splitlines() if not line.startswith("dotfiles ")))
+    for target_name, source, target, mode in _iter_dotfile_mappings(configuration_root, home):
+        print(
+            f"dotfiles {target_name:<55} {mode:<12} "
+            f"{source.resolve()} {_dotfile_status(target, source.resolve(), mode)}"
         )
-        config = Path(environment["MAISON_USER_CONFIG_ROOT"]) / "config/mise/config.toml"
-        if config.is_file():
-            runner(("mise", "bootstrap", "status"), cwd=home, env=environment, check=True)
-    finally:
-        _restore_installed_overlay_config(guard, retain_new_config=False)
 
 
 def run_command_plan(plan: CommandPlan, *, event_file: Path | None = None) -> None:

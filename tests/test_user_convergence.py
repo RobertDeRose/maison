@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import contextlib
 import importlib.util
+import io
 import os
 import subprocess
 import sys
@@ -161,11 +163,15 @@ class UserConvergencePlanTest(unittest.TestCase):
             (overlay / "config/mise").mkdir(parents=True)
             overlay_config = overlay / "config/mise/config.toml"
             overlay_config.write_text("old config\n")
+            overlay_macos_config = overlay / "config/mise/config.macos.toml"
+            overlay_macos_config.write_text("old macos config\n")
             installed.symlink_to(overlay_config)
+            installed_macos = home / ".config/mise/config.macos.toml"
+            installed_macos.symlink_to(overlay_macos_config)
             probe = temp / "probe.sh"
             executable(
                 probe,
-                '#!/bin/sh\n[ ! -e "$HOME/.config/mise/config.toml" ] && exit 0\nexit 11\n',
+                '#!/bin/sh\n[ ! -e "$HOME/.config/mise/config.toml" ] && [ ! -e "$HOME/.config/mise/config.macos.toml" ] && exit 0\nexit 11\n',
             )
             command = self.convergence.Command(
                 name="mise",
@@ -182,6 +188,7 @@ class UserConvergencePlanTest(unittest.TestCase):
             plan = self.convergence.CommandPlan("plan", False, (command,))
             self.convergence.run_command_plan(plan)
             self.assertEqual("old config\n", installed.read_text())
+            self.assertEqual("old macos config\n", installed_macos.read_text())
 
     def test_overlay_config_is_retained_after_successful_apply(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -193,11 +200,15 @@ class UserConvergencePlanTest(unittest.TestCase):
             (overlay / "config/mise").mkdir(parents=True)
             overlay_config = overlay / "config/mise/config.toml"
             overlay_config.write_text("old config\n")
+            overlay_macos_config = overlay / "config/mise/config.macos.toml"
+            overlay_macos_config.write_text("old macos config\n")
             installed.symlink_to(overlay_config)
+            installed_macos = home / ".config/mise/config.macos.toml"
+            installed_macos.symlink_to(overlay_macos_config)
             probe = temp / "probe.sh"
             executable(
                 probe,
-                '#!/bin/sh\n[ ! -e "$HOME/.config/mise/config.toml" ] || exit 11\nprintf "new config\\n" > "$HOME/.config/mise/config.toml"\n',
+                '#!/bin/sh\n[ ! -e "$HOME/.config/mise/config.toml" ] && [ ! -e "$HOME/.config/mise/config.macos.toml" ] || exit 11\nprintf "new config\\n" > "$HOME/.config/mise/config.toml"\n',
             )
             command = self.convergence.Command(
                 name="mise",
@@ -214,6 +225,7 @@ class UserConvergencePlanTest(unittest.TestCase):
             plan = self.convergence.CommandPlan("apply", False, (command,))
             self.convergence.run_command_plan(plan)
             self.assertEqual("new config\n", installed.read_text())
+            self.assertEqual("old macos config\n", installed_macos.read_text())
 
     def test_overlay_config_is_restored_after_failed_apply(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -225,9 +237,16 @@ class UserConvergencePlanTest(unittest.TestCase):
             (overlay / "config/mise").mkdir(parents=True)
             overlay_config = overlay / "config/mise/config.toml"
             overlay_config.write_text("old config\n")
+            overlay_macos_config = overlay / "config/mise/config.macos.toml"
+            overlay_macos_config.write_text("old macos config\n")
             installed.symlink_to(overlay_config)
+            installed_macos = home / ".config/mise/config.macos.toml"
+            installed_macos.symlink_to(overlay_macos_config)
             probe = temp / "probe.sh"
-            executable(probe, '#!/bin/sh\n[ ! -e "$HOME/.config/mise/config.toml" ] && exit 23\n')
+            executable(
+                probe,
+                '#!/bin/sh\n[ ! -e "$HOME/.config/mise/config.toml" ] && [ ! -e "$HOME/.config/mise/config.macos.toml" ] && exit 23\n',
+            )
             command = self.convergence.Command(
                 name="mise",
                 argv=(str(probe),),
@@ -244,8 +263,9 @@ class UserConvergencePlanTest(unittest.TestCase):
             with self.assertRaises(subprocess.CalledProcessError):
                 self.convergence.run_command_plan(plan)
             self.assertEqual("old config\n", installed.read_text())
+            self.assertEqual("old macos config\n", installed_macos.read_text())
 
-    def test_status_restores_overlay_config_while_running_mise(self) -> None:
+    def test_status_uses_overlay_sources_without_moving_installed_config(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             temp = Path(directory)
             project = temp / "project"
@@ -255,20 +275,37 @@ class UserConvergencePlanTest(unittest.TestCase):
             overlay = temp / "overlay"
             (overlay / "config/mise").mkdir(parents=True)
             overlay_config = overlay / "config/mise/config.toml"
-            overlay_config.write_text("[dotfiles]\n")
+            overlay_config.write_text(
+                '[dotfiles]\n"~/.config/mise/config.toml" = '
+                '{ source = "../../config/mise/config.toml", mode = "symlink" }\n'
+            )
             installed = home / ".config/mise/config.toml"
             installed.symlink_to(overlay_config)
             previous_overlay = os.environ.get("MAISON_OVERLAY_PATH")
             os.environ["MAISON_OVERLAY_PATH"] = str(overlay)
             calls: list[tuple[tuple[str, ...], Path, dict[str, str]]] = []
 
-            def runner(argv: tuple[str, ...], *, cwd: Path, env: dict[str, str], check: bool) -> None:
+            def runner(
+                argv: tuple[str, ...],
+                *,
+                cwd: Path,
+                env: dict[str, str],
+                check: bool,
+                capture_output: bool,
+                text: bool,
+            ) -> subprocess.CompletedProcess[str]:
                 self.assertTrue(check)
-                self.assertFalse(installed.exists() or installed.is_symlink())
+                self.assertTrue(capture_output)
+                self.assertTrue(text)
+                self.assertTrue(installed.is_symlink())
+                self.assertEqual(str(overlay_config.resolve()), env["MISE_GLOBAL_CONFIG_FILE"])
                 calls.append((argv, cwd, env))
+                return subprocess.CompletedProcess(argv, 0, stdout="", stderr="")
 
+            output = io.StringIO()
             try:
-                self.convergence.run_user_status(root=project, home=home, runner=runner)
+                with contextlib.redirect_stdout(output):
+                    self.convergence.run_user_status(root=project, home=home, runner=runner)
             finally:
                 if previous_overlay is None:
                     os.environ.pop("MAISON_OVERLAY_PATH", None)
@@ -276,11 +313,12 @@ class UserConvergencePlanTest(unittest.TestCase):
                     os.environ["MAISON_OVERLAY_PATH"] = previous_overlay
 
             self.assertTrue(installed.is_symlink())
-            self.assertEqual(2, len(calls))
-            self.assertEqual(("mise", "bootstrap", "dotfiles", "status"), calls[0][0])
-            self.assertEqual(("mise", "bootstrap", "status"), calls[1][0])
-            self.assertEqual(home, calls[1][1])
-            self.assertEqual(str(overlay_config.resolve()), calls[0][2]["MISE_GLOBAL_CONFIG_FILE"])
+            self.assertIn("applied", output.getvalue())
+            self.assertNotIn("source missing", output.getvalue())
+            self.assertEqual(1, len(calls))
+            self.assertEqual(("mise", "bootstrap", "status"), calls[0][0])
+            self.assertEqual(project, calls[0][1])
+            self.assertEqual(str(overlay.resolve()), calls[0][2]["MAISON_USER_CONFIG_ROOT"])
 
     def test_user_tasks_forward_force_dotfiles_only_when_requested(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
