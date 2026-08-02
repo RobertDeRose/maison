@@ -39,7 +39,7 @@ selection.
 | `maison-015-linux-runtime-verification`         | MAISON-015: Linux runtime activation verification    | `maison-mol-cg3x` | Delivered     | `maison-014-remote-convergence-restoration`     | [record](features/maison-015-linux-runtime-verification/index.md)         |
 | `maison-016-pi-typescript-validation`           | MAISON-016: Pi TypeScript validation boundary        | `maison-mol-fmud` | Delivered     | `maison-015-linux-runtime-verification`         | [record](features/maison-016-pi-typescript-validation/index.md)           |
 | `maison-017-maison-terroir-repository-split`    | MAISON-017: Maison/Terroir repository split          | `maison-mol-jfhs` | Planned       | `maison-016-pi-typescript-validation`           | [design](features/maison-017-maison-terroir-repository-split/design.md)   |
-| `maison-overlay-copier-bootstrap`               | Copier-backed overlay setup and bootstrap onboarding | `maison-mol-5s9`  | Planned       | `maison-017-maison-terroir-repository-split`    | [design](features/maison-overlay-copier-bootstrap/design.md)              |
+| `maison-overlay-copier-bootstrap`               | Copier-backed overlay setup and bootstrap onboarding | `maison-mol-5s9`  | Delivered     | `maison-017-maison-terroir-repository-split`    | [record](features/maison-overlay-copier-bootstrap/index.md)               |
 
 ## Later P2 maintainability follow-ups
 
