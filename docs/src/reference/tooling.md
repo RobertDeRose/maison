@@ -38,14 +38,14 @@ Recorded language profiles: `other`.
 
 ## Overlay template
 
-`examples/template/` is a Copier template for private overlays, not a static directory to copy blindly. Maison bootstrap
+`overlay_template/` is a Copier template for private overlays, not a static directory to copy blindly. Maison bootstrap
 runs it with `uvx copier` when the user chooses immediate setup. Manual generation from a Maison checkout is:
 
 ```bash
 mise install uv
 MAISON_HOME="$PWD" MAISON_HOST="$(hostname -s)" \
   mise exec -- uvx --from copier copier copy --trust \
-    --data "username=$(id -un)" examples/template "$HOME/src/my-maison-overlay"
+    --data "username=$(id -un)" overlay_template "$HOME/src/my-maison-overlay"
 ```
 
 Copier initializes the destination Git repository. The first-copy task delegates current-host registration to

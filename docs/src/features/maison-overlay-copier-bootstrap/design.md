@@ -11,7 +11,7 @@
 
 ## Feature Summary
 
-Make private-overlay creation a first-class Maison workflow. The public `examples/template/` directory becomes a
+Make private-overlay creation a first-class Maison workflow. The public `overlay_template/` directory becomes a
 Copier template, bootstrap accepts the canonical `MAISON_OVERLAY` environment variable or `--overlay`, and an
 interactive first run can either create an overlay now or install only the Maison command and defer configuration to
 the documentation.
@@ -25,7 +25,7 @@ current macOS or Linux host through Maison's existing `host:add` task rather tha
 
 ## Goals
 
-- Turn `examples/template/` into a maintained Copier template for private overlays.
+- Turn `overlay_template/` into a maintained Copier template for private overlays.
 - Accept `--overlay SOURCE` and `MAISON_OVERLAY=SOURCE` as the supported explicit overlay inputs.
 - Preserve saved overlay state for subsequent runs and retain the legacy `MAISON_OVERLAY_SOURCE` input as a compatibility
   fallback without documenting it as canonical.
@@ -66,7 +66,7 @@ updated at `${XDG_DATA_HOME:-$HOME/.local/share}/maison/overlay`, preserving the
 When no source is available:
 
 - An interactive terminal asks whether to set up a private overlay now, with yes as the default.
-- **Yes** installs the minimal Copier runner, renders `examples/template/` into
+- **Yes** installs the minimal Copier runner, renders `overlay_template/` into
   `${MAISON_OVERLAY_HOME:-$HOME/src/maison-overlay}`, seeds the inventory username from `id -un`, initializes its Git
   repository, and runs the template task that registers the current host through Maison.
 - **No** installs Maison's verified mise runtime and `maison` CLI, prints the overlay setup documentation URL/path, and
@@ -129,8 +129,8 @@ required `MAISON_HOME` environment variable.
 Maison already has a tested overlay state helper in `scripts/maison_overlay.py`, a shell adapter in
 `.mise/lib/overlay.sh`, a typed inventory validator, and `mise run host:add`. The current bootstrap installs mise,
 Nix/Lix, and the Maison CLI before handing control to the bootstrap task, but it requires an overlay only when
-`MAISON_REQUIRE_OVERLAY` is set and otherwise silently uses public starter data. `examples/template/` is currently a
-static copy guide and does not contain Copier metadata or host-generation behavior.
+`MAISON_REQUIRE_OVERLAY` is set and otherwise silently uses public starter data. `overlay_template/` is the maintained
+Copier source and contains the metadata and first-copy host-generation behavior described below.
 
 MAISON-004 established the overlay source/state contract and MAISON-017 separated public Maison from private Terroir.
 This feature extends those contracts without moving private data back into Maison.
@@ -153,7 +153,7 @@ owns prompts, Copier invocation, CLI installation, and phase selection.
 
 ### Copier template contract
 
-`examples/template/copier.yml` defines user questions for the private inventory identity and a first-copy task. Template
+`overlay_template/copier.yml` defines user questions for the private inventory identity and a first-copy task. Template
 files use Copier's normal Jinja rendering; `inventory.toml.jinja` renders a user-only inventory, while empty mise
 policies and dotfile guidance remain neutral. The task script is a private-repository file and calls Maison's public
 `host:add` command with environment-provided `MAISON_HOME`, `MAISON_OVERLAY_PATH`, and optional `MAISON_HOST`.
@@ -193,7 +193,7 @@ the generated repository owns user/site configuration, and Bitwarden remains the
 - `MAISON_OVERLAY` is the canonical environment variable; `MAISON_OVERLAY_SOURCE` is compatibility-only.
 - A declined first-run overlay setup is a successful CLI-only bootstrap, not a failed setup and not an activation of
   neutral starter state.
-- `examples/template/` is a Copier template, and its first-copy task delegates host creation to Maison.
+- `overlay_template/` is a Copier template, and its first-copy task delegates host creation to Maison.
 
 ### Architecture Documentation Changes
 
@@ -215,7 +215,7 @@ registration automatically.
 | Operations                 | `docs/operations.md`                                         | Update                  | Document bootstrap phases, prompt outcomes, and recovery                     | `maison-mol-xke.3` |
 | Host authoring             | `docs/add-a-host.md`                                         | Update                  | Explain generated host registration and manual `host:add`                    | `maison-mol-xke.3` |
 | Tooling reference          | `docs/src/reference/tooling.md`                              | Update                  | Document Copier/uvx setup and template update rules                          | `maison-mol-xke.3` |
-| Template                   | `examples/template/README.md`                                | Update                  | Make the template's Copier contract and private boundary explicit            | `maison-mol-xke.2` |
+| Template                   | `overlay_template/README.md`                                 | Update                  | Make the template's Copier contract and private boundary explicit            | `maison-mol-xke.2` |
 | Feature navigation         | `docs/src/SUMMARY.md`                                        | Update                  | Register this design and its delivered record                                | `maison-mol-xke.3` |
 | Roadmap                    | `docs/src/planned-features.md`                               | Update                  | Add the planned feature and dependency/status entry                          | `maison-mol-xke.3` |
 | Implemented Feature Record | `docs/src/features/maison-overlay-copier-bootstrap/index.md` | Create during close-out | Preserve delivery and audit history                                          | Close-out          |

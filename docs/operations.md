@@ -17,7 +17,7 @@ active path are stored in `${XDG_STATE_HOME:-$HOME/.local/state}/maison/overlay.
 committed to either repository.
 
 If no overlay is selected, an interactive bootstrap asks whether to set one up now. Yes installs a temporary Copier
-runner through Maison's `uv`, renders `examples/template/`, asks for the private inventory identity, and registers the
+runner through Maison's `uv`, renders `overlay_template/`, asks for the private inventory identity, and registers the
 current supported macOS/Linux host through `mise run host:add`. No installs and links Maison/the CLI, prints the
 follow-up documentation, and exits without installing Nix or activating system/user state. Non-interactive bootstrap
 follows the No path unless `MAISON_REQUIRE_OVERLAY=true`, which fails clearly instead.

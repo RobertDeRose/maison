@@ -1,7 +1,7 @@
 # Developer tooling
 
 This page applies to the public Maison framework repository. Maison uses dstack/Copier controls and Beads for project
-lifecycle work. A private overlay is plain Git and does not install or run this tooling; use `examples/template/` as its
+lifecycle work. A private overlay is plain Git and does not install or run this tooling; use `overlay_template/` as its
 starting layout.
 
 The repository uses mise to provide project tools and named tasks. Install mise, then run:
