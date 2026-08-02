@@ -56,7 +56,12 @@ nix_overlay_path() {
   inventory_path="${MAISON_INVENTORY:-}"
   if [ -n "$inventory_path" ] && [ "$inventory_path" != "$maison_root/inventory.toml" ]; then
     (cd "$(dirname "$inventory_path")" && pwd -P)
+    return
   fi
+  # The public flake's path input must be overridden to the current checkout.
+  # Otherwise --no-update-lock-file rejects any source change since the path
+  # hash was recorded in flake.lock, which makes clean CI checkouts fail.
+  printf '%s\n' "$maison_root"
 }
 
 nix_overlay_args() {
@@ -77,7 +82,7 @@ nix_command() {
       shift
       nix "${flags[@]}" "$subcommand" "${overlay_args[@]}" "$@"
       ;;
-    *) nix "${flags[@]}" "$@" ;;
+    *) nix "${flags[@]}" "$@" "${overlay_args[@]}" ;;
   esac
 }
 

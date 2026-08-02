@@ -402,7 +402,46 @@ class OverlayContractTest(unittest.TestCase):
                 text=True,
             )
             self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertEqual(log.read_text().strip(), f"darwin build {ROOT} -H example-darwin")
+            self.assertEqual(
+                log.read_text().strip(),
+                f"darwin build {ROOT} -H example-darwin -- --override-input overlay path:{ROOT}",
+            )
+
+    def test_nix_command_overrides_public_overlay_input_without_lock_updates(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            temp = Path(directory)
+            fake_bin = temp / "bin"
+            fake_bin.mkdir()
+            log = temp / "nix-log"
+            executable(fake_bin / "nix", '#!/bin/sh\nprintf \'%s\\n\' "$*" >"$NIX_LOG"\n')
+            env = os.environ.copy()
+            env.update(
+                {
+                    "PATH": f"{fake_bin}{os.pathsep}{env['PATH']}",
+                    "MISE_PROJECT_ROOT": str(ROOT),
+                    "MAISON_INVENTORY": str(ROOT / "inventory.toml"),
+                    "NIX_LOG": str(log),
+                }
+            )
+            result = run(
+                [
+                    "bash",
+                    "-c",
+                    'source "$1/.mise/lib/common.sh"; source "$1/.mise/lib/nix.sh"; nix_command flake metadata --no-update-lock-file',
+                    "_",
+                    str(ROOT),
+                ],
+                cwd=ROOT,
+                env=env,
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertTrue(
+                log.read_text()
+                .strip()
+                .endswith(f"flake metadata --no-update-lock-file --override-input overlay path:{ROOT}")
+            )
 
     def test_overlay_prepare_uses_existing_local_repository_directly(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
