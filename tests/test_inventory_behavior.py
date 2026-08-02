@@ -66,7 +66,10 @@ class InventoryBehaviorTest(unittest.TestCase):
         cases = {
             "intel": original.replace('system = "aarch64-darwin"', 'system = "x86_64-darwin"', 1),
             "home": original.replace('repo_path = "/home/operator/.maison"', 'repo_path = "/home/operator"'),
-            "escape": original.replace('repo_path = "/home/operator/.maison"', 'repo_path = "/home/operator/../root"'),
+            "escape": original.replace(
+                'repo_path = "/home/operator/.maison"',
+                'repo_path = "/home/operator/../root"',
+            ),
             "root": original.replace('repo_path = "/home/operator/.maison"', 'repo_path = "/"'),
             "unsafe-character": original.replace(
                 'repo_path = "/home/operator/.maison"',
@@ -184,7 +187,7 @@ class OverlayContractTest(unittest.TestCase):
             self.assertNotEqual(missing.returncode, 0)
             self.assertIn("overlay source is required", missing.stderr)
 
-            env["MAISON_OVERLAY_SOURCE"] = "env-overlay"
+            env["MAISON_OVERLAY"] = "env-overlay"
             resolved = run(
                 [str(helper), "resolve"],
                 env=env,
@@ -193,6 +196,25 @@ class OverlayContractTest(unittest.TestCase):
                 text=True,
             )
             self.assertEqual(resolved.stdout.strip(), "env-overlay")
+
+            env["MAISON_OVERLAY_SOURCE"] = "legacy-overlay"
+            legacy = run(
+                [str(helper), "resolve"],
+                env=env,
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(legacy.stdout.strip(), "env-overlay")
+            env.pop("MAISON_OVERLAY")
+            legacy = run(
+                [str(helper), "resolve"],
+                env=env,
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(legacy.stdout.strip(), "legacy-overlay")
 
             explicit = run(
                 [str(helper), "--overlay", "explicit-overlay", "resolve"],
@@ -237,7 +259,9 @@ class OverlayContractTest(unittest.TestCase):
             "site@example.invalid ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEexamplefixturekey\n"
         )
 
-    def test_inventory_shell_loads_private_overlay_inventory_and_host_overrides(self) -> None:
+    def test_inventory_shell_loads_private_overlay_inventory_and_host_overrides(
+        self,
+    ) -> None:
         with tempfile.TemporaryDirectory() as directory:
             temp = Path(directory)
             overlay = temp / "overlay"
@@ -271,7 +295,7 @@ class OverlayContractTest(unittest.TestCase):
         self.assertIn("--impure", nix)
         self.assertIn("load_maison_overlay_environment", nix)
 
-    def test_overlay_prepare_clones_and_records_private_overlay(self) -> None:
+    def test_overlay_prepare_uses_existing_local_repository_directly(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             temp = Path(directory)
             source = temp / 'source "overlay"'
@@ -295,31 +319,39 @@ class OverlayContractTest(unittest.TestCase):
                 capture_output=True,
                 text=True,
             )
-            clone = temp / "data/maison/overlay"
             state = temp / "state/maison/overlay.toml"
-            self.assertEqual(result.stdout.strip(), str(clone))
-            self.assertTrue((clone / ".git").is_dir())
+            self.assertEqual(result.stdout.strip(), str(source.resolve()))
             with state.open("rb") as handle:
                 state_data = tomllib.load(handle)
-            self.assertEqual(state_data["source"], str(source))
-            self.assertEqual(state_data["path"], str(clone))
+            self.assertEqual(state_data["source"], str(source.resolve()))
+            self.assertEqual(state_data["path"], str(source.resolve()))
+            self.assertFalse((temp / "data/maison/overlay").exists())
             self.assertEqual(stat.S_IMODE(state.stat().st_mode), 0o600)
 
     def test_overlay_prepare_rejects_existing_clone_with_different_source(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             temp = Path(directory)
             original = temp / "original"
-            replacement = temp / "replacement"
-            for source in (original, replacement):
-                source.mkdir()
-                (source / "inventory.toml").write_text("schema = 1\n")
-                git_init(source)
-                git_commit_all(source)
+            original.mkdir()
+            (original / "inventory.toml").write_text("schema = 1\n")
+            git_init(original)
+            git_commit_all(original)
             clone = temp / "clone"
-            run(["git", "clone", str(original), str(clone)], check=True, capture_output=True)
+            run(
+                ["git", "clone", str(original), str(clone)],
+                check=True,
+                capture_output=True,
+            )
             helper = ROOT / "scripts/maison_overlay.py"
             result = run(
-                [str(helper), "--overlay", str(replacement), "--clone-dir", str(clone), "prepare"],
+                [
+                    str(helper),
+                    "--overlay",
+                    "https://example.invalid/replacement.git",
+                    "--clone-dir",
+                    str(clone),
+                    "prepare",
+                ],
                 capture_output=True,
                 text=True,
             )
@@ -345,7 +377,12 @@ class OverlayContractTest(unittest.TestCase):
         self.assertIn("overlay inventory", docs)
 
     def test_bootstrap_passes_overlay_to_bootstrap_task(self) -> None:
-        direct = run([str(ROOT / "bootstrap.sh"), "--help"], capture_output=True, text=True, check=True)
+        direct = run(
+            [str(ROOT / "bootstrap.sh"), "--help"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
         self.assertIn("--overlay SOURCE", direct.stdout)
 
         with tempfile.TemporaryDirectory() as directory:
@@ -368,7 +405,10 @@ class OverlayContractTest(unittest.TestCase):
             fake_bin = temp / "bin"
             fake_bin.mkdir()
             log = temp / "mise-log"
-            executable(fake_bin / "nix", "#!/bin/sh\n[ \"$1\" = --version ] && echo 'nix 2.0'\n")
+            executable(
+                fake_bin / "nix",
+                "#!/bin/sh\n[ \"$1\" = --version ] && echo 'nix 2.0'\n",
+            )
             executable(fake_bin / "mise", '#!/bin/sh\nprintf \'%s\\n\' "$*" >>"$MISE_LOG"\n')
             env = os.environ.copy()
             env.update(
@@ -401,3 +441,60 @@ class OverlayContractTest(unittest.TestCase):
                 "run --skip-tools bootstrap -- --host fixture-host --overlay git@example.invalid:site/overlay.git",
                 log.read_text(),
             )
+
+    def test_bootstrap_without_overlay_installs_cli_and_skips_activation(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            temp = Path(directory)
+            source = temp / "source"
+            source.mkdir()
+            copy_files(
+                source,
+                "mise.toml",
+                "flake.nix",
+                "bin/maison",
+                ".mise/lib/common.sh",
+                ".mise/lib/platform.sh",
+                ".mise/lib/bootstrap.sh",
+            )
+            git_init(source)
+            git_commit_all(source)
+            home = temp / "home"
+            home.mkdir()
+            fake_bin = temp / "bin"
+            fake_bin.mkdir()
+            log = temp / "mise-log"
+            executable(
+                fake_bin / "nix",
+                "#!/bin/sh\nprintf 'nix should not run\\n' >&2\nexit 99\n",
+            )
+            executable(fake_bin / "mise", '#!/bin/sh\nprintf \'%s\\n\' "$*" >>"$MISE_LOG"\n')
+            env = os.environ.copy()
+            env.pop("MAISON_OVERLAY", None)
+            env.pop("MAISON_OVERLAY_SOURCE", None)
+            env.update(
+                {
+                    "HOME": str(home),
+                    "MAISON_HOME": str(home / ".maison"),
+                    "PATH": f"{fake_bin}{os.pathsep}{env['PATH']}",
+                    "MISE_LOG": str(log),
+                }
+            )
+            result = run(
+                [
+                    str(ROOT / "bootstrap.sh"),
+                    "--repo",
+                    str(source),
+                    "--ref",
+                    "main",
+                    "--host",
+                    "fixture-host",
+                ],
+                cwd=temp,
+                env=env,
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("No private overlay was selected", result.stdout)
+            self.assertTrue((home / ".local/bin/maison").is_symlink())
+            self.assertNotIn("run --skip-tools bootstrap", log.read_text())

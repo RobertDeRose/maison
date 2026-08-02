@@ -4,7 +4,9 @@ from tests.support.topology import *
 
 
 class MigrationBehaviorTest(unittest.TestCase):
-    def test_apply_is_system_first_and_stops_before_user_on_system_failure(self) -> None:
+    def test_apply_is_system_first_and_stops_before_user_on_system_failure(
+        self,
+    ) -> None:
         with tempfile.TemporaryDirectory() as directory:
             temp = Path(directory)
             fake_bin = temp / "bin"
@@ -191,7 +193,12 @@ class MigrationBehaviorTest(unittest.TestCase):
                     "MAISON_DOCKER_APP": str(docker),
                 }
             )
-            result = run([str(ROOT / "scripts/user-apply-packages.sh")], env=env, capture_output=True, text=True)
+            result = run(
+                [str(ROOT / "scripts/user-apply-packages.sh")],
+                env=env,
+                capture_output=True,
+                text=True,
+            )
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(counter.read_text().strip(), "2")
             self.assertFalse(target.exists())
@@ -243,7 +250,12 @@ class MigrationBehaviorTest(unittest.TestCase):
                     "MAISON_DOCKER_APP": str(docker),
                 }
             )
-            result = run([str(ROOT / "scripts/user-apply-packages.sh")], env=env, capture_output=True, text=True)
+            result = run(
+                [str(ROOT / "scripts/user-apply-packages.sh")],
+                env=env,
+                capture_output=True,
+                text=True,
+            )
             self.assertEqual(result.returncode, 27)
             self.assertTrue(target.is_symlink())
             self.assertEqual(os.readlink(target), relative_source)
@@ -484,7 +496,14 @@ class MigrationBehaviorTest(unittest.TestCase):
             env = os.environ.copy()
             env["HOME"] = str(home)
             script = ROOT / "scripts/user-link-mise-lock.sh"
-            preview = run([str(script), "--dry-run"], cwd=ROOT, env=env, check=True, capture_output=True, text=True)
+            preview = run(
+                [str(script), "--dry-run"],
+                cwd=ROOT,
+                env=env,
+                check=True,
+                capture_output=True,
+                text=True,
+            )
             for name in ("mise.lock", "config.macos.lock"):
                 source = ROOT / "config/mise" / name
                 target = home / ".config/mise" / name
@@ -498,9 +517,20 @@ class MigrationBehaviorTest(unittest.TestCase):
                 self.assertEqual(target.resolve(), ROOT / "config/mise" / name)
 
     def test_bootstrap_help_pipe_and_clone_handoff(self) -> None:
-        direct = run([str(ROOT / "bootstrap.sh"), "--help"], capture_output=True, text=True, check=True)
+        direct = run(
+            [str(ROOT / "bootstrap.sh"), "--help"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
         piped = run(
-            ["bash", "-c", 'cat "$1" | bash -s -- --help', "_", str(ROOT / "bootstrap.sh")],
+            [
+                "bash",
+                "-c",
+                'cat "$1" | bash -s -- --help',
+                "_",
+                str(ROOT / "bootstrap.sh"),
+            ],
             capture_output=True,
             text=True,
             check=True,
@@ -528,7 +558,10 @@ class MigrationBehaviorTest(unittest.TestCase):
             fake_bin = temp / "bin"
             fake_bin.mkdir()
             log = temp / "mise-log"
-            executable(fake_bin / "nix", "#!/bin/sh\n[ \"$1\" = --version ] && echo 'nix 2.0'\n")
+            executable(
+                fake_bin / "nix",
+                "#!/bin/sh\n[ \"$1\" = --version ] && echo 'nix 2.0'\n",
+            )
             executable(fake_bin / "mise", '#!/bin/sh\nprintf \'%s\\n\' "$*" >>"$MISE_LOG"\n')
             env = os.environ.copy()
             env.update(
@@ -540,7 +573,15 @@ class MigrationBehaviorTest(unittest.TestCase):
                 }
             )
             result = run(
-                [str(ROOT / "bootstrap.sh"), "--repo", str(source), "--ref", "main", "--host", "fixture-host"],
+                [
+                    str(ROOT / "bootstrap.sh"),
+                    "--repo",
+                    str(source),
+                    "--ref",
+                    "main",
+                    "--host",
+                    "fixture-host",
+                ],
                 cwd=temp,
                 env=env,
                 capture_output=True,
@@ -551,7 +592,8 @@ class MigrationBehaviorTest(unittest.TestCase):
             self.assertTrue((home / ".local/bin/maison").is_symlink())
             calls = log.read_text()
             self.assertIn("trust", calls)
-            self.assertIn("run --skip-tools bootstrap -- --host fixture-host", calls)
+            self.assertNotIn("run --skip-tools bootstrap", calls)
+            self.assertIn("No private overlay was selected", result.stdout)
 
     def test_maison_version_uses_deployment_revision_without_git(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -566,7 +608,11 @@ class MigrationBehaviorTest(unittest.TestCase):
             env["MAISON_HOME"] = str(install)
             env["PATH"] = f"{fake_bin}{os.pathsep}{env['PATH']}"
             result = run(
-                ["bash", str(install / "bin/maison"), "--version"], env=env, capture_output=True, text=True, check=True
+                ["bash", str(install / "bin/maison"), "--version"],
+                env=env,
+                capture_output=True,
+                text=True,
+                check=True,
             )
             self.assertEqual(result.stdout.strip(), "maison 0123456789ab")
 
