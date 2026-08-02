@@ -1,27 +1,22 @@
-# Private overlay example
+# Private Maison overlay
 
-Copy this directory into a new private Git repository, then edit the placeholders before using it with Maison:
+This repository was generated from Maison's `examples/terroir` Copier template. It owns private inventory, user mise
+policy, host overrides, trusted public material, and dotfiles; Maison remains the public framework.
 
-```bash
-mkdir -p "$HOME/src/my-maison-overlay"
-cp -R examples/terroir/. "$HOME/src/my-maison-overlay/"
-cd "$HOME/src/my-maison-overlay"
-$EDITOR inventory.toml config/mise/config.toml
-# Add host overrides and dotfiles as needed.
-git init
-git add .
-git commit -m 'chore: initialize private Maison overlay'
-```
+## Update the template
 
-Create a private remote for the overlay and bootstrap Maison with its URL:
+From a Maison checkout, review template updates before applying them:
 
 ```bash
-./bootstrap.sh --host "$(hostname -s)" --overlay git@github.com:OWNER/PRIVATE-OVERLAY.git
+copier update --trust
 ```
 
-Keep personal identities, hostnames, deployment endpoints, trusted keys, passwords, tokens, and private keys in the
-private repository or Bitwarden. Do not copy private values back into public Maison. Terroir is one possible name for a
-private overlay; each Maison user may choose their own repository and ownership model.
+Template updates do not rerun host registration. Add another host through Maison so inventory mutations remain validated
+and transaction-protected:
 
-The example contains only placeholder inventory and empty mise policy files. Add applications, packages, preferences,
-and dotfiles to the private overlay rather than to Maison.
+```bash
+MAISON_OVERLAY_PATH="$PWD" mise -C /path/to/maison run host:add -- "$(hostname -s)" --user "$(id -un)"
+```
+
+Keep passwords, tokens, SSH private keys, signing private keys, and other secrets in Bitwarden or an equivalent secret
+manager. A private Git repository is not a substitute for secret storage.
