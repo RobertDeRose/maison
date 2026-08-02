@@ -245,6 +245,43 @@ class UserConvergencePlanTest(unittest.TestCase):
                 self.convergence.run_command_plan(plan)
             self.assertEqual("old config\n", installed.read_text())
 
+    def test_status_restores_overlay_config_while_running_mise(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            temp = Path(directory)
+            project = temp / "project"
+            project.mkdir()
+            home = temp / "home"
+            (home / ".config/mise").mkdir(parents=True)
+            overlay = temp / "overlay"
+            (overlay / "config/mise").mkdir(parents=True)
+            overlay_config = overlay / "config/mise/config.toml"
+            overlay_config.write_text("[dotfiles]\n")
+            installed = home / ".config/mise/config.toml"
+            installed.symlink_to(overlay_config)
+            previous_overlay = os.environ.get("MAISON_OVERLAY_PATH")
+            os.environ["MAISON_OVERLAY_PATH"] = str(overlay)
+            calls: list[tuple[tuple[str, ...], Path, dict[str, str]]] = []
+
+            def runner(argv: tuple[str, ...], *, cwd: Path, env: dict[str, str], check: bool) -> None:
+                self.assertTrue(check)
+                self.assertFalse(installed.exists() or installed.is_symlink())
+                calls.append((argv, cwd, env))
+
+            try:
+                self.convergence.run_user_status(root=project, home=home, runner=runner)
+            finally:
+                if previous_overlay is None:
+                    os.environ.pop("MAISON_OVERLAY_PATH", None)
+                else:
+                    os.environ["MAISON_OVERLAY_PATH"] = previous_overlay
+
+            self.assertTrue(installed.is_symlink())
+            self.assertEqual(2, len(calls))
+            self.assertEqual(("mise", "bootstrap", "dotfiles", "status"), calls[0][0])
+            self.assertEqual(("mise", "bootstrap", "status"), calls[1][0])
+            self.assertEqual(home, calls[1][1])
+            self.assertEqual(str(overlay_config.resolve()), calls[0][2]["MISE_GLOBAL_CONFIG_FILE"])
+
     def test_user_tasks_forward_force_dotfiles_only_when_requested(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             temp = Path(directory)

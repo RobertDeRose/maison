@@ -357,6 +357,30 @@ def _restore_installed_overlay_config(
     os.replace(backup, installed)
 
 
+def run_user_status(
+    *,
+    root: Path,
+    home: Path,
+    runner: Any = subprocess.run,
+) -> None:
+    plan = build_command_plan(mode="plan", force_dotfiles=False, root=root, home=home)
+    guard = _hide_installed_overlay_config(plan)
+    environment = os.environ.copy()
+    environment.update(plan.command("mise").env)
+    try:
+        runner(
+            ("mise", "bootstrap", "dotfiles", "status"),
+            cwd=root,
+            env=environment,
+            check=True,
+        )
+        config = Path(environment["MAISON_USER_CONFIG_ROOT"]) / "config/mise/config.toml"
+        if config.is_file():
+            runner(("mise", "bootstrap", "status"), cwd=home, env=environment, check=True)
+    finally:
+        _restore_installed_overlay_config(guard, retain_new_config=False)
+
+
 def run_command_plan(plan: CommandPlan, *, event_file: Path | None = None) -> None:
     commands = (
         (*plan.apply_only_commands[:1], *plan.convergence_commands, *plan.apply_only_commands[1:])
@@ -429,7 +453,7 @@ def _write_recovery_result(
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Run Maison user convergence")
-    parser.add_argument("mode", choices=("plan", "apply", "recovery"))
+    parser.add_argument("mode", choices=("plan", "apply", "recovery", "status"))
     parser.add_argument("--root", required=True, type=Path)
     parser.add_argument("--force-dotfiles", action="store_true")
     parser.add_argument("--event-file", type=Path)
@@ -441,6 +465,10 @@ def main() -> int:
     event_file = arguments.event_file or (
         Path(os.environ["MAISON_CONVERGENCE_EVENT_FILE"]) if os.environ.get("MAISON_CONVERGENCE_EVENT_FILE") else None
     )
+    if arguments.mode == "status":
+        run_user_status(root=arguments.root, home=Path.home())
+        return 0
+
     plan = build_command_plan(
         mode=arguments.mode,
         force_dotfiles=arguments.force_dotfiles,
