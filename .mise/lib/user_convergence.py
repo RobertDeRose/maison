@@ -402,9 +402,6 @@ def _dotfile_status(target: Path, source: Path, mode: str) -> str:
         if not target.is_dir():
             return "missing" if not _path_exists(target) else "differs"
         source_entries = {path.name for path in source.iterdir()}
-        target_entries = {path.name for path in target.iterdir()}
-        if source_entries != target_entries:
-            return "differs"
         if all(
             (target / name).is_symlink() and (target / name).resolve() == (source / name).resolve()
             for name in source_entries
