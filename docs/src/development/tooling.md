@@ -78,9 +78,9 @@ is skipped or broken and do not depend on ambient Python site-packages.
 
 ## GitHub validation
 
-`.github/workflows/validate.yml` runs on every push and pull request. It isolates user-global mise configuration,
-installs only the committed lock with `mise install --locked`, and runs `mise run check`. CI does not regenerate the
-lock or maintain a separate validation policy.
+`.github/workflows/ci.yml` runs on every push to `main` and pull request. Its `repository-checks` job installs Nix,
+isolates user-global mise configuration, installs the committed tools, and runs `mise run check`. The same workflow
+also builds supported platform outputs and exercises the pre-mise bootstrap boundary.
 
 `.github/workflows/cache-refresh.yml` is dependency-update automation, not an approval path. It may refresh `flake.lock`,
 build cache targets, push or update the `automation/refresh-flake-lock` branch, open or edit the matching pull request,

@@ -19,7 +19,7 @@
 | `scripts/setup-tooling.py`                 | Resolves the lock, installs tools, installs hooks, and returns JSON status. |
 | `schemas/inventory.toml`                   | Shared public inventory schema contract for Python and Nix validators.      |
 | `scripts/enable-docs-deployment.py`        | Configures workflow-built Pages through external `gh`.                      |
-| `.github/workflows/validate.yml`           | Runs locked `mise run check` on pushes and pull requests.                   |
+| `.github/workflows/ci.yml`                 | Runs repository checks, platform builds, and bootstrap checks on CI events. |
 | `.github/workflows/docs.yml`               | Builds gated docs from the default branch or manual dispatch.               |
 | `.github/workflows/cache-refresh.yml`      | Warms cache targets and opens or updates flake refresh PRs without merging. |
 
