@@ -4,7 +4,7 @@ from tests.support.topology import *
 
 
 class CopierTemplateTest(unittest.TestCase):
-    TEMPLATE = ROOT / "examples/template"
+    TEMPLATE = ROOT / "overlay_template"
 
     @classmethod
     def render(cls, destination: Path) -> None:

@@ -16,7 +16,7 @@ Darwin's system closure contains `nh`, `deploy-rs`, `nixd`, system-wide fonts, a
 ## User package files
 
 Public Maison keeps empty, schema-valid package stubs and installs no user applications by default. Personal,
-organization, or site package policy belongs in a private overlay based on `examples/template/config/mise/`.
+organization, or site package policy belongs in a private overlay based on `overlay_template/config/mise/`.
 
 - `config/mise/config.toml`: neutral cross-platform policy stub.
 - `config/mise/config.macos.toml`: neutral macOS policy stub.

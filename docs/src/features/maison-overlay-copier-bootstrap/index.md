@@ -10,7 +10,7 @@
 
 ## Delivered Capability
 
-Maison now treats private-overlay creation as a first-class bootstrap workflow. `examples/template/` is a Copier
+Maison now treats private-overlay creation as a first-class bootstrap workflow. `overlay_template/` is a Copier
 template that renders a private inventory, policy stubs, dotfile guidance, Copier answers, and a first-copy host setup
 task. Bootstrap seeds the inventory username from the current effective user; the task delegates host registration and
 supported-platform detection to Maison's validated `host:add` command.
@@ -34,7 +34,7 @@ Manual template setup from a Maison checkout:
 mise install uv
 MAISON_HOME="$PWD" MAISON_HOST="$(hostname -s)" \
   mise exec -- uvx --from copier copier copy --trust \
-    --data "username=$(id -un)" examples/template "$HOME/src/my-maison-overlay"
+    --data "username=$(id -un)" overlay_template "$HOME/src/my-maison-overlay"
 ```
 
 The legacy `MAISON_OVERLAY_SOURCE` environment variable remains accepted as a compatibility fallback. Manual Copier
@@ -110,8 +110,8 @@ A user who declines setup can follow the printed README/template guidance and re
 - `docs/operations.md`
 - `docs/add-a-host.md`
 - `docs/src/reference/tooling.md`
-- `examples/template/README.md`
-- `examples/template/dotfiles/README.md`
+- `overlay_template/README.md`
+- `overlay_template/dotfiles/README.md`
 - `docs/src/SUMMARY.md`
 - `docs/src/planned-features.md`
 - `docs/src/features/maison-overlay-copier-bootstrap/design.md`

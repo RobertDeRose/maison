@@ -1,7 +1,7 @@
 # Add a macOS application
 
 Apple Silicon applications belong in the private overlay's `config/mise/config.macos-arm64.toml`, based on
-`examples/template/config/mise/config.macos-arm64.toml`. Public Maison intentionally defines no user applications.
+`overlay_template/config/mise/config.macos-arm64.toml`. Public Maison intentionally defines no user applications.
 
 ```bash
 maison app add example-app

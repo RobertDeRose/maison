@@ -177,12 +177,35 @@ class RepositoryContractTest(unittest.TestCase):
         bootstrap = read("bootstrap.sh")
         self.assertIn('copier_user="$(id -un)"', bootstrap)
         self.assertIn('--data "username=$copier_user"', bootstrap)
-        self.assertIn("examples/template", bootstrap)
-        self.assertNotIn("examples/terroir", bootstrap)
+        self.assertIn("overlay_template", bootstrap)
+        self.assertNotIn("examples/", bootstrap)
+
+    def test_readme_quickstart_covers_supported_installation_paths_in_order(self) -> None:
+        readme = read("README.md")
+        sections = (
+            "## Quickstart",
+            "## Supported systems",
+            "## Private overlay",
+            "## Bootstrap behavior",
+            "## Common commands",
+            "## Deployment and recovery",
+            "## Ownership boundary",
+            "## Repository layout",
+            "## Development",
+        )
+        positions = [readme.index(section) for section in sections]
+        self.assertEqual(positions, sorted(positions))
+        self.assertEqual(readme.count("curl -fsSL"), 2)
+        self.assertIn("### 1. Install with curl and create an overlay during setup", readme)
+        self.assertIn("### 2. Install with curl and use an existing overlay", readme)
+        self.assertIn("### 3. Clone Maison and run Copier manually", readme)
+        self.assertIn("git clone https://github.com/RobertDeRose/maison.git", readme)
+        self.assertIn("copier copy --trust", readme)
+        self.assertIn("overlay_template", readme)
 
     def test_template_documents_mise_dotfile_mapping(self) -> None:
-        config = read("examples/template/config/mise/config.toml")
-        guide = read("examples/template/dotfiles/README.md")
+        config = read("overlay_template/config/mise/config.toml")
+        guide = read("overlay_template/dotfiles/README.md")
         self.assertIn("[dotfiles]", config)
         self.assertIn("mise.jdx.dev/dotfiles.html", guide)
         self.assertIn("mise bootstrap dotfiles", guide)

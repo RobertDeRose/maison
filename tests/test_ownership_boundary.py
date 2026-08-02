@@ -151,4 +151,4 @@ class OwnershipBoundaryTest(unittest.TestCase):
         self.assertFalse((ROOT / "dotfiles/direnv/direnvrc").exists())
         self.assertFalse((ROOT / "dotfiles/zsh/zshrc").exists())
         self.assertFalse((ROOT / "dotfiles/pi/extensions").exists())
-        self.assertTrue((ROOT / "examples/template/dotfiles/README.md").is_file())
+        self.assertTrue((ROOT / "overlay_template/dotfiles/README.md").is_file())
