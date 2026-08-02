@@ -12,6 +12,7 @@
 #USAGE cmd "doctor" help="Diagnose both ownership layers" { arg "[args]..." }
 #USAGE cmd "plan" help="Preview system and user changes" { arg "[args]..." }
 #USAGE cmd "rollback" help="Roll back the Nix system layer" { arg "[args]..." }
+#USAGE cmd "sync" help="Pull Maison and the overlay, then apply configuration" { arg "[args]..." }
 #USAGE cmd "update" help="Update Nix inputs and mise-managed software" { arg "[args]..." }
 #USAGE cmd "tasks" help="List Maison tasks" { arg "[args]..." }
 #USAGE cmd "completion" help="Generate shell completion" {
@@ -181,6 +182,7 @@ Common tasks:
   plan                   Preview configuration changes
   apply                  Apply system state, then user state
   check                  Validate Maison and every configured host
+  sync                   Pull Maison and the overlay, then apply configuration
   update                 Update Nix inputs and mise-managed software
   bootstrap              Bootstrap or repair a host
   deploy                 Deploy Linux system state and user state

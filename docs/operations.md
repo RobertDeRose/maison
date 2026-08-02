@@ -106,7 +106,20 @@ edited. Deployed snapshots contain `.maison-revision` but not `.git`; they are f
 deployment finalization, and recovery, not for source edits. If a mutating authoring command is run from a deployed
 snapshot, Maison exits non-zero and points back to the authoring checkout or overlay workflow.
 
-## Update
+## Sync and update
+
+Pull the public Maison checkout and active private overlay, then apply the resulting configuration:
+
+```bash
+maison sync
+maison sync --user-only
+maison sync --force-dotfiles
+```
+
+`maison sync` uses fast-forward-only pulls with Git autostash, so local changes are preserved. It stops before apply if
+repository synchronization fails. Without an active overlay, it pulls Maison and applies the public configuration.
+
+Update Nix inputs independently when needed:
 
 ```bash
 maison update                # update flake.lock only
