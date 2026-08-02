@@ -2,31 +2,28 @@
 
 ## Files
 
-| File                                       | Contract                                                                    |
-|--------------------------------------------|-----------------------------------------------------------------------------|
-| `mise.toml`                                | Declares project tools, environment, and named tasks.                       |
-| `mise.lock`                                | Project-owned resolved downloads; commit it.                                |
-| `dotfiles/pi/extensions/package.json`      | Pinned Pi extension validation scripts and dependencies.                    |
-| `dotfiles/pi/extensions/package-lock.json` | Reproducible npm dependency resolution for Pi validation.                   |
-| `dotfiles/pi/extensions/tsconfig.json`     | Strict no-emit TypeScript compiler boundary for Pi extensions.              |
-| `hk.pkl`                                   | Defines the shared check/fix/pre-commit step map.                           |
-| `.config/rumdl.toml`                       | Configures Markdown linting and deterministic fixes.                        |
-| `.editorconfig`                            | Keeps editor output on UTF-8, LF, final newlines, and no trailing spaces.   |
-| `_typos.toml`                              | Ignores hash-like identifiers while retaining typo checks elsewhere.        |
-| `contextlint.config.json`                  | Checks documentation links, anchors, and image targets.                     |
-| `cog.toml`                                 | Configures Conventional Commits and concise changelogs.                     |
-| `.config/cog-changelog.tera`               | Renders plain Markdown changelogs without author noise.                     |
-| `scripts/setup-tooling.py`                 | Resolves the lock, installs tools, installs hooks, and returns JSON status. |
-| `schemas/inventory.toml`                   | Shared public inventory schema contract for Python and Nix validators.      |
-| `scripts/enable-docs-deployment.py`        | Configures workflow-built Pages through external `gh`.                      |
-| `.github/workflows/ci.yml`                 | Runs repository checks, platform builds, and bootstrap checks on CI events. |
-| `.github/workflows/docs.yml`               | Builds gated docs from the default branch or manual dispatch.               |
-| `.github/workflows/cache-refresh.yml`      | Warms cache targets and opens or updates flake refresh PRs without merging. |
+| File                                  | Contract                                                                    |
+|---------------------------------------|-----------------------------------------------------------------------------|
+| `mise.toml`                           | Declares project tools, environment, and named tasks.                       |
+| `mise.lock`                           | Project-owned resolved downloads; commit it.                                |
+| `hk.pkl`                              | Defines the shared check/fix/pre-commit step map.                           |
+| `.config/rumdl.toml`                  | Configures Markdown linting and deterministic fixes.                        |
+| `.editorconfig`                       | Keeps editor output on UTF-8, LF, final newlines, and no trailing spaces.   |
+| `_typos.toml`                         | Ignores hash-like identifiers while retaining typo checks elsewhere.        |
+| `contextlint.config.json`             | Checks documentation links, anchors, and image targets.                     |
+| `cog.toml`                            | Configures Conventional Commits and concise changelogs.                     |
+| `.config/cog-changelog.tera`          | Renders plain Markdown changelogs without author noise.                     |
+| `scripts/setup-tooling.py`            | Resolves the lock, installs tools, installs hooks, and returns JSON status. |
+| `schemas/inventory.toml`              | Shared public inventory schema contract for Python and Nix validators.      |
+| `scripts/enable-docs-deployment.py`   | Configures workflow-built Pages through external `gh`.                      |
+| `.github/workflows/ci.yml`            | Runs repository checks, platform builds, and bootstrap checks on CI events. |
+| `.github/workflows/docs.yml`          | Builds gated docs from the default branch or manual dispatch.               |
+| `.github/workflows/cache-refresh.yml` | Warms cache targets and opens or updates flake refresh PRs without merging. |
 
 ## Tools
 
-The universal tool set is hk `1.49.0`, Node `24`, and the `latest` Cocogitto, Harper CLI, Contextlint, mdBook, uv,
-rumdl, typos, and `npm:markdown-table-formatter` releases. Contextlint checks documentation links, anchors, and image
+The universal tool set is hk `1.49.0` and the `latest` Cocogitto, Harper CLI, Contextlint, mdBook, uv, rumdl, typos,
+and `npm:markdown-table-formatter` releases. Contextlint checks documentation links, anchors, and image
 targets. Its reviewed low-download aube exception applies only to `@contextlint/cli`. Both hk Pkl imports use `1.49.0`.
 Equivalent native hk steps own matching formatter and linter commands. Independent steps have no explicit `depends`
 edges. Go retains two output-sensitive edges: `gofumpt` follows `goimports` so the stricter formatter owns final source,
@@ -41,19 +38,19 @@ Recorded language profiles: `other`.
 
 ## Overlay template
 
-`examples/terroir/` is a Copier template for private overlays, not a static directory to copy blindly. Maison bootstrap
+`examples/template/` is a Copier template for private overlays, not a static directory to copy blindly. Maison bootstrap
 runs it with `uvx copier` when the user chooses immediate setup. Manual generation from a Maison checkout is:
 
 ```bash
 mise install uv
 MAISON_HOME="$PWD" MAISON_HOST="$(hostname -s)" \
   mise exec -- uvx --from copier copier copy --trust \
-    examples/terroir "$HOME/src/my-maison-overlay"
+    --data "username=$(id -un)" examples/template "$HOME/src/my-maison-overlay"
 ```
 
-The first-copy task initializes the destination Git repository and delegates current-host registration to
-`mise run host:add`. It detects `aarch64-darwin`, `aarch64-linux`, and `x86_64-linux`; unsupported platforms fail.
-`copier update --trust` updates an existing overlay without rerunning host registration. Keep the generated repository
+Copier initializes the destination Git repository. The first-copy task delegates current-host registration to
+Maison's `mise run host:add`, which owns supported-platform detection and inventory validation. `copier update --trust`
+updates an existing overlay without rerunning host registration. Keep the generated repository
 private and keep secrets in Bitwarden or an equivalent secret manager.
 
 ## Template updates
@@ -80,16 +77,15 @@ configured.
 
 ## Tasks
 
-| Task                     | Behavior                                                                                 |
-|--------------------------|------------------------------------------------------------------------------------------|
-| `check`                  | Install repository tools, then run TypeScript, data, shell, Python test, and Nix checks. |
-| `check:typescript`       | Install the locked Pi workspace, run `tsc --noEmit`, and run its focused tests.          |
-| `check:tests`            | Run bounded Python `unittest` discovery across `tests/test_*.py`.                        |
-| `fix`                    | Apply deterministic hk fixes to the working tree.                                        |
-| `docs:check`             | Build the book, then validate documentation metadata and navigation.                     |
-| `docs:build`             | Build the mdBook site.                                                                   |
-| `docs:deployment:enable` | Configure Pages and enable its repository gate through external `gh`.                    |
-| `docs:serve`             | Serve mdBook on port 3000 by default or a supplied port.                                 |
+| Task                     | Behavior                                                                     |
+|--------------------------|------------------------------------------------------------------------------|
+| `check`                  | Install repository tools, then run data, shell, Python test, and Nix checks. |
+| `check:tests`            | Run bounded Python `unittest` discovery across `tests/test_*.py`.            |
+| `fix`                    | Apply deterministic hk fixes to the working tree.                            |
+| `docs:check`             | Build the book, then validate documentation metadata and navigation.         |
+| `docs:build`             | Build the mdBook site.                                                       |
+| `docs:deployment:enable` | Configure Pages and enable its repository gate through external `gh`.        |
+| `docs:serve`             | Serve mdBook on port 3000 by default or a supplied port.                     |
 
 The committed lock targets `linux-x64`, `linux-arm64`, and `macos-arm64`. Intel macOS and Windows are not part of this
 POSIX-shell task contract.

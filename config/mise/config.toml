@@ -1,5 +1,5 @@
 # Maison intentionally keeps the public user policy empty.
-# Add personal tools and packages to a private overlay based on examples/terroir.
+# Add personal tools and packages to a private overlay based on examples/template.
 [settings]
 experimental = true
 env_shell_expand = true

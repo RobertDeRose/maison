@@ -1,7 +1,7 @@
 # Developer tooling
 
 This page applies to the public Maison framework repository. Maison uses dstack/Copier controls and Beads for project
-lifecycle work. A private overlay is plain Git and does not install or run this tooling; use `examples/terroir/` as its
+lifecycle work. A private overlay is plain Git and does not install or run this tooling; use `examples/template/` as its
 starting layout.
 
 The repository uses mise to provide project tools and named tasks. Install mise, then run:
@@ -43,24 +43,8 @@ two output-sensitive edges: `gofumpt` follows `goimports`, then fix-only module 
 No recognized language profile is active; only the universal tooling baseline
 runs.
 
-## Pi extension TypeScript
-
-Pi extensions are validated in the repository-owned workspace at `dotfiles/pi/extensions`. The workspace metadata and
-lockfile are not symlinked into the user's Pi directory. Run the complete boundary through mise:
-
-```bash
-mise run check:typescript
-```
-
-The task installs the committed npm lockfile without lifecycle scripts, then runs `tsc --noEmit` and the focused
-behavioral test suite. For direct iteration inside the workspace, use:
-
-```bash
-cd dotfiles/pi/extensions
-npm ci --ignore-scripts --no-audit --no-fund
-npm run typecheck
-npm test
-```
+Pi extensions are personal overlay content and are maintained in the private Terroir repository. Maison does not
+install, validate, or publish those runtime extensions.
 
 The Python regression suite is split by subsystem. `check:tests` runs `unittest` discovery across every
 `tests/test_*.py` file and is expected to complete within five minutes on a warm supported development checkout. Use the

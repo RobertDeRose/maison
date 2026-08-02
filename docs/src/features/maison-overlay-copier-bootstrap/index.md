@@ -10,10 +10,10 @@
 
 ## Delivered Capability
 
-Maison now treats private-overlay creation as a first-class bootstrap workflow. `examples/terroir/` is a Copier
+Maison now treats private-overlay creation as a first-class bootstrap workflow. `examples/template/` is a Copier
 template that renders a private inventory, policy stubs, dotfile guidance, Copier answers, and a first-copy host setup
-task. The task detects the supported macOS/Linux platform and delegates host registration to Maison's validated
-`host:add` command.
+task. Bootstrap seeds the inventory username from the current effective user; the task delegates host registration and
+supported-platform detection to Maison's validated `host:add` command.
 
 Bootstrap accepts `--overlay` or the canonical `MAISON_OVERLAY` environment variable. Existing local Git repositories
 are used directly; remote sources retain the standard clone/update behavior. When no overlay is available, interactive
@@ -34,11 +34,12 @@ Manual template setup from a Maison checkout:
 mise install uv
 MAISON_HOME="$PWD" MAISON_HOST="$(hostname -s)" \
   mise exec -- uvx --from copier copier copy --trust \
-    examples/terroir "$HOME/src/my-maison-overlay"
+    --data "username=$(id -un)" examples/template "$HOME/src/my-maison-overlay"
 ```
 
-The legacy `MAISON_OVERLAY_SOURCE` environment variable remains accepted as a compatibility fallback. `MAISON_REQUIRE_OVERLAY=true`
-keeps the non-interactive missing-overlay failure mode. `copier update --trust` does not rerun host registration.
+The legacy `MAISON_OVERLAY_SOURCE` environment variable remains accepted as a compatibility fallback. Manual Copier
+runs can seed the username with `--data "username=$(id -un)"`. `MAISON_REQUIRE_OVERLAY=true` keeps the non-interactive
+missing-overlay failure mode. `copier update --trust` does not rerun host registration.
 
 ## Design Integration
 
@@ -109,7 +110,8 @@ A user who declines setup can follow the printed README/template guidance and re
 - `docs/operations.md`
 - `docs/add-a-host.md`
 - `docs/src/reference/tooling.md`
-- `examples/terroir/README.md`
+- `examples/template/README.md`
+- `examples/template/dotfiles/README.md`
 - `docs/src/SUMMARY.md`
 - `docs/src/planned-features.md`
 - `docs/src/features/maison-overlay-copier-bootstrap/design.md`
