@@ -13,34 +13,34 @@ maintainer's personal application list or dotfiles.
 
 ## Quick start
 
-Clone Maison and create or select a private overlay:
+Clone Maison and bootstrap with an existing private overlay:
 
 ```bash
 git clone https://github.com/RobertDeRose/maison.git
 cd maison
-cp -R examples/terroir/. "$HOME/src/my-maison-overlay/"
-cd "$HOME/src/my-maison-overlay"
-$EDITOR inventory.toml config/mise/config.toml
-git init
-git add .
-git commit -m 'chore: initialize private Maison overlay'
+MAISON_OVERLAY=git@github.com:OWNER/my-maison-overlay.git \
+  ./bootstrap.sh --host "$(hostname -s)"
 ```
 
-Create a private remote for that overlay, then bootstrap from the Maison checkout:
+If no overlay is supplied, bootstrap asks whether to create one now with the Copier template. Answer **yes** to
+create `${MAISON_OVERLAY_HOME:-$HOME/src/maison-overlay}`, collect the private inventory identity, and automatically
+register the current supported macOS or Linux host through `mise run host:add`. Answer **no** to install only Maison
+and its CLI; system and user activation are skipped, and bootstrap prints the documentation path for completing setup.
+
+You can also create an overlay explicitly from an existing Maison checkout:
 
 ```bash
-cd /path/to/maison
-./bootstrap.sh \
-  --host "$(hostname -s)" \
-  --overlay git@github.com:OWNER/my-maison-overlay.git
+mise install uv
+MAISON_HOME="$PWD" MAISON_HOST="$(hostname -s)" \
+  mise exec -- uvx --from copier copier copy --trust \
+    examples/terroir "$HOME/src/my-maison-overlay"
 ```
 
-The overlay repository can use any name, hosting service, or access model. `examples/terroir/` is only a neutral
-starting layout; `terroir` is not a required repository name.
-
-Before the first real switch on an existing machine:
+The overlay repository can use any name, hosting service, or access model. Commit it and rerun bootstrap with
+`--overlay <git-url-or-path>` or `MAISON_OVERLAY=<git-url-or-path>` before the first real switch:
 
 ```bash
+./bootstrap.sh --host "$(hostname -s)" --overlay "$HOME/src/my-maison-overlay"
 maison check
 maison system plan
 maison user plan
@@ -100,7 +100,7 @@ user layer. A user-layer failure does not roll back the active Nix generation.
 flake.nix                     system inputs
 inventory.toml                neutral starter inventory and schema example
 hosts/example-darwin/         neutral example host override
-examples/terroir/              private-overlay starter layout
+examples/terroir/              Copier template for private overlays
 nix/                          OS-level modules and deployment definitions
 .mise/tasks/                  Maison framework workflows
 scripts/                      bootstrap, validation, and deployment transactions
@@ -111,23 +111,25 @@ dotfiles/pi/extensions/       repository-owned Pi validation workspace
 
 The root `mise.toml` contains only tools required to develop and validate Maison. User applications, packages,
 preferences, and dotfiles belong in the private overlay. `config/mise/` contains empty public policy stubs so a checkout
-without an overlay remains valid; use `examples/terroir/config/mise/` as the starting point for private policy.
+without an overlay remains valid; use the `examples/terroir` Copier template for private policy.
 
 ## Private overlay
 
 A private overlay mirrors Maison-owned paths such as `inventory.toml`, `hosts/`, `config/mise/`, and `dotfiles/`.
-It supplies real users, hosts, deploy targets, tools, applications, preferences, and dotfiles without making them part
-of the public framework.
+The Copier template in `examples/terroir/` supplies that layout and registers the current host through Maison's
+validated `host:add` task. The overlay owns real users, hosts, deploy targets, tools, applications, preferences, and
+dotfiles without making them part of the public framework.
 
 Overlay discovery uses this precedence:
 
 1. `--overlay <git-url-or-path>` for the current bootstrap run.
-2. `MAISON_OVERLAY_SOURCE` from the environment or a secrets manager.
-3. `${XDG_STATE_HOME:-$HOME/.local/state}/maison/overlay.toml`.
+2. `MAISON_OVERLAY=<git-url-or-path>`.
+3. `MAISON_OVERLAY_SOURCE=<git-url-or-path>` as a legacy compatibility fallback.
+4. `${XDG_STATE_HOME:-$HOME/.local/state}/maison/overlay.toml`.
 
-The overlay is cloned or updated at `${XDG_DATA_HOME:-$HOME/.local/share}/maison/overlay`. Overlay state is local,
-owner-only, and never committed. Without an overlay, Maison uses neutral starter data and installs no user applications
-or personal packages.
+An existing local Git repository is used directly. A remote Git URL is cloned or updated at
+`${XDG_DATA_HOME:-$HOME/.local/share}/maison/overlay`. Overlay state is local, owner-only, and never committed.
+Without an overlay, first-run bootstrap does not install Nix or activate neutral starter data.
 
 Keep passwords, tokens, SSH private keys, signing private keys, and other secrets in Bitwarden or an equivalent secret
 manager. A private Git repository is not a substitute for secret storage.
@@ -137,10 +139,13 @@ manager. A private Git repository is not a substitute for secret storage.
 From an existing Maison checkout, `bootstrap.sh` uses that checkout and does not create a second copy under `~/.maison`.
 When run outside a checkout, it clones Maison to `~/.maison` by default; set `MAISON_HOME` to override that location.
 
-Bootstrap installs verified pinned mise and Nix/Lix artifacts when missing, trusts the Maison project configuration,
-stores or refreshes the overlay source, and runs the Maison bootstrap task. Use `--user-only` on the mise task when
-system activation should be skipped. Do not use pipe-to-shell bootstrap examples; verify downloaded bootstrap artifacts
-against `bootstrap/artifacts.toml` before execution.
+Bootstrap first installs verified pinned mise, links the `maison` CLI, and trusts the Maison project configuration. It
+then resolves `--overlay`, `MAISON_OVERLAY`, legacy `MAISON_OVERLAY_SOURCE`, or saved state. If none is available, an
+interactive run offers Copier setup; declining (or a non-interactive run without `MAISON_REQUIRE_OVERLAY=true`) exits
+without installing Nix or activating system/user state. Once an overlay exists, bootstrap stores or refreshes its state,
+installs verified Nix/Lix artifacts when missing, and runs the Maison bootstrap task. Use `--user-only` on the mise task
+when system activation should be skipped. Do not use pipe-to-shell bootstrap examples; verify downloaded bootstrap
+artifacts against `bootstrap/artifacts.toml` before execution.
 
 ## Deployment and recovery
 

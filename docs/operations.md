@@ -2,27 +2,32 @@
 
 ## Fresh setup with a private overlay
 
-Clone the public framework and supply the private Terroir overlay for a real host:
+Clone Maison and either provide an existing private overlay or let bootstrap create one with the Copier template:
 
 ```bash
 git clone https://github.com/OWNER/maison.git
 cd maison
-./bootstrap.sh --host "$(hostname -s)" --overlay git@github.com:OWNER/PRIVATE-OVERLAY.git
+MAISON_OVERLAY=GIT-URL-OR-PATH ./bootstrap.sh --host "$(hostname -s)"
 ```
 
-Use `--overlay` during bootstrap, or set `MAISON_OVERLAY_SOURCE` from the environment or a mise secret:
+`--overlay GIT-URL-OR-PATH` takes precedence over `MAISON_OVERLAY`. A local Git path is used directly; a remote URL is
+cloned or updated at `${XDG_DATA_HOME:-$HOME/.local/share}/maison/overlay`. The legacy
+`MAISON_OVERLAY_SOURCE` variable remains accepted after `MAISON_OVERLAY` for compatibility. The selected source and
+active path are stored in `${XDG_STATE_HOME:-$HOME/.local/state}/maison/overlay.toml`; this owner-only state is never
+committed to either repository.
 
-```bash
-./bootstrap.sh --host "$(hostname -s)" --overlay GIT-URL-OR-PATH
-```
+If no overlay is selected, an interactive bootstrap asks whether to set one up now. Yes installs a temporary Copier
+runner through Maison's `uv`, renders `examples/terroir/`, asks for the private inventory identity, and registers the
+current supported macOS/Linux host through `mise run host:add`. No installs and links Maison/the CLI, prints the
+follow-up documentation, and exits without installing Nix or activating system/user state. Non-interactive bootstrap
+follows the No path unless `MAISON_REQUIRE_OVERLAY=true`, which fails clearly instead.
 
-Bootstrap downloads Maison-owned mise and Lix artifacts to disk, verifies the pinned metadata in `bootstrap/artifacts.toml`, and executes only verified local files. Do not use pipe-to-shell bootstrap examples.
-
-Maison stores the selected Terroir source in `${XDG_STATE_HOME:-$HOME/.local/state}/maison/overlay.toml` and clones or updates it at `${XDG_DATA_HOME:-$HOME/.local/share}/maison/overlay`. Interactive bootstrap may prompt for the overlay source when it is required; non-interactive bootstrap fails instead of continuing with public starter data for a real machine. The overlay state is machine-local and never committed to either repository.
+Bootstrap downloads Maison-owned mise and Lix artifacts to disk, verifies the pinned metadata in
+`bootstrap/artifacts.toml`, and executes only verified local files. Do not use pipe-to-shell bootstrap examples.
 
 `maison host add` mutates the active inventory repository and therefore requires that target to be a Git authoring
 checkout. With an overlay inventory, new hosts and optional `hosts/<name>/system.nix` stubs are written to the overlay
-clone, not to public Maison.
+repository, not to public Maison.
 
 ## Preview
 

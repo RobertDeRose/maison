@@ -1,13 +1,21 @@
 # Add a host
 
-Real hosts belong in the private overlay inventory. Bootstrap or select the overlay first:
+Real hosts belong in the private overlay inventory. The Copier template automatically registers the current host on
+first generation by detecting macOS/Linux and calling Maison's existing `host:add` task. From a Maison checkout, the
+manual equivalent is:
 
 ```bash
 ./bootstrap.sh --host "$(hostname -s)" --overlay GIT-URL-OR-PATH
-maison host add <hostname> --system aarch64-linux --user operator --profiles base,dev,linux --overrides
+MAISON_OVERLAY_PATH="$HOME/src/my-maison-overlay" \
+  mise -C /path/to/maison run host:add -- "$(hostname -s)" --user "$(id -un)"
 ```
 
-When an overlay inventory is active, `host:add` writes both `inventory.toml` and optional `hosts/<hostname>/system.nix` to the overlay clone. The active inventory must satisfy the shared schema contract in `schemas/inventory.toml`: supported systems are `aarch64-darwin`, `aarch64-linux`, and `x86_64-linux`; profiles are `base`, `dev`, `mac`, and `linux`; duplicate profiles, unknown feature keys, unknown deploy fields, and wrong value types are rejected.
+Use `copier update --trust` to update an existing generated overlay; template updates do not register hosts again. Add
+additional hosts through `host:add` so the inventory mutation remains locked and schema-validated. When an overlay
+inventory is active, `host:add` writes both `inventory.toml` and optional `hosts/<hostname>/system.nix` to that repository.
+The active inventory must satisfy the shared schema contract in `schemas/inventory.toml`: supported systems are
+`aarch64-darwin`, `aarch64-linux`, and `x86_64-linux`; profiles are `base`, `dev`, `mac`, and `linux`; duplicate
+profiles, unknown feature keys, unknown deploy fields, and wrong value types are rejected.
 
 For a deployable Linux host, add an explicit deployment table to the active `inventory.toml`:
 

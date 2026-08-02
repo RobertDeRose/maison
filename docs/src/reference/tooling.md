@@ -39,11 +39,28 @@ lack matching built-ins; and test, compiler, linter, and module checks must rema
 
 Recorded language profiles: `other`.
 
+## Overlay template
+
+`examples/terroir/` is a Copier template for private overlays, not a static directory to copy blindly. Maison bootstrap
+runs it with `uvx copier` when the user chooses immediate setup. Manual generation from a Maison checkout is:
+
+```bash
+mise install uv
+MAISON_HOME="$PWD" MAISON_HOST="$(hostname -s)" \
+  mise exec -- uvx --from copier copier copy --trust \
+    examples/terroir "$HOME/src/my-maison-overlay"
+```
+
+The first-copy task initializes the destination Git repository and delegates current-host registration to
+`mise run host:add`. It detects `aarch64-darwin`, `aarch64-linux`, and `x86_64-linux`; unsupported platforms fail.
+`copier update --trust` updates an existing overlay without rerunning host registration. Keep the generated repository
+private and keep secrets in Bitwarden or an equivalent secret manager.
+
 ## Template updates
 
-`.copier-answers.yml` records `dstack_template_channel` and the exact reachable template commit in `_commit`. Stable
-selects the newest stable tag; unstable selects the source default-branch HEAD. `/update-project --stable` and
-`/update-project --unstable` change the persisted channel; `--vcs-ref` is a one-shot reviewed override.
+`.copier-answers.yml` records the Copier source and rendered answers for a generated overlay. `copier update --trust`
+updates template-owned files while preserving user edits and does not add another host. The Maison repository's own
+`.copier-answers.yml` remains separate and records its dstack template channel and source commit.
 
 ## Commit messages and changelogs
 
