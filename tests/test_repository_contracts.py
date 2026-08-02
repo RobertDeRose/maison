@@ -165,6 +165,26 @@ class RepositoryContractTest(unittest.TestCase):
         self.assertIn("systemConfigs", build)
         self.assertIn("darwinConfigurations", build)
 
+    def test_ci_bootstrap_check_uses_current_test_module(self) -> None:
+        workflow = read(".github/workflows/ci.yml")
+        self.assertIn(
+            "tests.test_migration_behavior.MigrationBehaviorTest.test_bootstrap_help_pipe_and_clone_handoff",
+            workflow,
+        )
+        self.assertNotIn("test_topology.MigrationBehaviorTest", workflow)
+
+    def test_linux_user_creation_reuses_existing_primary_group(self) -> None:
+        build = read(".github/scripts/build-platform-targets.sh")
+        self.assertIn('if getent group "$username" > /dev/null 2>&1; then', build)
+        self.assertIn(
+            'sudo useradd --create-home --gid "$username" --comment "$fullname" --shell /bin/bash "$username"',
+            build,
+        )
+        self.assertIn(
+            'sudo useradd --create-home --user-group --comment "$fullname" --shell /bin/bash "$username"',
+            build,
+        )
+
     def test_all_task_root_discovery_supports_gitless_deployments(self) -> None:
         for path in sorted((ROOT / ".mise/tasks").rglob("*")):
             if not path.is_file():
