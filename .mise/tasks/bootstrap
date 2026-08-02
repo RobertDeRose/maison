@@ -10,8 +10,9 @@ source "$root/.mise/lib/common.sh"
 source "$root/.mise/lib/platform.sh"
 source "$root/.mise/lib/bootstrap.sh"
 host="${usage_host:-$(current_hostname)}"
-if [ -n "${usage_overlay:-}" ]; then
-  "$root/scripts/maison_overlay.py" --overlay "$usage_overlay" prepare > /dev/null
+overlay_source="${usage_overlay:-${MAISON_OVERLAY:-${MAISON_OVERLAY_SOURCE:-}}}"
+if [ -n "$overlay_source" ]; then
+  "$root/scripts/maison_overlay.py" --overlay "$overlay_source" prepare > /dev/null
 elif [ "${MAISON_REQUIRE_OVERLAY:-false}" = true ]; then
   "$root/scripts/maison_overlay.py" --required prepare > /dev/null
 fi

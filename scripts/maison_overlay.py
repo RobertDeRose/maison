@@ -69,9 +69,12 @@ def write_state(path: Path, source: str, clone_dir: Path) -> None:
 def overlay_source(explicit: str | None, state_file: Path) -> str | None:
     if explicit:
         return explicit
-    env_source = os.environ.get("MAISON_OVERLAY_SOURCE")
+    env_source = os.environ.get("MAISON_OVERLAY")
     if env_source:
         return env_source
+    legacy_source = os.environ.get("MAISON_OVERLAY_SOURCE")
+    if legacy_source:
+        return legacy_source
     return load_state(state_file).get("source")
 
 
@@ -114,7 +117,7 @@ def resolve_source(args: argparse.Namespace) -> str:
         if source:
             return source
     if overlay_required(args):
-        die("overlay source is required; pass --overlay, set MAISON_OVERLAY_SOURCE, or configure overlay.toml")
+        die("overlay source is required; pass --overlay, set MAISON_OVERLAY, or configure overlay.toml")
     return ""
 
 
@@ -122,7 +125,19 @@ def is_git_repository(path: Path) -> bool:
     return (path / ".git").is_dir()
 
 
-def clone_or_update(source: str, destination: Path) -> None:
+def local_repository_source(source: str) -> Path | None:
+    candidate = Path(source).expanduser()
+    if not candidate.exists():
+        if source.startswith(("/", "./", "../", "~/")):
+            die(f"overlay path does not exist: {candidate}")
+        return None
+    candidate = candidate.resolve()
+    if not is_git_repository(candidate):
+        die(f"overlay path is not a Git repository: {candidate}")
+    return candidate
+
+
+def clone_or_update(source: str, destination: Path) -> Path:
     if destination.exists():
         if not is_git_repository(destination):
             die(f"overlay destination exists but is not a Git repository: {destination}")
@@ -135,9 +150,10 @@ def clone_or_update(source: str, destination: Path) -> None:
         if origin != source:
             die(f"overlay destination already tracks a different source; move {destination} aside or use {origin}")
         subprocess.run(["git", "-C", str(destination), "pull", "--ff-only"], check=True)
-        return
+        return destination
     destination.parent.mkdir(parents=True, exist_ok=True)
     subprocess.run(["git", "clone", source, str(destination)], check=True)
+    return destination
 
 
 def parser() -> argparse.ArgumentParser:
@@ -174,11 +190,21 @@ def main() -> int:
         if args.command == "prepare":
             if not source:
                 return 0
-            clone_or_update(source, args.clone_dir)
-            write_state(args.state_file, source, args.clone_dir)
-            print(args.clone_dir)
+            if local_path := local_repository_source(source):
+                active_path = local_path
+                stored_source = str(local_path)
+            else:
+                active_path = clone_or_update(source, args.clone_dir)
+                stored_source = source
+            write_state(args.state_file, stored_source, active_path)
+            print(active_path)
             return 0
-    except (OSError, subprocess.CalledProcessError, tomllib.TOMLDecodeError, OverlayError) as exc:
+    except (
+        OSError,
+        subprocess.CalledProcessError,
+        tomllib.TOMLDecodeError,
+        OverlayError,
+    ) as exc:
         print(f"error: maison overlay: {exc}", file=sys.stderr)
         return 1
     return 0
