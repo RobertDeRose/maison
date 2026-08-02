@@ -19,6 +19,14 @@ nix = "https://github.com/jbadeau/mise-nix.git#e310c4c20e8273ba850298c10fbe97d0c
 [env]
 # EDITOR = "hx"
 
-# Uncomment entries after adding the matching sources under dotfiles/.
+# The global mise file is installed from the overlay source. Maison temporarily
+# hides the installed target while converging so these relative paths resolve
+# from this checkout.
 [dotfiles]
+"~/.config/mise/config.toml" = { source = "../../config/mise/config.toml", mode = "symlink" }
+"~/.config/mise/config.macos.toml" = { source = "../../config/mise/config.macos.toml", mode = "symlink" }
+"~/.config/mise/config.macos-arm64.toml" = { source = "../../config/mise/config.macos-arm64.toml", mode = "symlink" }
+"~/.config/mise/config.linux.toml" = { source = "../../config/mise/config.linux.toml", mode = "symlink" }
+"~/.miserc.toml" = { source = "../../config/mise/.miserc.toml", mode = "symlink" }
+# Add further mappings after adding the matching sources under dotfiles/.
 # "~/.config/example/config.toml" = { source = "../../dotfiles/example/config.toml", mode = "symlink" }
