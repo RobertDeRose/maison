@@ -1,9 +1,23 @@
+# Maison's public global mise baseline is kept here so this file works both as
+# the overlay layer for the Maison project and as the installed user config.
+[settings]
+experimental = true
+env_shell_expand = true
+lockfile = true
+lockfile_platforms = ["macos-arm64", "linux-arm64", "linux-x64"]
+
+[plugins]
+nix = "https://github.com/jbadeau/mise-nix.git#e310c4c20e8273ba850298c10fbe97d0c858c300"
+
 # Add private cross-platform tools and Homebrew formulae here.
 [tools]
 # python = "latest"
 
 [bootstrap.packages]
 # "brew:ripgrep" = "latest"
+
+[env]
+# EDITOR = "hx"
 
 # Uncomment entries after adding the matching sources under dotfiles/.
 [dotfiles]

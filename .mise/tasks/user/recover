@@ -5,6 +5,8 @@
 set -euo pipefail
 
 root="${MISE_PROJECT_ROOT:-$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)}"
+source "$root/.mise/lib/overlay.sh"
+load_maison_overlay_environment "$root"
 report="${MAISON_RECOVERY_REPORT:?missing MAISON_RECOVERY_REPORT}"
 failed_revision="${MAISON_RECOVERY_FAILED_REVISION:?missing MAISON_RECOVERY_FAILED_REVISION}"
 restored_revision="${MAISON_RECOVERY_RESTORED_REVISION:?missing MAISON_RECOVERY_RESTORED_REVISION}"

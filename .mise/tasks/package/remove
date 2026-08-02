@@ -5,11 +5,14 @@
 set -euo pipefail
 root="${MISE_PROJECT_ROOT:-$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)}"
 source "$root/.mise/lib/transaction.sh"
-path="$root/config/mise/config.toml"
-[ "${usage_macos:-false}" != true ] || path="$root/config/mise/config.macos-arm64.toml"
+source "$root/.mise/lib/overlay.sh"
+load_maison_overlay_environment "$root"
+config_root="${MAISON_USER_CONFIG_ROOT:-$root}"
+path="$config_root/config/mise/config.toml"
+[ "${usage_macos:-false}" != true ] || path="$config_root/config/mise/config.macos-arm64.toml"
 package="${usage_package:?mise did not provide the required package argument}"
-transaction_require_authoring_checkout "$root" package:remove
-transaction_require_lock "$root" "${BASH_SOURCE[0]}" "$@"
+transaction_require_authoring_checkout "$config_root" package:remove
+transaction_require_lock "$config_root" "${BASH_SOURCE[0]}" "$@"
 transaction_dir="$(transaction_directory)"
 cleanup() {
   local status=$?
@@ -22,8 +25,8 @@ transaction_set_signal_traps
 candidate="$(transaction_candidate "$path" "$transaction_dir")"
 python3 "$root/.mise/lib/config_edit.py" package --file "$candidate" --name "$package" --remove
 python3 "$root/.mise/lib/config_edit.py" validate "$candidate"
-transaction_journal_begin "$root" package:remove "$path"
+transaction_journal_begin "$config_root" package:remove "$path"
 transaction_journal_mark validated
 atomic_replace "$candidate" "$path"
 transaction_journal_complete
-printf 'Removed %s from %s. The installed package was intentionally left in place.\n' "$package" "${path#"$root"/}"
+printf 'Removed %s from %s. The installed package was intentionally left in place.\n' "$package" "${path#"$config_root"/}"

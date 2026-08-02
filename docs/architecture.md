@@ -100,7 +100,11 @@ A private overlay may own:
 - Application configuration in native formats under `dotfiles/`; Tera is used only where host, user, or platform
   interpolation is required.
 
-Public Maison keeps these policy files empty and schema-valid.
+Public Maison keeps these policy files empty and schema-valid. During `user:plan` and `user:apply`, Maison loads the
+active overlay's `config/mise/config.toml` as the global mise layer while the public repository's `mise.toml` remains
+the project layer. This preserves Maison's shared settings and tasks while allowing the overlay to provide personal
+user tools, packages, preferences, and dotfiles. Without an active overlay, the public `config/mise` files remain the
+fallback.
 
 ## macOS defaults boundary
 

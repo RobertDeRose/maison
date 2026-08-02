@@ -14,7 +14,14 @@ class TransactionBehaviorTest(unittest.TestCase):
             ".mise/vendor/tomlkit-0.13.3-py3-none-any.whl",
             ".mise/lib/repository_mutation.py",
             ".mise/lib/transaction.sh",
+            ".mise/lib/overlay.sh",
             "scripts/user-apply-packages.sh",
+        )
+        overlay_helper = repo / "scripts/maison_overlay.py"
+        overlay_helper.write_text(
+            "import os, sys\n"
+            "if sys.argv[-1] == 'path' and os.environ.get('MAISON_OVERLAY_PATH'):\n"
+            "    print(os.environ['MAISON_OVERLAY_PATH'])\n"
         )
         return repo
 
@@ -93,6 +100,40 @@ class TransactionBehaviorTest(unittest.TestCase):
                     )
                     self.assertNotEqual(result.returncode, 0)
                     self.assertEqual(config.read_text(), original)
+
+    def test_user_mutators_edit_the_active_overlay_repository(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            temp = Path(directory)
+            repo = self.make_config_repo(temp / "repo")
+            copy_files(repo, ".mise/tasks/package/remove")
+            public_config = repo / "config/mise/config.toml"
+            public_config.write_text('[bootstrap.packages]\n"brew:public" = "latest"\n')
+            overlay = temp / "overlay"
+            (overlay / ".git").mkdir(parents=True)
+            overlay_config = overlay / "config/mise/config.toml"
+            overlay_config.parent.mkdir(parents=True)
+            overlay_config.write_text('[bootstrap.packages]\n"brew:private" = "latest"\n')
+            before_public = public_config.read_text()
+            env = os.environ.copy()
+            env.update(
+                {
+                    "MISE_PROJECT_ROOT": str(repo),
+                    "MAISON_OVERLAY_PATH": str(overlay),
+                    "usage_package": "brew:private",
+                    "MAISON_REPOSITORY_MUTATION_STATE_DIR": str(temp / "state"),
+                }
+            )
+            result = run(
+                [str(repo / ".mise/tasks/package/remove")],
+                env=env,
+                cwd=repo,
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            self.assertIn("config/mise/config.toml", result.stdout)
+            self.assertEqual(public_config.read_text(), before_public)
+            self.assertNotIn("brew:private", overlay_config.read_text())
 
     def test_remove_mutators_leave_config_unchanged_when_target_is_absent(self) -> None:
         cases = [

@@ -3,6 +3,7 @@
 set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
+config_root="${MAISON_USER_CONFIG_ROOT:-$root}"
 dry_run=false
 
 while [ "$#" -gt 0 ]; do
@@ -18,8 +19,9 @@ done
 
 locks=(mise.lock config.macos.lock)
 for name in "${locks[@]}"; do
-  source="$root/config/mise/$name"
+  source="$config_root/config/mise/$name"
   target="$HOME/.config/mise/$name"
+  [ -f "$source" ] || source="$root/config/mise/$name"
   [ -f "$source" ] || {
     printf 'missing generated lockfile: %s\n' "$source" >&2
     exit 1
