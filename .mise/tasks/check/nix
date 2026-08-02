@@ -27,8 +27,10 @@ run_nix_checked() {
   if [ "$status" -eq 0 ]; then
     # A successful Nix command may report transient binary-cache retries as
     # warnings. Those are transport diagnostics, not configuration warnings.
+    # Overlay input overrides intentionally produce a lock-file-difference warning;
+    # the override is per invocation and must not rewrite the repository lock.
     grep -E '(^|[[:space:]])warning:' "$stderr_file" \
-      | grep -Ev 'warning: error: unable to download .*retrying' \
+      | grep -Ev 'warning: error: unable to download .*retrying|warning: not writing modified lock file of flake' \
       >"$warning_file" || true
 
     if [ -s "$warning_file" ]; then

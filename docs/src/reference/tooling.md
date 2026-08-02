@@ -51,7 +51,9 @@ MAISON_HOME="$PWD" MAISON_HOST="$(hostname -s)" \
 Copier initializes the destination Git repository. The first-copy task delegates current-host registration to
 Maison's `mise run host:add`, which owns supported-platform detection and inventory validation. `copier update --trust`
 updates an existing overlay without rerunning host registration. Keep the generated repository
-private and keep secrets in Bitwarden or an equivalent secret manager.
+private and keep secrets in Bitwarden or an equivalent secret manager. Maison persists the active overlay source in
+`${XDG_STATE_HOME:-$HOME/.local/state}/maison/overlay.toml`; direct Nix and `nh` evaluations pass that checkout as
+the explicit `overlay` flake input, so those evaluations remain pure and do not require `--impure`.
 
 ## Template updates
 

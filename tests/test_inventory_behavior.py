@@ -288,26 +288,32 @@ class OverlayContractTest(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(result.stdout.splitlines(), ["private-linux", "site-user"])
 
-    def test_nix_loader_accepts_overlay_inventory_from_environment(self) -> None:
+    def test_nix_loader_uses_an_explicit_overlay_input(self) -> None:
         flake = read("flake.nix")
         nix = read(".mise/lib/nix.sh")
-        self.assertIn('builtins.getEnv "MAISON_INVENTORY"', flake)
-        self.assertIn("--impure", nix)
+        self.assertIn('url = "path:."', flake)
+        self.assertIn('inventoryFile = "${inputs.overlay}/inventory.toml"', flake)
+        self.assertNotIn('builtins.getEnv "MAISON_INVENTORY"', flake)
+        self.assertIn("--override-input", nix)
+        self.assertNotIn("--impure", nix)
         self.assertIn("load_maison_overlay_environment", nix)
 
-    def test_run_nh_passes_impure_for_private_overlay_inventory(self) -> None:
+    def test_run_nh_passes_overlay_input_for_private_inventory(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             temp = Path(directory)
             fake_bin = temp / "bin"
             fake_bin.mkdir()
             log = temp / "nh-log"
+            overlay = temp / "overlay"
+            overlay.mkdir()
             executable(fake_bin / "nh", '#!/bin/sh\nprintf \'%s\\n\' "$*" >"$NH_LOG"\n')
             env = os.environ.copy()
             env.update(
                 {
                     "PATH": f"{fake_bin}{os.pathsep}{env['PATH']}",
                     "MISE_PROJECT_ROOT": str(ROOT),
-                    "MAISON_INVENTORY": str(temp / "overlay/inventory.toml"),
+                    "MAISON_INVENTORY": str(overlay / "inventory.toml"),
+                    "MAISON_OVERLAY_PATH": str(overlay),
                     "NH_LOG": str(log),
                 }
             )
@@ -325,7 +331,46 @@ class OverlayContractTest(unittest.TestCase):
                 text=True,
             )
             self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertEqual(log.read_text().strip(), f"darwin build {ROOT} -H fixture-host -- --impure")
+            self.assertEqual(
+                log.read_text().strip(),
+                f"darwin build {ROOT} -H fixture-host -- --override-input overlay path:{temp / 'overlay'}",
+            )
+
+    def test_nix_command_passes_overlay_input_to_flake_commands(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            temp = Path(directory)
+            fake_bin = temp / "bin"
+            fake_bin.mkdir()
+            overlay = temp / "overlay"
+            overlay.mkdir()
+            log = temp / "nix-log"
+            executable(fake_bin / "nix", '#!/bin/sh\nprintf \'%s\\n\' "$*" >"$NIX_LOG"\n')
+            env = os.environ.copy()
+            env.update(
+                {
+                    "PATH": f"{fake_bin}{os.pathsep}{env['PATH']}",
+                    "MISE_PROJECT_ROOT": str(ROOT),
+                    "MAISON_OVERLAY_PATH": str(overlay),
+                    "NIX_LOG": str(log),
+                }
+            )
+            result = run(
+                [
+                    "bash",
+                    "-c",
+                    'source "$1/.mise/lib/common.sh"; source "$1/.mise/lib/nix.sh"; nix_command eval .#darwinConfigurations',
+                    "_",
+                    str(ROOT),
+                ],
+                cwd=ROOT,
+                env=env,
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            command = log.read_text().strip()
+            self.assertIn(f"eval --override-input overlay path:{overlay}", command)
+            self.assertNotIn("--impure", command)
 
     def test_run_nh_keeps_public_inventory_pure(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

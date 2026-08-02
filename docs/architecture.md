@@ -118,8 +118,9 @@ Shell tasks do not parse TOML with awk. `schemas/inventory.toml` is the public s
 profiles, feature keys, deploy keys, and defaults. `.mise/lib/inventory.py` uses Python's `tomllib` for validation and
 typed lookups, and Nix imports the same schema contract before constructing outputs. Shared valid and invalid fixtures
 under `tests/fixtures/inventory/` keep both validators aligned in CI. When an overlay inventory is present, Python tasks
-use that file and validate its sibling `hosts/` overrides; Nix receives the same `MAISON_INVENTORY` path and evaluates
-the corresponding host override tree. In particular, remote repository paths must be normalized descendants of
+use that file and validate its sibling `hosts/` overrides; Nix receives the active overlay as its explicit `overlay`
+flake input and evaluates the corresponding inventory and host override tree without impure evaluation. In particular,
+remote repository paths must be normalized descendants of
 `/home/<managed-user>` and cannot be `/`, a home directory, or a path containing traversal segments.
 
 ## Transaction boundaries

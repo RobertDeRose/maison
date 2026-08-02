@@ -47,18 +47,35 @@ load_nix_overlay_environment() {
   fi
 }
 
+nix_overlay_path() {
+  local maison_root="${MISE_PROJECT_ROOT:-$PWD}" inventory_path
+  if [ -n "${MAISON_OVERLAY_PATH:-}" ]; then
+    printf '%s\n' "$MAISON_OVERLAY_PATH"
+    return
+  fi
+  inventory_path="${MAISON_INVENTORY:-}"
+  if [ -n "$inventory_path" ] && [ "$inventory_path" != "$maison_root/inventory.toml" ]; then
+    (cd "$(dirname "$inventory_path")" && pwd -P)
+  fi
+}
+
+nix_overlay_args() {
+  local overlay_path
+  overlay_path="$(nix_overlay_path)"
+  [ -n "$overlay_path" ] || return 0
+  printf '%s\n' --override-input overlay "path:$overlay_path"
+}
+
 nix_command() {
   load_nix_overlay_environment
-  local flags=() flag impure=()
+  local flags=() overlay_args=() flag
   while IFS= read -r flag; do flags+=("$flag"); done < <(nix_common_flags)
-  if [ -n "${MAISON_INVENTORY:-}" ] && [ "${MAISON_INVENTORY}" != "${MISE_PROJECT_ROOT:-$PWD}/inventory.toml" ]; then
-    impure=(--impure)
-  fi
+  while IFS= read -r flag; do overlay_args+=("$flag"); done < <(nix_overlay_args)
   case "${1:-}" in
     build | eval | fmt | run)
       local subcommand="$1"
       shift
-      nix "${flags[@]}" "$subcommand" "${impure[@]}" "$@"
+      nix "${flags[@]}" "$subcommand" "${overlay_args[@]}" "$@"
       ;;
     *) nix "${flags[@]}" "$@" ;;
   esac
@@ -74,11 +91,12 @@ ensure_nh() {
 
 run_nh() {
   load_nix_overlay_environment
-  local nix_config="${NIX_CONFIG:-}" args=("$@")
+  local nix_config="${NIX_CONFIG:-}" args=("$@") overlay_path
   nix_config="${nix_config}${nix_config:+
 }accept-flake-config = true"
-  if [ -n "${MAISON_INVENTORY:-}" ] && [ "${MAISON_INVENTORY}" != "${MISE_PROJECT_ROOT:-$PWD}/inventory.toml" ]; then
-    args+=(-- --impure)
+  overlay_path="$(nix_overlay_path)"
+  if [ -n "$overlay_path" ]; then
+    args+=(-- --override-input overlay "path:$overlay_path")
   fi
 
   (

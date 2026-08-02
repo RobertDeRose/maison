@@ -17,6 +17,11 @@
   };
 
   inputs = {
+    overlay = {
+      url = "path:.";
+      flake = false;
+    };
+
     nixpkgs.url = "git+https://github.com/NixOS/nixpkgs?ref=nixpkgs-unstable&shallow=1";
 
     flake-parts = {
@@ -46,8 +51,7 @@
   outputs =
     inputs:
     let
-      overlayInventory = builtins.getEnv "MAISON_INVENTORY";
-      inventoryFile = if overlayInventory == "" then ./inventory.toml else /. + overlayInventory;
+      inventoryFile = "${inputs.overlay}/inventory.toml";
     in
     import ./nix/outputs.nix {
       inherit inputs inventoryFile;
