@@ -170,9 +170,17 @@ def aggregate_user_arguments(*, force_dotfiles: bool) -> tuple[str, ...]:
     return ("--force-dotfiles",) if force_dotfiles else ()
 
 
-def _configuration_path(root: Path, home: Path) -> Path:
-    configured = home / ".config/mise/config.toml"
-    return configured if configured.is_file() else root / "config/mise/config.toml"
+def _configuration_root(root: Path) -> Path:
+    configured = os.environ.get("MAISON_OVERLAY_PATH")
+    if configured:
+        overlay = Path(configured).expanduser().resolve()
+        if (overlay / "config/mise/config.toml").is_file():
+            return overlay
+    return root
+
+
+def _configuration_path(root: Path) -> Path:
+    return _configuration_root(root) / "config/mise/config.toml"
 
 
 def build_command_plan(
@@ -193,12 +201,14 @@ def build_command_plan(
         if recovery
         else ((execution_argument, *force_arguments) if dry_run else force_arguments)
     )
+    configuration_root = _configuration_root(root)
     mise_environment = {
         "MISE_AUTO_ENV": "true",
-        "MISE_GLOBAL_CONFIG_FILE": str(_configuration_path(root, home)),
+        "MISE_GLOBAL_CONFIG_FILE": str(_configuration_path(root)),
+        "MAISON_USER_CONFIG_ROOT": str(configuration_root),
     }
     prepare_script = root / "scripts/user-prepare.sh"
-    prepare_environment: dict[str, str] = {}
+    prepare_environment = dict(mise_environment)
     if recovery:
         if override := os.environ.get("MAISON_RECOVERY_PREPARE_SCRIPT"):
             prepare_script = Path(override)
@@ -216,7 +226,7 @@ def build_command_plan(
         name="dotfiles",
         argv=("mise", "bootstrap", "--only", "dotfiles", execution_argument, *force_arguments),
         cwd=root,
-        env={},
+        env=mise_environment,
         dry_run=dry_run,
         semantic_action="converge-dotfiles",
         semantic_arguments=force_arguments,
@@ -228,7 +238,7 @@ def build_command_plan(
             *(("--dry-run",) if dry_run else ()),
         ),
         cwd=root,
-        env={},
+        env=mise_environment,
         dry_run=dry_run,
         semantic_action="link-mise-lockfiles",
     )

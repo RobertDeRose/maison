@@ -57,6 +57,56 @@ class UserConvergencePlanTest(unittest.TestCase):
         for command in (*plan.convergence_commands, *apply.convergence_commands):
             self.assertNotIn("--force-dotfiles", command.argv)
 
+    def test_active_overlay_is_used_for_every_user_convergence_step(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            overlay = Path(directory) / "overlay"
+            config = overlay / "config/mise"
+            config.mkdir(parents=True)
+            (config / "config.toml").write_text("[dotfiles]\n")
+            (config / "mise.lock").write_text("# overlay lock\n")
+            (config / "config.macos.lock").write_text("# overlay macOS lock\n")
+            previous = os.environ.get("MAISON_OVERLAY_PATH")
+            os.environ["MAISON_OVERLAY_PATH"] = str(overlay)
+            try:
+                plan = self.convergence.build_command_plan(
+                    mode="plan",
+                    force_dotfiles=False,
+                    root=ROOT,
+                    home=self.home,
+                )
+            finally:
+                if previous is None:
+                    os.environ.pop("MAISON_OVERLAY_PATH", None)
+                else:
+                    os.environ["MAISON_OVERLAY_PATH"] = previous
+
+            expected_config = str((config / "config.toml").resolve())
+            for command in plan.convergence_commands:
+                self.assertEqual(expected_config, command.env["MISE_GLOBAL_CONFIG_FILE"])
+                self.assertEqual(str(overlay.resolve()), command.env["MAISON_USER_CONFIG_ROOT"])
+
+            lockfiles = plan.command("lockfiles")
+            self.assertEqual(str(overlay.resolve()), lockfiles.env["MAISON_USER_CONFIG_ROOT"])
+
+    def test_user_convergence_falls_back_to_public_config_without_overlay(self) -> None:
+        previous = os.environ.pop("MAISON_OVERLAY_PATH", None)
+        try:
+            plan = self.convergence.build_command_plan(
+                mode="plan",
+                force_dotfiles=False,
+                root=ROOT,
+                home=self.home,
+            )
+        finally:
+            if previous is not None:
+                os.environ["MAISON_OVERLAY_PATH"] = previous
+
+        self.assertEqual(
+            str(ROOT / "config/mise/config.toml"),
+            plan.command("mise").env["MISE_GLOBAL_CONFIG_FILE"],
+        )
+        self.assertEqual(str(ROOT), plan.command("mise").env["MAISON_USER_CONFIG_ROOT"])
+
     def test_explicit_force_dotfiles_is_shared_by_plan_and_apply(self) -> None:
         plan, apply = self.plans(force_dotfiles=True)
 
@@ -125,6 +175,36 @@ class UserConvergencePlanTest(unittest.TestCase):
                         self.assertEqual(str(ROOT / ".mise/lib/user_convergence.py"), arguments[0])
                         self.assertEqual(mode, arguments[1])
                         self.assertEqual("--force-dotfiles" in arguments, force_dotfiles)
+
+    def test_user_tasks_export_the_active_overlay_before_planning(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            temp = Path(directory)
+            overlay = temp / "overlay"
+            (overlay / "config/mise").mkdir(parents=True)
+            (overlay / "config/mise/config.toml").write_text("[dotfiles]\n")
+            fake_bin = temp / "bin"
+            fake_bin.mkdir()
+            captured = temp / "overlay-path"
+            real_python = str(Path(sys.executable).resolve())
+            helper = str(ROOT / "scripts/maison_overlay.py")
+            executable(
+                fake_bin / "python3",
+                f'''#!/bin/sh
+if [ "$1" = "-c" ] || [ "$1" = "{helper}" ]; then
+  exec "{real_python}" "$@"
+fi
+printf '%s\\n' "$MAISON_OVERLAY_PATH" > "$MAISON_CAPTURE"
+''',
+            )
+            environment = {
+                **os.environ,
+                "PATH": f"{fake_bin}{os.pathsep}{os.environ['PATH']}",
+                "MISE_PROJECT_ROOT": str(ROOT),
+                "MAISON_CAPTURE": str(captured),
+                "MAISON_OVERLAY_PATH": str(overlay),
+            }
+            run([str(ROOT / ".mise/tasks/user/plan")], env=environment, check=True)
+            self.assertEqual(str(overlay), captured.read_text().strip())
 
     def test_aggregate_plan_forwards_force_dotfiles_to_user_plan(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

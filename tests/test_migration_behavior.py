@@ -516,6 +516,29 @@ class MigrationBehaviorTest(unittest.TestCase):
                 self.assertTrue(target.is_symlink())
                 self.assertEqual(target.resolve(), ROOT / "config/mise" / name)
 
+    def test_mise_lockfile_links_prefer_the_active_overlay(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            temp = Path(directory)
+            home = temp / "home"
+            home.mkdir()
+            overlay = temp / "overlay"
+            config = overlay / "config/mise"
+            config.mkdir(parents=True)
+            for name in ("mise.lock", "config.macos.lock"):
+                (config / name).write_text(f"# overlay {name}\\n")
+            env = os.environ.copy()
+            env.update(
+                {
+                    "HOME": str(home),
+                    "MAISON_USER_CONFIG_ROOT": str(overlay),
+                }
+            )
+            script = ROOT / "scripts/user-link-mise-lock.sh"
+            run([str(script)], cwd=ROOT, env=env, check=True)
+            for name in ("mise.lock", "config.macos.lock"):
+                target = home / ".config/mise" / name
+                self.assertEqual(target.resolve(), (config / name).resolve())
+
     def test_bootstrap_help_pipe_and_clone_handoff(self) -> None:
         direct = run(
             [str(ROOT / "bootstrap.sh"), "--help"],

@@ -53,7 +53,9 @@ Maison's `mise run host:add`, which owns supported-platform detection and invent
 updates an existing overlay without rerunning host registration. Keep the generated repository
 private and keep secrets in Bitwarden or an equivalent secret manager. Maison persists the active overlay source in
 `${XDG_STATE_HOME:-$HOME/.local/state}/maison/overlay.toml`; direct Nix and `nh` evaluations pass that checkout as
-the explicit `overlay` flake input, so those evaluations remain pure and do not require `--impure`.
+the explicit `overlay` flake input, so those evaluations remain pure and do not require `--impure`. User convergence
+loads the overlay's `config/mise/config.toml` as the global mise layer while the Maison checkout remains the project
+layer; without an overlay, public `config/mise` files are used.
 
 ## Template updates
 

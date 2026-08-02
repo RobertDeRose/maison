@@ -4,10 +4,13 @@
 set -euo pipefail
 root="${MISE_PROJECT_ROOT:-$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)}"
 source "$root/.mise/lib/transaction.sh"
-config="$root/config/mise/config.toml"
-lock="$root/config/mise/mise.lock"
+source "$root/.mise/lib/overlay.sh"
+load_maison_overlay_environment "$root"
+config_root="${MAISON_USER_CONFIG_ROOT:-$root}"
+config="$config_root/config/mise/config.toml"
+lock="$config_root/config/mise/mise.lock"
 tool="${usage_tool:?mise did not provide the required tool argument}"
-transaction_require_authoring_checkout "$root" tool:remove
+transaction_require_authoring_checkout "$config_root" tool:remove
 protected_tool="$tool"
 protected_suffix="${tool##*@}"
 if [[ "$tool" == *@* && "$protected_suffix" != */* ]]; then
@@ -17,7 +20,7 @@ fi
   printf 'error: usage is the Maison command runtime and cannot be removed\n' >&2
   exit 2
 }
-transaction_require_lock "$root" "${BASH_SOURCE[0]}" "$@"
+transaction_require_lock "$config_root" "${BASH_SOURCE[0]}" "$@"
 transaction_dir="$(transaction_directory)"
 original_config="$transaction_dir/config.original.toml"
 original_lock="$transaction_dir/mise.original.lock"
@@ -86,7 +89,7 @@ else
     --name "$tool"
 fi
 python3 "$root/.mise/lib/config_edit.py" validate "$candidate_config" "$candidate_lock"
-transaction_journal_begin "$root" tool:remove "$config" "$lock"
+transaction_journal_begin "$config_root" tool:remove "$config" "$lock"
 transaction_journal_mark validated
 
 lock_attempted=true
@@ -96,4 +99,4 @@ atomic_replace "$candidate_config" "$config"
 success=true
 transaction_journal_complete
 printf 'Removed %s from %s and its generated lock entries. Installed versions were intentionally left in the mise cache.\n' \
-  "$tool" "${config#"$root"/}"
+  "$tool" "${config#"$config_root"/}"

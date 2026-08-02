@@ -3,8 +3,10 @@
 # [MISE] interactive=true
 set -euo pipefail
 root="${MISE_PROJECT_ROOT:-$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)}"
-config="$HOME/.config/mise/config.toml"
-[ -f "$config" ] || config="$root/config/mise/config.toml"
+source "$root/.mise/lib/overlay.sh"
+load_maison_overlay_environment "$root"
+config_root="${MAISON_USER_CONFIG_ROOT:-$root}"
+config="$config_root/config/mise/config.toml"
 (
   cd "$HOME"
   MISE_AUTO_ENV=true MISE_GLOBAL_CONFIG_FILE="$config" mise outdated || true

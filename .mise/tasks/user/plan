@@ -3,6 +3,8 @@
 #USAGE flag "--force-dotfiles" help="Preview replacement of conflicting whole-file targets"
 set -euo pipefail
 root="${MISE_PROJECT_ROOT:-$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)}"
+source "$root/.mise/lib/overlay.sh"
+load_maison_overlay_environment "$root"
 args=()
 [ "${usage_force_dotfiles:-false}" != true ] || args+=(--force-dotfiles)
 exec python3 "$root/.mise/lib/user_convergence.py" plan --root "$root" "${args[@]}"

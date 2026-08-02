@@ -2,8 +2,12 @@
 # [MISE] description="Show drift in the mise-managed user environment"
 set -euo pipefail
 root="${MISE_PROJECT_ROOT:-$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)}"
+source "$root/.mise/lib/overlay.sh"
+load_maison_overlay_environment "$root"
+config_root="${MAISON_USER_CONFIG_ROOT:-$root}"
+config="$config_root/config/mise/config.toml"
 cd "$root"
-mise bootstrap dotfiles status
-if [ -f "$HOME/.config/mise/config.toml" ]; then
-  (cd "$HOME"; MISE_AUTO_ENV=true MISE_GLOBAL_CONFIG_FILE="$HOME/.config/mise/config.toml" mise bootstrap status)
+MISE_AUTO_ENV=true MISE_GLOBAL_CONFIG_FILE="$config" mise bootstrap dotfiles status
+if [ -f "$config" ]; then
+  (cd "$HOME"; MISE_AUTO_ENV=true MISE_GLOBAL_CONFIG_FILE="$config" mise bootstrap status)
 fi
