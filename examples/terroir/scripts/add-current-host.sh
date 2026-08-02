@@ -8,12 +8,14 @@ error() {
 }
 
 maison_home="${MAISON_HOME:-}"
-overlay_path="${MAISON_OVERLAY_PATH:-$(pwd -P)}"
+overlay_path="${MAISON_OVERLAY_PATH:-.}"
 host="${MAISON_HOST:-$(hostname -s)}"
 username="${USERNAME:-}"
 
 [ -n "$maison_home" ] || error 'MAISON_HOME must point to a Maison checkout; rerun Copier from Maison'
 [ -d "$maison_home" ] || error "Maison checkout does not exist: $maison_home"
+maison_home="$(cd "$maison_home" && pwd -P)"
+overlay_path="$(cd "$overlay_path" && pwd -P)"
 [ -n "$username" ] || error 'Copier did not provide the inventory username'
 command -v git >/dev/null 2>&1 || error 'git is required to initialize the overlay repository'
 command -v mise >/dev/null 2>&1 || error 'mise is required to register the current host'
