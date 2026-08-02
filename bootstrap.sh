@@ -135,11 +135,12 @@ print_overlay_setup_help() {
   printf '%s\n' "No private overlay was selected, so Nix and user activation were skipped."
   printf '%s\n' "Create an overlay with the Copier template, then rerun bootstrap with --overlay or MAISON_OVERLAY."
   printf '%s\n' "Read: $repo_root/README.md#private-overlay"
-  printf '%s\n' "Template: $repo_root/examples/terroir"
+  printf '%s\n' "Template: $repo_root/examples/template"
 }
 
 setup_overlay_with_copier() {
-  local destination="${MAISON_OVERLAY_HOME:-$HOME/src/maison-overlay}"
+  local destination="${MAISON_OVERLAY_HOME:-$HOME/src/maison-overlay}" copier_user
+  copier_user="$(id -un)"
   [ -e "$destination" ] && [ ! -d "$destination" ] && bootstrap_die "overlay destination is not a directory: $destination"
   mkdir -p "$destination"
   destination="$(cd "$destination" && pwd -P)"
@@ -147,7 +148,8 @@ setup_overlay_with_copier() {
   mise install uv
   log "Creating private overlay at $destination"
   MAISON_HOME="$repo_root" MAISON_OVERLAY_PATH="$destination" MAISON_HOST="$host" \
-    mise exec -- uvx --from copier copier copy --trust "$repo_root/examples/terroir" "$destination"
+    mise exec -- uvx --from copier copier copy --trust --data "username=$copier_user" \
+      "$repo_root/examples/template" "$destination"
   [ -d "$destination/.git" ] || bootstrap_die "Copier did not initialize the overlay Git repository: $destination"
   overlay="$destination"
 }

@@ -7,7 +7,7 @@ maison package search <name>
 ```
 
 Prefer a mise backend for versioned standalone tools. Add tools to a private overlay based on
-`examples/terroir/config/mise/config.toml`; public Maison intentionally keeps user policy empty.
+`examples/template/config/mise/config.toml`; public Maison intentionally keeps user policy empty.
 
 ```bash
 maison tool add github:owner/repository latest
