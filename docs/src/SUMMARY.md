@@ -58,4 +58,5 @@
   - [MAISON-014: Remote convergence restoration](./features/maison-014-remote-convergence-restoration/index.md)
   - [MAISON-015: Linux runtime activation verification](./features/maison-015-linux-runtime-verification/index.md)
   - [MAISON-016: Pi TypeScript validation boundary](./features/maison-016-pi-typescript-validation/index.md)
+  - [Copier-backed overlay setup and bootstrap onboarding](./features/maison-overlay-copier-bootstrap/index.md)
   <!-- END IMPLEMENTED FEATURES -->
