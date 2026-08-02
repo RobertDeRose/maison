@@ -5,7 +5,7 @@
 - Beads feature root: `maison-mol-5s9`
 - Status: delivered
 - Pull request: pending delivery action
-- Merge commit: pending delivery action
+- Merge commit: `14a5e92` (fast-forward target)
 - Design record: [design.md](design.md)
 
 ## Delivered Capability
@@ -127,4 +127,4 @@ A user who declines setup can follow the printed README/template guidance and re
 - Validation: `maison-mol-2b5`.
 - Holistic delivery review: `maison-mol-a2x`.
 - Documentation drift review: `maison-mol-ecd`.
-- Delivery action: `maison-mol-e0f`, pending explicit selection.
+- Delivery action: `maison-mol-e0f`, merged into `main` at `14a5e92`.
