@@ -92,5 +92,5 @@ jobs:
           bash -n bootstrap.sh
           ./bootstrap.sh --help
           cat bootstrap.sh | bash -s -- --help
-          PYTHONPATH=tests python3 -m unittest -v \
-            test_topology.MigrationBehaviorTest.test_bootstrap_help_pipe_and_clone_handoff
+          python3 -m unittest -v \
+            tests.test_migration_behavior.MigrationBehaviorTest.test_bootstrap_help_pipe_and_clone_handoff
