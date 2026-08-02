@@ -36,7 +36,7 @@ nix_common_flags() {
   [ "${NIX_SUPPRESS_DIRTY_WARNING:-false}" = true ] && printf '%s\n' --no-warn-dirty
 }
 
-nix_command() {
+load_nix_overlay_environment() {
   if [ -z "${MAISON_INVENTORY:-}" ]; then
     local maison_root="${MISE_PROJECT_ROOT:-$PWD}"
     if [ -f "$maison_root/.mise/lib/overlay.sh" ]; then
@@ -45,6 +45,10 @@ nix_command() {
       load_maison_overlay_environment "$maison_root"
     fi
   fi
+}
+
+nix_command() {
+  load_nix_overlay_environment
   local flags=() flag impure=()
   while IFS= read -r flag; do flags+=("$flag"); done < <(nix_common_flags)
   if [ -n "${MAISON_INVENTORY:-}" ] && [ "${MAISON_INVENTORY}" != "${MISE_PROJECT_ROOT:-$PWD}/inventory.toml" ]; then
@@ -69,16 +73,20 @@ ensure_nh() {
 }
 
 run_nh() {
-  local nix_config="${NIX_CONFIG:-}"
+  load_nix_overlay_environment
+  local nix_config="${NIX_CONFIG:-}" args=("$@")
   nix_config="${nix_config}${nix_config:+
 }accept-flake-config = true"
+  if [ -n "${MAISON_INVENTORY:-}" ] && [ "${MAISON_INVENTORY}" != "${MISE_PROJECT_ROOT:-$PWD}/inventory.toml" ]; then
+    args+=(-- --impure)
+  fi
 
   (
     export NIX_CONFIG="$nix_config"
     if command -v nh > /dev/null 2>&1; then
-      nh "$@"
+      nh "${args[@]}"
     else
-      nix_command run .#nh -- "$@"
+      nix_command run .#nh -- "${args[@]}"
     fi
   )
 }
