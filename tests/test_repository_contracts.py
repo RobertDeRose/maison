@@ -75,6 +75,7 @@ class DataFilesTest(unittest.TestCase):
                 "nix-hex-box",
                 "nix-homebrew",
                 "nixpkgs",
+                "overlay",
                 "system-manager",
             },
         )
