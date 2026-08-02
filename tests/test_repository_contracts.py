@@ -173,6 +173,20 @@ class RepositoryContractTest(unittest.TestCase):
         )
         self.assertNotIn("test_topology.MigrationBehaviorTest", workflow)
 
+    def test_bootstrap_uses_template_and_current_user_for_copier(self) -> None:
+        bootstrap = read("bootstrap.sh")
+        self.assertIn('copier_user="$(id -un)"', bootstrap)
+        self.assertIn('--data "username=$copier_user"', bootstrap)
+        self.assertIn("examples/template", bootstrap)
+        self.assertNotIn("examples/terroir", bootstrap)
+
+    def test_template_documents_mise_dotfile_mapping(self) -> None:
+        config = read("examples/template/config/mise/config.toml")
+        guide = read("examples/template/dotfiles/README.md")
+        self.assertIn("[dotfiles]", config)
+        self.assertIn("mise.jdx.dev/dotfiles.html", guide)
+        self.assertIn("mise bootstrap dotfiles", guide)
+
     def test_linux_user_creation_reuses_existing_primary_group(self) -> None:
         build = read(".github/scripts/build-platform-targets.sh")
         self.assertIn('if getent group "$username" > /dev/null 2>&1; then', build)

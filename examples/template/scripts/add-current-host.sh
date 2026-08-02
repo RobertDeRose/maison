@@ -20,16 +20,9 @@ overlay_path="$(cd "$overlay_path" && pwd -P)"
 command -v git >/dev/null 2>&1 || error 'git is required to initialize the overlay repository'
 command -v mise >/dev/null 2>&1 || error 'mise is required to register the current host'
 
-case "$(uname -s):$(uname -m)" in
-  Darwin:arm64 | Darwin:aarch64) system=aarch64-darwin ;;
-  Linux:arm64 | Linux:aarch64) system=aarch64-linux ;;
-  Linux:x86_64 | Linux:amd64) system=x86_64-linux ;;
-  *) error "unsupported platform $(uname -s)/$(uname -m); Maison supports Apple Silicon macOS and supported Linux" ;;
-esac
-
 if [ ! -e .git ]; then
   git init --quiet
 fi
 
 export MAISON_OVERLAY_PATH="$overlay_path"
-mise -C "$maison_home" run host:add -- "$host" --system "$system" --user "$username"
+mise -C "$maison_home" run host:add -- "$host" --user "$username"
