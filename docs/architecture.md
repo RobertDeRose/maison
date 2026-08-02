@@ -100,10 +100,10 @@ A private overlay may own:
 - Application configuration in native formats under `dotfiles/`; Tera is used only where host, user, or platform
   interpolation is required.
 
-Public Maison keeps these policy files empty and schema-valid. During `user:plan` and `user:apply`, Maison loads the
-active overlay's `config/mise/config.toml` as the global mise layer while the public repository's `mise.toml` remains
-the project layer. This preserves Maison's shared settings and tasks while allowing the overlay to provide personal
-user tools, packages, preferences, and dotfiles. Without an active overlay, the public `config/mise` files remain the
+Public Maison keeps these policy files empty and schema-valid. During `user:plan`, `user:apply`, and `user:status`,
+Maison loads the active overlay's `config/mise/config.toml` as the global mise layer while the public repository's
+`mise.toml` remains the project layer. This preserves Maison's shared settings and tasks while allowing the overlay to
+provide personal user tools, packages, preferences, and dotfiles. Without an active overlay, the public `config/mise` files remain the
 fallback. Because mise resolves relative dotfile sources from the installed global configuration path, Maison temporarily
 moves an active overlay-backed `~/.config/mise/config.toml` aside while running user convergence. A successful apply
 keeps the newly converged target; dry-runs and failures restore the previous target.
