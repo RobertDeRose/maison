@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import os
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -149,6 +150,100 @@ class UserConvergencePlanTest(unittest.TestCase):
             ("--force-dotfiles",),
             self.convergence.aggregate_user_arguments(force_dotfiles=True),
         )
+
+    def test_overlay_config_is_restored_after_a_dry_run(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            temp = Path(directory)
+            home = temp / "home"
+            (home / ".config/mise").mkdir(parents=True)
+            installed = home / ".config/mise/config.toml"
+            overlay = temp / "overlay"
+            (overlay / "config/mise").mkdir(parents=True)
+            overlay_config = overlay / "config/mise/config.toml"
+            overlay_config.write_text("old config\n")
+            installed.symlink_to(overlay_config)
+            probe = temp / "probe.sh"
+            executable(
+                probe,
+                '#!/bin/sh\n[ ! -e "$HOME/.config/mise/config.toml" ] && exit 0\nexit 11\n',
+            )
+            command = self.convergence.Command(
+                name="mise",
+                argv=(str(probe),),
+                cwd=home,
+                env={
+                    "HOME": str(home),
+                    "MAISON_USER_CONFIG_ROOT": str(overlay),
+                    "MISE_GLOBAL_CONFIG_FILE": str(overlay / "config/mise/config.toml"),
+                },
+                dry_run=True,
+                semantic_action="probe",
+            )
+            plan = self.convergence.CommandPlan("plan", False, (command,))
+            self.convergence.run_command_plan(plan)
+            self.assertEqual("old config\n", installed.read_text())
+
+    def test_overlay_config_is_retained_after_successful_apply(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            temp = Path(directory)
+            home = temp / "home"
+            (home / ".config/mise").mkdir(parents=True)
+            installed = home / ".config/mise/config.toml"
+            overlay = temp / "overlay"
+            (overlay / "config/mise").mkdir(parents=True)
+            overlay_config = overlay / "config/mise/config.toml"
+            overlay_config.write_text("old config\n")
+            installed.symlink_to(overlay_config)
+            probe = temp / "probe.sh"
+            executable(
+                probe,
+                '#!/bin/sh\n[ ! -e "$HOME/.config/mise/config.toml" ] || exit 11\nprintf "new config\\n" > "$HOME/.config/mise/config.toml"\n',
+            )
+            command = self.convergence.Command(
+                name="mise",
+                argv=(str(probe),),
+                cwd=home,
+                env={
+                    "HOME": str(home),
+                    "MAISON_USER_CONFIG_ROOT": str(overlay),
+                    "MISE_GLOBAL_CONFIG_FILE": str(overlay / "config/mise/config.toml"),
+                },
+                dry_run=False,
+                semantic_action="probe",
+            )
+            plan = self.convergence.CommandPlan("apply", False, (command,))
+            self.convergence.run_command_plan(plan)
+            self.assertEqual("new config\n", installed.read_text())
+
+    def test_overlay_config_is_restored_after_failed_apply(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            temp = Path(directory)
+            home = temp / "home"
+            (home / ".config/mise").mkdir(parents=True)
+            installed = home / ".config/mise/config.toml"
+            overlay = temp / "overlay"
+            (overlay / "config/mise").mkdir(parents=True)
+            overlay_config = overlay / "config/mise/config.toml"
+            overlay_config.write_text("old config\n")
+            installed.symlink_to(overlay_config)
+            probe = temp / "probe.sh"
+            executable(probe, '#!/bin/sh\n[ ! -e "$HOME/.config/mise/config.toml" ] && exit 23\n')
+            command = self.convergence.Command(
+                name="mise",
+                argv=(str(probe),),
+                cwd=home,
+                env={
+                    "HOME": str(home),
+                    "MAISON_USER_CONFIG_ROOT": str(overlay),
+                    "MISE_GLOBAL_CONFIG_FILE": str(overlay / "config/mise/config.toml"),
+                },
+                dry_run=False,
+                semantic_action="probe",
+            )
+            plan = self.convergence.CommandPlan("apply", False, (command,))
+            with self.assertRaises(subprocess.CalledProcessError):
+                self.convergence.run_command_plan(plan)
+            self.assertEqual("old config\n", installed.read_text())
 
     def test_user_tasks_forward_force_dotfiles_only_when_requested(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

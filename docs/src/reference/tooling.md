@@ -55,7 +55,8 @@ private and keep secrets in Bitwarden or an equivalent secret manager. Maison pe
 `${XDG_STATE_HOME:-$HOME/.local/state}/maison/overlay.toml`; direct Nix and `nh` evaluations pass that checkout as
 the explicit `overlay` flake input, so those evaluations remain pure and do not require `--impure`. User convergence
 loads the overlay's `config/mise/config.toml` as the global mise layer while the Maison checkout remains the project
-layer; without an overlay, public `config/mise` files are used.
+layer; without an overlay, public `config/mise` files are used. During convergence, Maison temporarily hides the
+installed overlay-backed global config so mise resolves relative dotfile sources from the overlay checkout.
 
 ## Template updates
 

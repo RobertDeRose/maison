@@ -310,32 +310,88 @@ def build_command_plan(
     return CommandPlan(mode, force_dotfiles, commands, apply_only)
 
 
+def _path_exists(path: Path) -> bool:
+    return path.exists() or path.is_symlink()
+
+
+def _hide_installed_overlay_config(plan: CommandPlan) -> tuple[Path, Path] | None:
+    mise_command = plan.command("mise")
+    config_root = mise_command.env.get("MAISON_USER_CONFIG_ROOT")
+    if not config_root:
+        return None
+    overlay = Path(config_root).resolve()
+    try:
+        project_root = plan.command("prepare").cwd
+    except KeyError:
+        project_root = mise_command.cwd
+    if overlay == project_root.resolve():
+        return None
+    installed = mise_command.cwd / ".config/mise/config.toml"
+    if not _path_exists(installed):
+        return None
+    active_config = overlay / "config/mise/config.toml"
+    if not installed.is_symlink() or installed.resolve() != active_config.resolve():
+        return None
+    backup = installed.parent / f".{installed.name}.maison-backup-{os.getpid()}"
+    if _path_exists(backup):
+        raise RuntimeError(f"temporary overlay config backup already exists: {backup}")
+    os.replace(installed, backup)
+    return installed, backup
+
+
+def _restore_installed_overlay_config(
+    guard: tuple[Path, Path] | None,
+    *,
+    retain_new_config: bool,
+) -> None:
+    if guard is None:
+        return
+    installed, backup = guard
+    if retain_new_config and _path_exists(installed):
+        backup.unlink()
+        return
+    if _path_exists(installed):
+        if installed.is_dir() and not installed.is_symlink():
+            raise RuntimeError(f"refusing to remove directory {installed}")
+        installed.unlink()
+    os.replace(backup, installed)
+
+
 def run_command_plan(plan: CommandPlan, *, event_file: Path | None = None) -> None:
     commands = (
         (*plan.apply_only_commands[:1], *plan.convergence_commands, *plan.apply_only_commands[1:])
         if plan.mode in {"apply", "recovery"}
         else plan.convergence_commands
     )
-    for command in commands:
-        environment = os.environ.copy()
-        environment.update(command.env)
-        stdout = subprocess.DEVNULL if command.quiet else None
-        _record_event(event_file, mode=plan.mode, phase=command.name, status="started")
-        try:
-            subprocess.run(command.argv, cwd=command.cwd, env=environment, check=True, stdout=stdout)
-        except subprocess.CalledProcessError as error:
-            _record_event(
-                event_file,
-                mode=plan.mode,
-                phase=command.name,
-                status="failed",
-                exit_code=error.returncode,
-            )
-            raise
-        except OSError:
-            _record_event(event_file, mode=plan.mode, phase=command.name, status="failed", exit_code=127)
-            raise
-        _record_event(event_file, mode=plan.mode, phase=command.name, status="completed")
+    guard = _hide_installed_overlay_config(plan)
+    succeeded = False
+    try:
+        for command in commands:
+            environment = os.environ.copy()
+            environment.update(command.env)
+            stdout = subprocess.DEVNULL if command.quiet else None
+            _record_event(event_file, mode=plan.mode, phase=command.name, status="started")
+            try:
+                subprocess.run(command.argv, cwd=command.cwd, env=environment, check=True, stdout=stdout)
+            except subprocess.CalledProcessError as error:
+                _record_event(
+                    event_file,
+                    mode=plan.mode,
+                    phase=command.name,
+                    status="failed",
+                    exit_code=error.returncode,
+                )
+                raise
+            except OSError:
+                _record_event(event_file, mode=plan.mode, phase=command.name, status="failed", exit_code=127)
+                raise
+            _record_event(event_file, mode=plan.mode, phase=command.name, status="completed")
+        succeeded = True
+    finally:
+        _restore_installed_overlay_config(
+            guard,
+            retain_new_config=succeeded and plan.mode in {"apply", "recovery"},
+        )
 
 
 def _write_recovery_result(
