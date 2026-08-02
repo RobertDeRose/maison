@@ -22,7 +22,11 @@ build_target() {
 ensure_linux_user() {
   local username="$1" fullname="$2"
   id -u "$username" > /dev/null 2>&1 && return 0
-  sudo useradd --create-home --comment "$fullname" --shell /bin/bash "$username"
+  if getent group "$username" > /dev/null 2>&1; then
+    sudo useradd --create-home --gid "$username" --comment "$fullname" --shell /bin/bash "$username"
+  else
+    sudo useradd --create-home --user-group --comment "$fullname" --shell /bin/bash "$username"
+  fi
 }
 
 ensure_darwin_user() {
