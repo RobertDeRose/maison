@@ -38,6 +38,7 @@
   - [MAISON-015: Linux runtime activation verification](./features/maison-015-linux-runtime-verification/design.md)
   - [MAISON-016: Pi TypeScript validation boundary](./features/maison-016-pi-typescript-validation/design.md)
   - [MAISON-017: Maison/Terroir repository split](./features/maison-017-maison-terroir-repository-split/design.md)
+  - [Copier-backed overlay setup and bootstrap onboarding](./features/maison-overlay-copier-bootstrap/design.md)
   <!-- END FEATURE DESIGNS -->
 - [Implemented Features](./features/index.md)
   <!-- BEGIN IMPLEMENTED FEATURES -->
