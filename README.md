@@ -16,7 +16,7 @@ maintainer's personal application list or dotfiles.
 Clone Maison and create or select a private overlay:
 
 ```bash
-git clone https://github.com/OWNER/maison.git
+git clone https://github.com/RobertDeRose/maison.git
 cd maison
 cp -R examples/terroir/. "$HOME/src/my-maison-overlay/"
 cd "$HOME/src/my-maison-overlay"
