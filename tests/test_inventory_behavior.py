@@ -295,6 +295,70 @@ class OverlayContractTest(unittest.TestCase):
         self.assertIn("--impure", nix)
         self.assertIn("load_maison_overlay_environment", nix)
 
+    def test_run_nh_passes_impure_for_private_overlay_inventory(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            temp = Path(directory)
+            fake_bin = temp / "bin"
+            fake_bin.mkdir()
+            log = temp / "nh-log"
+            executable(fake_bin / "nh", '#!/bin/sh\nprintf \'%s\\n\' "$*" >"$NH_LOG"\n')
+            env = os.environ.copy()
+            env.update(
+                {
+                    "PATH": f"{fake_bin}{os.pathsep}{env['PATH']}",
+                    "MISE_PROJECT_ROOT": str(ROOT),
+                    "MAISON_INVENTORY": str(temp / "overlay/inventory.toml"),
+                    "NH_LOG": str(log),
+                }
+            )
+            result = run(
+                [
+                    "bash",
+                    "-c",
+                    'source "$1/.mise/lib/nix.sh"; run_nh darwin build "$1" -H fixture-host',
+                    "_",
+                    str(ROOT),
+                ],
+                cwd=ROOT,
+                env=env,
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(log.read_text().strip(), f"darwin build {ROOT} -H fixture-host -- --impure")
+
+    def test_run_nh_keeps_public_inventory_pure(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            temp = Path(directory)
+            fake_bin = temp / "bin"
+            fake_bin.mkdir()
+            log = temp / "nh-log"
+            executable(fake_bin / "nh", '#!/bin/sh\nprintf \'%s\\n\' "$*" >"$NH_LOG"\n')
+            env = os.environ.copy()
+            env.update(
+                {
+                    "PATH": f"{fake_bin}{os.pathsep}{env['PATH']}",
+                    "MISE_PROJECT_ROOT": str(ROOT),
+                    "MAISON_INVENTORY": str(ROOT / "inventory.toml"),
+                    "NH_LOG": str(log),
+                }
+            )
+            result = run(
+                [
+                    "bash",
+                    "-c",
+                    'source "$1/.mise/lib/nix.sh"; run_nh darwin build "$1" -H example-darwin',
+                    "_",
+                    str(ROOT),
+                ],
+                cwd=ROOT,
+                env=env,
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(log.read_text().strip(), f"darwin build {ROOT} -H example-darwin")
+
     def test_overlay_prepare_uses_existing_local_repository_directly(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             temp = Path(directory)
