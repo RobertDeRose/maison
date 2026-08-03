@@ -24,9 +24,9 @@ without an overlay, answer **yes** when prompted, and complete the Copier questi
 curl -fsSL https://raw.githubusercontent.com/RobertDeRose/maison/main/bootstrap.sh | bash
 ```
 
-Maison clones itself to `~/.maison` by default. A new local overlay created through Copier uses
-`${MAISON_OVERLAY_HOME:-$HOME/src/maison-overlay}`; a remote overlay, including one restored from saved state, is
-cloned to `${XDG_DATA_HOME:-$HOME/.local/share}/maison/overlay`. Bootstrap registers the current host.
+Maison clones itself to `~/.maison` by default. New Copier overlays and remote overlays use
+`${XDG_DATA_HOME:-$HOME/.local/share}/maison/overlay` by default; set `MAISON_OVERLAY_HOME` to override the Copier
+destination. Bootstrap registers the current host.
 
 ### 2. Install with curl and use an existing overlay
 

@@ -26,7 +26,7 @@ Options:
 
 Environment:
   MAISON_OVERLAY          Existing private overlay Git URL or local repository path.
-  MAISON_OVERLAY_HOME     Copier destination; defaults to ~/src/maison-overlay.
+  MAISON_OVERLAY_HOME     Copier destination; defaults to ${XDG_DATA_HOME:-$HOME/.local/share}/maison/overlay.
   MAISON_REQUIRE_OVERLAY  Fail instead of deferring when no overlay is available.
 HELP
 }
@@ -139,7 +139,7 @@ print_overlay_setup_help() {
 }
 
 setup_overlay_with_copier() {
-  local destination="${MAISON_OVERLAY_HOME:-$HOME/src/maison-overlay}" copier_user
+  local destination="${MAISON_OVERLAY_HOME:-${XDG_DATA_HOME:-$HOME/.local/share}/maison/overlay}" copier_user
   copier_user="$(id -un)"
   [ -e "$destination" ] && [ ! -d "$destination" ] && bootstrap_die "overlay destination is not a directory: $destination"
   mkdir -p "$destination"
