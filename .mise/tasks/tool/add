@@ -6,14 +6,20 @@ set -euo pipefail
 root="${MISE_PROJECT_ROOT:-$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)}"
 source "$root/.mise/lib/transaction.sh"
 source "$root/.mise/lib/overlay.sh"
+source "$root/.mise/lib/overlay_git.sh"
 load_maison_overlay_environment "$root"
-config_root="${MAISON_USER_CONFIG_ROOT:-$root}"
+maison_overlay_require_active "$root" tool:add
+config_root="$MAISON_PRIVATE_OVERLAY_PATH"
+export MAISON_USER_CONFIG_ROOT="$config_root"
+export MISE_GLOBAL_CONFIG_FILE="$config_root/config/mise/config.toml"
 version="${usage_version:-latest}"
 config="$config_root/config/mise/config.toml"
 lock="$config_root/config/mise/mise.lock"
 tool="${usage_tool:?mise did not provide the required tool argument}"
 transaction_require_authoring_checkout "$config_root" tool:add
 transaction_require_lock "$config_root" "${BASH_SOURCE[0]}" "$@"
+maison_overlay_refresh "$root" "$config_root" tool:add
+maison_overlay_require_clean "$root" "$config_root" tool:add "$config" "$lock"
 transaction_dir="$(transaction_directory)"
 original_config="$transaction_dir/config.original.toml"
 original_lock="$transaction_dir/mise.original.lock"
@@ -98,4 +104,7 @@ config_attempted=true
 atomic_replace "$candidate_config" "$config"
 success=true
 transaction_journal_complete
+if ! maison_overlay_commit "$root" "$config_root" added tool "$install_spec" "$config" "$lock"; then
+  exit 1
+fi
 printf 'Installed and added %s to %s.\n' "$install_spec" "${config#"$config_root"/}"

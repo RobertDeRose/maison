@@ -40,6 +40,11 @@ ${XDG_DATA_HOME:-$HOME/.local/share}/maison/overlay
 overlay mirrors Maison's layout for owned data: `inventory.toml`, `hosts/`, `config/mise/*.toml`, `dotfiles/`, and
 trusted key files. Overlay state is local and untracked; no checkout or state file is committed to Maison.
 
+Read-only convergence may use public neutral configuration when no overlay is active, but software authoring never
+falls back to those files. `tool:add`, `tool:remove`, `package:add`, `package:remove`, `app:add`, and `app:remove`
+require the active private overlay's Git checkout. `maison status` and `maison publish` also inspect or publish only
+that active overlay; they never accept an arbitrary overlay path through the public command surface.
+
 ## Nix system layer
 
 The flake exports `darwinConfigurations`, `systemConfigs`, and `deploy`.
@@ -159,3 +164,12 @@ only reversible user state; package and application side effects remain outside 
 The local repository mutation journal is separate from that privileged remote deployment namespace. Local authoring locks
 must not weaken the root-owned transaction root, same-filesystem constraints, or revision-bound remote rollback
 contracts.
+
+Covered private-overlay software mutations take the overlay lock, fetch and fast-forward it before reading declaration
+files, and restore tracked/untracked unrelated work without touching ignored files. A change in a declaration or lock
+path that the operation would write is a refusal condition. After candidate validation and journal completion, only the
+operation's declaration and generated lock paths enter a focused commit with the subject form
+`added(scope): \`identifier\`` or `removed(scope): \`identifier\``; unrelated staged/index work remains outside that
+commit. A Git commit failure
+is post-transaction: validated files remain for manual recovery and external package/application effects are not
+rolled back.

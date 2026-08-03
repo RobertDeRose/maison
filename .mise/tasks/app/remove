@@ -5,12 +5,19 @@ set -euo pipefail
 root="${MISE_PROJECT_ROOT:-$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)}"
 source "$root/.mise/lib/transaction.sh"
 source "$root/.mise/lib/overlay.sh"
+source "$root/.mise/lib/overlay_git.sh"
 load_maison_overlay_environment "$root"
-config_root="${MAISON_USER_CONFIG_ROOT:-$root}"
+maison_overlay_require_active "$root" app:remove
+config_root="$MAISON_PRIVATE_OVERLAY_PATH"
+export MAISON_USER_CONFIG_ROOT="$config_root"
+export MISE_GLOBAL_CONFIG_FILE="$config_root/config/mise/config.toml"
 path="$config_root/config/mise/config.macos-arm64.toml"
-package="brew-cask:${usage_cask:?mise did not provide the required cask argument}"
+cask="${usage_cask:?mise did not provide the required cask argument}"
+package="brew-cask:$cask"
 transaction_require_authoring_checkout "$config_root" app:remove
 transaction_require_lock "$config_root" "${BASH_SOURCE[0]}" "$@"
+maison_overlay_refresh "$root" "$config_root" app:remove
+maison_overlay_require_clean "$root" "$config_root" app:remove "$path"
 transaction_dir="$(transaction_directory)"
 cleanup() {
   local status=$?
@@ -27,4 +34,7 @@ transaction_journal_begin "$config_root" app:remove "$path"
 transaction_journal_mark validated
 atomic_replace "$candidate" "$path"
 transaction_journal_complete
+if ! maison_overlay_commit "$root" "$config_root" removed app "$cask" "$path"; then
+  exit 1
+fi
 printf 'Removed %s from the macOS config. The installed application was intentionally left in place.\n' "$package"

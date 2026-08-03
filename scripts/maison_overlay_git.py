@@ -418,6 +418,24 @@ def _relative_paths(repository: Path, paths: list[Path]) -> tuple[str, ...]:
     return tuple(dict.fromkeys(result))
 
 
+def require_clean_paths(repository: Path, paths: list[Path]) -> tuple[str, ...]:
+    """Reject pre-existing changes in paths that a mutation will commit."""
+
+    repository = require_repository(repository)
+    relative_paths = _relative_paths(repository, paths)
+    result = _git(
+        repository,
+        ["status", "--porcelain=v1", "--untracked-files=all", "--", *relative_paths],
+    )
+    changed = tuple(line for line in result.stdout.splitlines() if line)
+    if changed:
+        raise OverlayGitError(
+            "target files already contain local changes: "
+            + ", ".join(line[3:] if len(line) > 3 else line for line in changed)
+        )
+    return relative_paths
+
+
 def commit_paths(
     repository: Path,
     *,
@@ -485,6 +503,10 @@ def parser() -> argparse.ArgumentParser:
     commit.add_argument("--operation", choices=("added", "removed"), required=True)
     commit.add_argument("--scope", required=True)
     commit.add_argument("--identifier", required=True)
+    clean = commands.add_parser("check-clean")
+    clean.add_argument("--repo", type=Path, required=True)
+    clean.add_argument("--path", action="append", required=True, type=Path)
+
     commit.add_argument("--path", action="append", required=True, type=Path)
     return result
 
@@ -510,6 +532,8 @@ def main(argv: list[str] | None = None) -> int:
                 print("Overlay refreshed with a fast-forward update.")
             else:
                 print("Overlay already has the latest upstream commit.")
+        elif args.command == "check-clean":
+            require_clean_paths(require_repository(args.repo), args.path)
         elif args.command == "commit":
             result = commit_paths(
                 require_repository(args.repo),

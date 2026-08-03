@@ -24,6 +24,9 @@ organization, or site package policy belongs in a private overlay based on `over
 - `config/mise/config.linux.toml`: neutral Linux policy stub.
 
 Copy the examples into a private overlay before adding tools, formulae, casks, MAS applications, or preferences.
+Common declarations remain in `config/mise/config.toml`; `package --macos` selects the Apple Silicon
+`config/mise/config.macos-arm64.toml` file, and application commands use that platform-specific file directly.
+Inventory profiles (`base`, `dev`, `mac`, and `linux`) select Nix modules; they are not a mise profile selector.
 
 Intel macOS is unsupported; there is no placeholder configuration pretending to provide package parity.
 
@@ -56,4 +59,14 @@ maison app add <cask>
 maison app remove <cask>
 ```
 
-Add operations install or resolve against candidate configuration first and atomically replace the checked-in declaration only after success. Remove operations atomically edit the declaration and deliberately leave installed data in place. Use an active private overlay when the declaration is personal or site-specific; public Maison should receive only reusable starter defaults. Removing one version of a multi-version tool runs a targeted `mise lock --global <tool>` against candidate files so retained versions and their lock entries transition together. Full tool removal deletes that tool's generated lock block directly. Package-cache pruning remains a separate, explicit operation.
+Covered add/remove operations require an active private Git overlay; they never fall back to public Maison for mutation.
+After taking the overlay lock, Maison refreshes it with a fast-forward-only update, preserves unrelated tracked and
+untracked work, leaves ignored files untouched, and refuses a dirty declaration or lock target. Add operations install
+or resolve against candidate configuration first and atomically replace the overlay declaration only after success.
+Remove operations atomically edit the declaration and deliberately leave installed data in place. Once the transaction
+journal completes, only the declaration and generated lock paths receive a focused commit with a subject such as
+`added(tool): \`github:owner/tool@version\`` or `removed(package): \`brew:git\``. A commit failure leaves the validated
+files in place for manual recovery and does not roll back external package/application effects. Full `maison sync` is
+not used as the authoring refresh path. Removing one version of a multi-version tool runs a targeted `mise lock --global
+<tool>` against candidate files so retained versions and their lock entries transition together. Full tool removal
+deletes that tool's generated lock block directly. Package-cache pruning remains a separate, explicit operation.
