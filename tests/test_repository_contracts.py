@@ -317,6 +317,23 @@ class RepositoryContractTest(unittest.TestCase):
             text=True,
         )
         self.assertEqual(overview.returncode, 0, overview.stderr)
+        for group in (
+            "Workflow",
+            "Validation",
+            "System",
+            "User",
+            "Hosts",
+            "Packages",
+            "Applications",
+            "Tools",
+            "Documentation",
+            "GitHub",
+        ):
+            with self.subTest(group=group):
+                self.assertIn(f"{group}:\n", overview.stdout)
+        self.assertLess(overview.stdout.index("Workflow:"), overview.stdout.index("Validation:"))
+        self.assertLess(overview.stdout.index("Validation:"), overview.stdout.index("System:"))
+        self.assertIn("  apply", overview.stdout)
         generated = run(
             [str(cli), "--help"],
             cwd=Path(tempfile.gettempdir()),

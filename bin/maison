@@ -162,6 +162,39 @@ list_command_paths() {
   list_public_task_names | tr ':' ' '
 }
 
+format_task_groups() {
+  awk '
+    function task_group(task) {
+      if (task ~ /^app:/) return "Applications"
+      if (task ~ /^check(:|$)/) return "Validation"
+      if (task ~ /^docs:/) return "Documentation"
+      if (task ~ /^github:/) return "GitHub"
+      if (task ~ /^host:/) return "Hosts"
+      if (task ~ /^package:/) return "Packages"
+      if (task ~ /^system:/) return "System"
+      if (task ~ /^tool:/) return "Tools"
+      if (task ~ /^user:/) return "User"
+      if (task ~ /^(apply|bootstrap|deploy|doctor|fix|plan|rollback|sync|update)$/) {
+        return "Workflow"
+      }
+      return "Other"
+    }
+
+    NF {
+      group = task_group($1)
+      grouped[group] = grouped[group] "  " $0 "\n"
+    }
+
+    END {
+      order_count = split("Workflow Validation System User Hosts Packages Applications Tools Documentation GitHub Other", order)
+      for (position = 1; position <= order_count; position++) {
+        group = order[position]
+        if (group in grouped) printf "%s:\n%s", group, grouped[group]
+      }
+    }
+  '
+}
+
 resolve_task() {
   local -a words=("$@")
   local candidate="" best="" index best_count=0 task
@@ -222,9 +255,9 @@ Usage:
 Available commands:
 HELP
   if task_output="$($mise_bin -C "$maison_home" tasks 2> /dev/null)" && [ -n "$task_output" ]; then
-    printf '%s\n' "$task_output"
+    format_task_groups <<<"$task_output"
   else
-    list_public_task_names
+    list_public_task_names | format_task_groups
   fi
   cat <<'HELP'
 
