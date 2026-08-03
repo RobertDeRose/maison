@@ -159,8 +159,8 @@ select_overlay_or_defer() {
   if [ -n "$overlay" ]; then
     return 0
   fi
-  if command -v python3 > /dev/null 2>&1 && [ -f "$repo_root/scripts/maison_overlay.py" ]; then
-    saved="$(python3 "$repo_root/scripts/maison_overlay.py" resolve 2> /dev/null || true)"
+  if [ -f "$repo_root/scripts/maison_overlay.py" ]; then
+    saved="$(mise exec --locked python -- python "$repo_root/scripts/maison_overlay.py" resolve 2> /dev/null || true)"
     if [ -n "$saved" ]; then
       overlay="$saved"
       return 0
@@ -274,4 +274,4 @@ fi
 if [ -n "$profiles" ]; then
   log "Ignoring legacy --profiles=$profiles; profiles now select only Nix system modules in inventory.toml"
 fi
-exec mise run --skip-tools bootstrap -- "${bootstrap_args[@]}"
+exec mise exec --locked python -- mise run --skip-tools bootstrap -- "${bootstrap_args[@]}"

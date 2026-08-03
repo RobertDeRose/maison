@@ -59,6 +59,12 @@ class DataFilesTest(unittest.TestCase):
                 lock = tomllib.loads(read(lock_name)).get("tools", {})
                 self.assertEqual(set(lock), set(config))
 
+    def test_repository_toolchain_pins_bootstrap_python(self) -> None:
+        config = tomllib.loads(read("mise.toml"))
+        lock = tomllib.loads(read("mise.lock"))
+        self.assertEqual(config["tools"]["python"], "3.13.14")
+        self.assertEqual(lock["tools"]["python"][0]["version"], "3.13.14")
+
     def test_json_files_parse(self) -> None:
         for path in sorted((ROOT / "dotfiles").rglob("*.json")):
             with self.subTest(path=path.relative_to(ROOT)):
@@ -149,6 +155,30 @@ class RepositoryContractTest(unittest.TestCase):
         for command in ('cmd "check"', 'cmd "system"', 'cmd "user"', 'cmd "deploy"', 'cmd "sync"'):
             self.assertIn(command, cli)
         self.assertIn('export MISE_PROJECT_ROOT="$maison_home"', cli)
+
+    def test_bootstrap_uses_the_locked_project_python(self) -> None:
+        bootstrap = read("bootstrap.sh")
+        cli = read("bin/maison")
+        self.assertIn(
+            "mise exec --locked python -- mise run --skip-tools bootstrap --",
+            bootstrap,
+        )
+        self.assertIn(
+            'saved="$(mise exec --locked python -- python "$repo_root/scripts/maison_overlay.py" resolve',
+            bootstrap,
+        )
+        self.assertNotIn(
+            'saved="$(python3 "$repo_root/scripts/maison_overlay.py" resolve',
+            bootstrap,
+        )
+        self.assertIn(
+            'exec "$mise_bin" exec --locked python -- "$mise_bin" run --skip-tools "$task" --help',
+            cli,
+        )
+        self.assertIn(
+            'command=("$mise_bin" exec --locked python -- "$mise_bin" run --skip-tools)',
+            cli,
+        )
 
     def test_sync_pulls_maison_and_overlay_before_apply(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -251,6 +281,8 @@ class RepositoryContractTest(unittest.TestCase):
             workflow,
         )
         self.assertNotIn("test_topology.MigrationBehaviorTest", workflow)
+        self.assertIn("mise exec --locked python -- python -m unittest", workflow)
+        self.assertNotIn("          python3 -m unittest", workflow)
 
     def test_bootstrap_uses_template_and_current_user_for_copier(self) -> None:
         bootstrap = read("bootstrap.sh")

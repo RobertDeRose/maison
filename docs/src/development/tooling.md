@@ -10,17 +10,25 @@ The repository uses mise to provide project tools and named tasks. Install mise,
 mise install --locked
 ```
 
+The project toolchain includes Python 3.13.14. Bootstrap installs and activates that locked runtime with
+`mise exec --locked python`, so its Python helpers do not depend on the host Python installation. Use the same
+explicit runtime for direct Python commands:
+
+```bash
+mise exec --locked python -- python -m unittest -v tests.test_inventory_behavior
+```
+
 Use the same commands locally and in automation:
 
 ```bash
 mise run check
 mise run check:tests
-python3 -m unittest -v tests.test_inventory_behavior
-python3 -m unittest -v tests.test_deployment_contracts
-python3 -m unittest -v tests.test_migration_behavior
-python3 -m unittest -v tests.test_ownership_boundary
-python3 -m unittest -v tests.test_repository_contracts tests.test_repository_mutation
-python3 -m unittest -v tests.test_transaction_behavior
+mise exec --locked python -- python -m unittest -v tests.test_inventory_behavior
+mise exec --locked python -- python -m unittest -v tests.test_deployment_contracts
+mise exec --locked python -- python -m unittest -v tests.test_migration_behavior
+mise exec --locked python -- python -m unittest -v tests.test_ownership_boundary
+mise exec --locked python -- python -m unittest -v tests.test_repository_contracts tests.test_repository_mutation
+mise exec --locked python -- python -m unittest -v tests.test_transaction_behavior
 mise run fix
 mise run docs:check
 mise run docs:build
