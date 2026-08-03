@@ -9,12 +9,14 @@
 #USAGE cmd "bootstrap" help="Bootstrap or repair a host" { arg "[args]..." }
 #USAGE cmd "check" help="Validate repository contracts" { arg "[args]..." }
 #USAGE cmd "deploy" help="Deploy a Linux system and user environment" { arg "[args]..." }
+#USAGE cmd "fix" help="Apply deterministic repository fixes" { arg "[args]..." }
 #USAGE cmd "doctor" help="Diagnose both ownership layers" { arg "[args]..." }
 #USAGE cmd "plan" help="Preview system and user changes" { arg "[args]..." }
 #USAGE cmd "rollback" help="Roll back the Nix system layer" { arg "[args]..." }
 #USAGE cmd "sync" help="Pull Maison and the overlay, then apply configuration" { arg "[args]..." }
 #USAGE cmd "update" help="Update Nix inputs and mise-managed software" { arg "[args]..." }
 #USAGE cmd "tasks" help="List Maison tasks" { arg "[args]..." }
+#USAGE cmd "help" help="Print this message or the help of the given command" { arg "[command]..." }
 #USAGE cmd "completion" help="Generate shell completion" {
 #USAGE   arg "<shell>" { choices "bash" "zsh" "fish" }
 #USAGE }
@@ -54,6 +56,10 @@
 #USAGE }
 #USAGE cmd "docs" help="Manage documentation" {
 #USAGE   cmd "build" help="Build documentation" { arg "[args]..." }
+#USAGE   cmd "check" help="Validate documentation structure" { arg "[args]..." }
+#USAGE   cmd "deployment" help="Manage documentation deployment" {
+#USAGE     cmd "enable" help="Enable GitHub Pages deployment" { arg "[args]..." }
+#USAGE   }
 #USAGE   cmd "serve" help="Serve documentation" { arg "[args]..." }
 #USAGE }
 #USAGE cmd "github" help="Manage GitHub authentication" {
@@ -119,21 +125,37 @@ fi
 export MISE_PROJECT_ROOT="$maison_home"
 export MISE_TRUSTED_CONFIG_PATHS="$maison_home${MISE_TRUSTED_CONFIG_PATHS:+:$MISE_TRUSTED_CONFIG_PATHS}"
 
-list_task_names() {
+filesystem_task_names() {
   find "$maison_home/.mise/tasks" -type f -perm -u+x -print \
     | sed "s#^$maison_home/.mise/tasks/##; s#/#:#g" \
     | LC_ALL=C sort -u
 }
 
+list_task_names() {
+  local tasks
+  if tasks="$($mise_bin -C "$maison_home" tasks --name-only --hidden 2> /dev/null)" && [ -n "$tasks" ]; then
+    printf '%s\n' "$tasks"
+  else
+    filesystem_task_names
+  fi
+}
+
 list_public_task_names() {
-  local task compatibility
+  local task compatibility tasks all_tasks
+  if tasks="$($mise_bin -C "$maison_home" tasks --name-only 2> /dev/null)" && [ -n "$tasks" ]; then
+    all_tasks="$(list_task_names)"
+  else
+    tasks="$(filesystem_task_names)"
+    all_tasks="$tasks"
+  fi
   while IFS= read -r task; do
+    [ -n "$task" ] || continue
     compatibility="${task//-/:}"
-    if [ "$compatibility" != "$task" ] && list_task_names | grep -Fxq "$compatibility"; then
+    if [ "$compatibility" != "$task" ] && grep -Fxq "$compatibility" <<<"$all_tasks"; then
       continue
     fi
     printf '%s\n' "$task"
-  done < <(list_task_names)
+  done <<<"$tasks"
 }
 
 list_command_paths() {
@@ -165,6 +187,7 @@ resolve_task() {
 }
 
 show_help() {
+  local task_output
   cat <<'HELP'
 Maison — put your workstation in order
 
@@ -177,24 +200,19 @@ Usage:
   maison completion <bash|zsh|fish>
   maison --version
 
-Common tasks:
-  doctor                 Diagnose local configuration problems
-  plan                   Preview configuration changes
-  apply                  Apply system state, then user state
-  check                  Validate Maison and every configured host
-  sync                   Pull Maison and the overlay, then apply configuration
-  update                 Update Nix inputs and mise-managed software
-  bootstrap              Bootstrap or repair a host
-  deploy                 Deploy Linux system state and user state
-  github auth            Configure GitHub API authentication
-  system plan            Build the OS configuration without switching
-  user status            Show user-environment drift
+Available commands:
+HELP
+  if task_output="$($mise_bin -C "$maison_home" tasks 2> /dev/null)" && [ -n "$task_output" ]; then
+    printf '%s\n' "$task_output"
+  else
+    list_public_task_names
+  fi
+  cat <<'HELP'
 
-Task help and argument parsing are generated from each task's #USAGE metadata:
+Task-specific help:
   maison help package search
-  maison package search --help
 
-Shell completion is generated specifically for Maison through Usage.
+Shell completion is generated specifically for Usage.
 
 Run `maison tasks` for the complete task list.
 HELP

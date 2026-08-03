@@ -300,6 +300,43 @@ class RepositoryContractTest(unittest.TestCase):
         self.assertIn("overlay_template", bootstrap)
         self.assertNotIn("examples/", bootstrap)
 
+    def test_cli_help_discovers_mise_tasks_and_forwards_command_help(self) -> None:
+        environment = os.environ.copy()
+        environment.update(
+            {
+                "MAISON_HOME": str(ROOT),
+                "MISE_PROJECT_ROOT": str(ROOT),
+            }
+        )
+        cli = ROOT / "bin/maison"
+        overview = run(
+            [str(cli)],
+            cwd=Path(tempfile.gettempdir()),
+            env=environment,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(overview.returncode, 0, overview.stderr)
+        for task in ("fix", "docs:check", "docs:deployment:enable", "user:update"):
+            with self.subTest(task=task):
+                self.assertIn(task, overview.stdout)
+
+        for command, expected in (
+            (("package", "search"), "Usage: package:search <query>"),
+            (("docs", "check"), "Task: docs:check"),
+            (("docs", "deployment", "enable"), "Task: docs:deployment:enable"),
+        ):
+            with self.subTest(command=command):
+                result = run(
+                    [str(cli), "help", *command],
+                    cwd=Path(tempfile.gettempdir()),
+                    env=environment,
+                    capture_output=True,
+                    text=True,
+                )
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIn(expected, result.stdout + result.stderr)
+
     def test_readme_quickstart_covers_supported_installation_paths_in_order(self) -> None:
         readme = read("README.md")
         sections = (
