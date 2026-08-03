@@ -165,25 +165,26 @@ list_command_paths() {
 format_task_groups() {
   awk '
     function task_group(task) {
-      if (task ~ /^app:/) return "app"
-      if (task ~ /^check(:|$)/) return "check"
-      if (task ~ /^docs:/) return "docs"
-      if (task ~ /^github:/) return "github"
-      if (task ~ /^host:/) return "host"
-      if (task ~ /^package:/) return "package"
-      if (task ~ /^system:/) return "system"
-      if (task ~ /^tool:/) return "tool"
-      if (task ~ /^user:/) return "user"
-      if (task ~ /^(apply|bootstrap|deploy|doctor|fix|plan|rollback|sync|update)$/) {
-        return "workflow"
-      }
-      return "Other"
+      if (task ~ /^(apply|bootstrap|deploy|doctor|fix|plan|rollback|sync|update)$/) return "workflow"
+      if (task == "github:auth") return "github"
+      if (task ~ /^app:(add|remove|update)$/) return "app"
+      if (task ~ /^package:(add|remove|search|update)$/) return "package"
+      if (task ~ /^tool:(add|remove)$/) return "tool"
+      if (task ~ /^host:(add|list)$/) return "host"
+      if (task ~ /^system:(apply|clean|deploy|history|plan|rollback)$/) return "system"
+      if (task ~ /^user:(apply|plan|recover|restore-dotfiles|status|update)$/) return "user"
+      if (task == "docs:serve") return "docs"
+      return ""
     }
 
     NF {
       task = $1
       group = task_group(task)
+      if (group == "") next
       display = task
+      if (task == "user:restore-dotfiles") {
+        display = "restore"
+      }
       sub(/^[^:]*:/, "", display)
       description = $0
       sub(/^[^[:space:]]+[[:space:]]*/, "", description)
@@ -197,7 +198,7 @@ format_task_groups() {
     }
 
     END {
-      order_count = split("workflow github app package tool host system user docs check other", order)
+      order_count = split("workflow github app package tool host system user docs", order)
       for (position = 1; position <= order_count; position++) {
         group = order[position]
         if (group in grouped) {
@@ -212,7 +213,7 @@ format_task_groups() {
 
 resolve_task() {
   local -a words=("$@")
-  local candidate="" best="" index best_count=0 task
+  local candidate="" best="" index best_count=0 task lookup_candidate
 
   for ((index = 0; index < ${#words[@]}; index++)); do
     if [ -z "$candidate" ]; then
@@ -221,8 +222,10 @@ resolve_task() {
       candidate+="${candidate:+:}${words[index]}"
     fi
 
+    lookup_candidate="$candidate"
+    [ "$lookup_candidate" != "user:restore" ] || lookup_candidate="user:restore-dotfiles"
     while IFS= read -r task; do
-      if [ "$candidate" = "$task" ]; then
+      if [ "$lookup_candidate" = "$task" ]; then
         best="$task"
         best_count=$((index + 1))
         break
@@ -256,18 +259,20 @@ show_task_help() {
 show_help() {
   local task_output
   cat <<'HELP'
-Maison — put your workstation in order
+Maison — Votre maison, parfaitement ordonnée (Your home, perfectly ordered)
 
-Nix/Lix owns OS-level state. Mise owns user-level state.
+A frontend for mise and Nix with a unified interface for managing multiple systems and user state.
 
 Usage:
   maison <command> [subcommand...] [arguments...]
   maison help [command] [subcommand...]
-  maison tasks
   maison completion <bash|zsh|fish>
   maison --version
 
-Available commands:
+Task-specific help:
+  maison help package search
+
+Available commands and their subcommands:
 HELP
   if task_output="$($mise_bin -C "$maison_home" tasks 2> /dev/null)" && [ -n "$task_output" ]; then
     format_task_groups <<<"$task_output"
@@ -276,12 +281,7 @@ HELP
   fi
   cat <<'HELP'
 
-Task-specific help:
-  maison help package search
-
-Shell completion is generated specifically for Usage.
-
-Run `maison tasks` for the complete task list.
+Run `maison tasks` for the complete underlying mise task list.
 HELP
 }
 

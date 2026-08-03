@@ -319,6 +319,12 @@ class RepositoryContractTest(unittest.TestCase):
             text=True,
         )
         self.assertEqual(overview.returncode, 0, overview.stderr)
+        self.assertIn("Maison — Votre maison, parfaitement ordonnée (Your home, perfectly ordered)", overview.stdout)
+        self.assertIn(
+            "A frontend for mise and Nix with a unified interface for managing multiple systems and user state.",
+            overview.stdout,
+        )
+        self.assertIn("Available commands and their subcommands:\n", overview.stdout)
         groups = (
             "workflow",
             "github",
@@ -329,7 +335,6 @@ class RepositoryContractTest(unittest.TestCase):
             "system",
             "user",
             "docs",
-            "check",
         )
         for group in groups:
             with self.subTest(group=group):
@@ -340,7 +345,14 @@ class RepositoryContractTest(unittest.TestCase):
                 self.assertIn(f"\n\n{after}:\n", overview.stdout)
         self.assertIn("package:\n  add             Install a package", overview.stdout)
         self.assertIn("host:\n  add             Add a host", overview.stdout)
+        self.assertIn("user:\n  apply", overview.stdout)
+        self.assertIn("  restore         Restore a manifest-backed dotfile handoff backup", overview.stdout)
+        self.assertIn("docs:\n  serve", overview.stdout)
+        self.assertIn("  sync", overview.stdout)
+        self.assertIn("Pull Maison and your private overlay", overview.stdout)
+        self.assertNotIn("check:\n", overview.stdout)
         self.assertNotIn("package:add", overview.stdout)
+        self.assertNotIn("docs:\n  build", overview.stdout)
         self.assertIn("  apply", overview.stdout)
         generated = run(
             [str(cli), "--help"],
@@ -351,7 +363,7 @@ class RepositoryContractTest(unittest.TestCase):
         )
         self.assertEqual(generated.returncode, 0, generated.stderr)
         self.assertIn("docs:\n", generated.stdout)
-        for task in ("  fix", "  check", "  deployment:enable", "  update"):
+        for task in ("  fix", "  serve", "  restore", "  update"):
             with self.subTest(task=task):
                 self.assertIn(task, overview.stdout)
 
@@ -360,6 +372,7 @@ class RepositoryContractTest(unittest.TestCase):
             (("package", "search", "--help"), "Usage: package:search <query>"),
             (("docs", "check"), "Task: docs:check"),
             (("docs", "deployment", "enable"), "Task: docs:deployment:enable"),
+            (("user", "restore"), "Usage: user:restore-dotfiles"),
         ):
             with self.subTest(command=command):
                 result = run(
