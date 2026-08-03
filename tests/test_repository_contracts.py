@@ -333,6 +333,19 @@ class RepositoryContractTest(unittest.TestCase):
                 self.assertIn(f"{group}:\n", overview.stdout)
         self.assertLess(overview.stdout.index("Workflow:"), overview.stdout.index("Validation:"))
         self.assertLess(overview.stdout.index("Validation:"), overview.stdout.index("System:"))
+        for group in (
+            "Validation",
+            "System",
+            "User",
+            "Hosts",
+            "Packages",
+            "Applications",
+            "Tools",
+            "Documentation",
+            "GitHub",
+        ):
+            with self.subTest(group_spacing=group):
+                self.assertIn(f"\n\n{group}:\n", overview.stdout)
         self.assertIn("  apply", overview.stdout)
         generated = run(
             [str(cli), "--help"],

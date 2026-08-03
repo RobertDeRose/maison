@@ -189,7 +189,11 @@ format_task_groups() {
       order_count = split("Workflow Validation System User Hosts Packages Applications Tools Documentation GitHub Other", order)
       for (position = 1; position <= order_count; position++) {
         group = order[position]
-        if (group in grouped) printf "%s:\n%s", group, grouped[group]
+        if (group in grouped) {
+          if (printed_group) print ""
+          printf "%s:\n%s", group, grouped[group]
+          printed_group = 1
+        }
       }
     }
   '
