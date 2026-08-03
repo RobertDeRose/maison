@@ -1,4 +1,4 @@
-#!/usr/bin/env -S usage bash
+#!/usr/bin/env bash
 # shellcheck shell=bash
 # Maison is the location-independent command interface to the repository's mise tasks.
 #
@@ -186,6 +186,25 @@ resolve_task() {
   printf '%s\t%s\n' "$best" "$best_count"
 }
 
+show_task_help() {
+  local requested_task="$1"
+  case "$requested_task" in
+    github:auth)
+      exec "$mise_bin" run --skip-tools "$requested_task" --help
+      ;;
+    tool:add | tool:remove)
+      exec env -u usage_tool -u usage_version \
+        usage bash "$maison_home/.mise/tasks/${requested_task/:/\/}" --help
+      ;;
+    bootstrap)
+      exec "$mise_bin" exec --locked python -- "$mise_bin" run --skip-tools "$requested_task" --help
+      ;;
+    *)
+      exec "$mise_bin" run "$requested_task" --help
+      ;;
+  esac
+}
+
 show_help() {
   local task_output
   cat <<'HELP'
@@ -244,15 +263,7 @@ case "${1:-}" in
     [ -n "$resolution" ] || die "unknown command '$*'"
     task="${resolution%%$'\t'*}"
     cd "$maison_home"
-    case "$task" in
-      github:auth | tool:add | tool:remove)
-        exec "$mise_bin" run --skip-tools "$task" --help
-        ;;
-      bootstrap)
-        exec "$mise_bin" exec --locked python -- "$mise_bin" run --skip-tools "$task" --help
-        ;;
-    esac
-    exec "$mise_bin" run "$task" --help
+    show_task_help "$task"
     ;;
   tasks)
     shift
@@ -292,6 +303,9 @@ esac
 
 run_task() {
   local output_file status
+  if [ "${1:-}" = "--help" ] || [ "${1:-}" = "-h" ]; then
+    show_task_help "$task"
+  fi
   local -a command=("$mise_bin" run)
 
   case "$task" in

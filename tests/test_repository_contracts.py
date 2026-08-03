@@ -172,7 +172,7 @@ class RepositoryContractTest(unittest.TestCase):
             bootstrap,
         )
         self.assertIn(
-            'exec "$mise_bin" exec --locked python -- "$mise_bin" run --skip-tools "$task" --help',
+            'exec "$mise_bin" exec --locked python -- "$mise_bin" run --skip-tools "$requested_task" --help',
             cli,
         )
         self.assertIn(
@@ -317,12 +317,22 @@ class RepositoryContractTest(unittest.TestCase):
             text=True,
         )
         self.assertEqual(overview.returncode, 0, overview.stderr)
+        generated = run(
+            [str(cli), "--help"],
+            cwd=Path(tempfile.gettempdir()),
+            env=environment,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(generated.returncode, 0, generated.stderr)
+        self.assertIn("docs:check", generated.stdout)
         for task in ("fix", "docs:check", "docs:deployment:enable", "user:update"):
             with self.subTest(task=task):
                 self.assertIn(task, overview.stdout)
 
         for command, expected in (
             (("package", "search"), "Usage: package:search <query>"),
+            (("package", "search", "--help"), "Usage: package:search <query>"),
             (("docs", "check"), "Task: docs:check"),
             (("docs", "deployment", "enable"), "Task: docs:deployment:enable"),
         ):
