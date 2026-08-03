@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from itertools import pairwise
+
 from tests.support.topology import *
 
 
@@ -317,35 +319,28 @@ class RepositoryContractTest(unittest.TestCase):
             text=True,
         )
         self.assertEqual(overview.returncode, 0, overview.stderr)
-        for group in (
+        groups = (
             "Workflow",
-            "Validation",
+            "GitHub",
+            "Applications",
+            "Packages",
+            "Tools",
+            "Hosts",
             "System",
             "User",
-            "Hosts",
-            "Packages",
-            "Applications",
-            "Tools",
             "Documentation",
-            "GitHub",
-        ):
+            "Validation",
+        )
+        for group in groups:
             with self.subTest(group=group):
                 self.assertIn(f"{group}:\n", overview.stdout)
-        self.assertLess(overview.stdout.index("Workflow:"), overview.stdout.index("Validation:"))
-        self.assertLess(overview.stdout.index("Validation:"), overview.stdout.index("System:"))
-        for group in (
-            "Validation",
-            "System",
-            "User",
-            "Hosts",
-            "Packages",
-            "Applications",
-            "Tools",
-            "Documentation",
-            "GitHub",
-        ):
-            with self.subTest(group_spacing=group):
-                self.assertIn(f"\n\n{group}:\n", overview.stdout)
+        for before, after in pairwise(groups):
+            with self.subTest(group_order=f"{before} before {after}"):
+                self.assertLess(overview.stdout.index(f"{before}:"), overview.stdout.index(f"{after}:"))
+                self.assertIn(f"\n\n{after}:\n", overview.stdout)
+        self.assertIn("Packages:\n  add             Install a package", overview.stdout)
+        self.assertIn("Hosts:\n  add             Add a host", overview.stdout)
+        self.assertNotIn("package:add", overview.stdout)
         self.assertIn("  apply", overview.stdout)
         generated = run(
             [str(cli), "--help"],
@@ -355,8 +350,8 @@ class RepositoryContractTest(unittest.TestCase):
             text=True,
         )
         self.assertEqual(generated.returncode, 0, generated.stderr)
-        self.assertIn("docs:check", generated.stdout)
-        for task in ("fix", "docs:check", "docs:deployment:enable", "user:update"):
+        self.assertIn("Documentation:\n", generated.stdout)
+        for task in ("  fix", "  check", "  deployment:enable", "  update"):
             with self.subTest(task=task):
                 self.assertIn(task, overview.stdout)
 

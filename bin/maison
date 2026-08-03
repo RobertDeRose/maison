@@ -181,12 +181,23 @@ format_task_groups() {
     }
 
     NF {
-      group = task_group($1)
-      grouped[group] = grouped[group] "  " $0 "\n"
+      task = $1
+      group = task_group(task)
+      display = task
+      sub(/^[^:]*:/, "", display)
+      description = $0
+      sub(/^[^[:space:]]+[[:space:]]*/, "", description)
+      if (description == $0) {
+        grouped[group] = grouped[group] "  " display "\n"
+      } else if (length(display) >= 16) {
+        grouped[group] = grouped[group] "  " display " " description "\n"
+      } else {
+        grouped[group] = grouped[group] sprintf("  %-16s%s\n", display, description)
+      }
     }
 
     END {
-      order_count = split("Workflow Validation System User Hosts Packages Applications Tools Documentation GitHub Other", order)
+      order_count = split("Workflow GitHub Applications Packages Tools Hosts System User Documentation Validation Other", order)
       for (position = 1; position <= order_count; position++) {
         group = order[position]
         if (group in grouped) {
