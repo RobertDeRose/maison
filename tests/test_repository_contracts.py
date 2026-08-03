@@ -288,6 +288,15 @@ class RepositoryContractTest(unittest.TestCase):
         bootstrap = read("bootstrap.sh")
         self.assertIn('copier_user="$(id -un)"', bootstrap)
         self.assertIn('--data "username=$copier_user"', bootstrap)
+        self.assertIn(
+            "MAISON_OVERLAY_HOME     Copier destination; defaults to "
+            "${XDG_DATA_HOME:-$HOME/.local/share}/maison/overlay.",
+            bootstrap,
+        )
+        self.assertIn(
+            "MAISON_OVERLAY_HOME:-${XDG_DATA_HOME:-$HOME/.local/share}/maison/overlay",
+            bootstrap,
+        )
         self.assertIn("overlay_template", bootstrap)
         self.assertNotIn("examples/", bootstrap)
 
