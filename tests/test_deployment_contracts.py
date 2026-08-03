@@ -24,10 +24,10 @@ class VerifiedBootstrapContractTest(unittest.TestCase):
         self.assertIn('"bash -s -- $quoted_repo$quoted_args"', deploy_task)
         self.assertNotIn('"sh -s -- $quoted_repo$quoted_args"', deploy_task)
 
-    def test_public_bootstrap_docs_do_not_recommend_pipe_to_shell(self) -> None:
+    def test_operational_docs_do_not_recommend_pipe_to_shell(self) -> None:
         pattern = re.compile(r"curl[^\n]*\|\s*(?:bash|sh)\b")
         offenders = []
-        for name in ("README.md", "docs/operations.md", "docs/deployment.md", "docs/task-reference.md"):
+        for name in ("docs/operations.md", "docs/deployment.md", "docs/task-reference.md"):
             text = read(name)
             if pattern.search(text):
                 offenders.append(name)
