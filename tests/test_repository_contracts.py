@@ -320,16 +320,16 @@ class RepositoryContractTest(unittest.TestCase):
         )
         self.assertEqual(overview.returncode, 0, overview.stderr)
         groups = (
-            "Workflow",
-            "GitHub",
-            "Applications",
-            "Packages",
-            "Tools",
-            "Hosts",
-            "System",
-            "User",
-            "Documentation",
-            "Validation",
+            "workflow",
+            "github",
+            "app",
+            "package",
+            "tool",
+            "host",
+            "system",
+            "user",
+            "docs",
+            "check",
         )
         for group in groups:
             with self.subTest(group=group):
@@ -338,8 +338,8 @@ class RepositoryContractTest(unittest.TestCase):
             with self.subTest(group_order=f"{before} before {after}"):
                 self.assertLess(overview.stdout.index(f"{before}:"), overview.stdout.index(f"{after}:"))
                 self.assertIn(f"\n\n{after}:\n", overview.stdout)
-        self.assertIn("Packages:\n  add             Install a package", overview.stdout)
-        self.assertIn("Hosts:\n  add             Add a host", overview.stdout)
+        self.assertIn("package:\n  add             Install a package", overview.stdout)
+        self.assertIn("host:\n  add             Add a host", overview.stdout)
         self.assertNotIn("package:add", overview.stdout)
         self.assertIn("  apply", overview.stdout)
         generated = run(
@@ -350,7 +350,7 @@ class RepositoryContractTest(unittest.TestCase):
             text=True,
         )
         self.assertEqual(generated.returncode, 0, generated.stderr)
-        self.assertIn("Documentation:\n", generated.stdout)
+        self.assertIn("docs:\n", generated.stdout)
         for task in ("  fix", "  check", "  deployment:enable", "  update"):
             with self.subTest(task=task):
                 self.assertIn(task, overview.stdout)

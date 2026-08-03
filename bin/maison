@@ -165,17 +165,17 @@ list_command_paths() {
 format_task_groups() {
   awk '
     function task_group(task) {
-      if (task ~ /^app:/) return "Applications"
-      if (task ~ /^check(:|$)/) return "Validation"
-      if (task ~ /^docs:/) return "Documentation"
-      if (task ~ /^github:/) return "GitHub"
-      if (task ~ /^host:/) return "Hosts"
-      if (task ~ /^package:/) return "Packages"
-      if (task ~ /^system:/) return "System"
-      if (task ~ /^tool:/) return "Tools"
-      if (task ~ /^user:/) return "User"
+      if (task ~ /^app:/) return "app"
+      if (task ~ /^check(:|$)/) return "check"
+      if (task ~ /^docs:/) return "docs"
+      if (task ~ /^github:/) return "github"
+      if (task ~ /^host:/) return "host"
+      if (task ~ /^package:/) return "package"
+      if (task ~ /^system:/) return "system"
+      if (task ~ /^tool:/) return "tool"
+      if (task ~ /^user:/) return "user"
       if (task ~ /^(apply|bootstrap|deploy|doctor|fix|plan|rollback|sync|update)$/) {
-        return "Workflow"
+        return "workflow"
       }
       return "Other"
     }
@@ -197,7 +197,7 @@ format_task_groups() {
     }
 
     END {
-      order_count = split("Workflow GitHub Applications Packages Tools Hosts System User Documentation Validation Other", order)
+      order_count = split("workflow github app package tool host system user docs check other", order)
       for (position = 1; position <= order_count; position++) {
         group = order[position]
         if (group in grouped) {
