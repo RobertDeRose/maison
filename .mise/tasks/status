@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# [MISE] description="Show the active private overlay and remote status"
+set -euo pipefail
+
+root="${MISE_PROJECT_ROOT:-$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)}"
+exec python3 "$root/scripts/maison_overlay_git.py" status --root "$root" "$@"

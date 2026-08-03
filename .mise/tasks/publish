@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# [MISE] description="Publish committed private overlay changes"
+set -euo pipefail
+
+root="${MISE_PROJECT_ROOT:-$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)}"
+source "$root/.mise/lib/overlay.sh"
+source "$root/.mise/lib/transaction.sh"
+
+overlay_path="$(maison_overlay_path "$root")"
+if [ -z "$overlay_path" ]; then
+  printf 'publish: no active private overlay is configured\n' >&2
+  exit 1
+fi
+if [ "$(cd "$overlay_path" && pwd -P)" = "$(cd "$root" && pwd -P)" ]; then
+  printf 'publish: public Maison is not a private overlay\n' >&2
+  exit 1
+fi
+
+transaction_require_authoring_checkout "$overlay_path" publish
+transaction_require_lock "$overlay_path" "${BASH_SOURCE[0]}" "$@"
+exec python3 "$root/scripts/maison_overlay_git.py" publish --repo "$overlay_path" "$@"

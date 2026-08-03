@@ -86,6 +86,26 @@ maison user status
 maison system history
 ```
 
+## Inspect and publish the private overlay
+
+```bash
+maison status
+maison publish
+```
+
+`maison status` inspects only the active private overlay selected by saved state or the environment. It reports the
+checkout path, branch, configured upstream, worktree cleanliness, and whether the checkout is in sync, ahead, behind,
+diverged, or missing an upstream. It fetches the upstream when possible. If the fetch fails because the device is
+offline or credentials/network access are unavailable, the command reports the comparison as unavailable and labels
+any relationship as last-known; it never treats that result as a current synchronization claim.
+
+`maison publish` uses the overlay's configured upstream and does not select a remote or branch implicitly. It fetches
+before changing the worktree and refuses missing, unreachable, behind, or diverged upstreams before stashing. When there
+are committed changes to push, it temporarily stashes tracked and untracked files, leaves ignored files untouched,
+pushes the existing commits, and restores the stash after success or failure. A push or restoration failure is non-zero;
+if restoration conflicts, the stash remains available for explicit recovery. The command never creates a commit for
+arbitrary local edits, and an already-current overlay is a successful no-op.
+
 ## Validate and develop
 
 ```bash
@@ -137,6 +157,14 @@ Repository-writing commands are authoring-only and serialized per target reposit
 checkout for the repository they will write, then acquire a fail-fast local mutation lock before reading mutable
 repository state. If another mutation is active, Maison exits non-zero and names the busy repository and
 journal directory. Read-only plan, status, list, validate, and search commands do not take this lock.
+
+The covered software add/remove commands require an active private Git overlay; they never mutate public Maison as a
+fallback. After taking the overlay lock, they refresh it with a fast-forward-only update before reading declaration
+files. Tracked and untracked unrelated work is preserved and ignored files are not stashed, while a local change in a
+configuration or lockfile that the operation would write is rejected. The refresh does not run full `maison sync`, and a
+successful operation creates a focused commit only after its existing install, validation, and transaction journal
+complete. If Git commit creation fails, the validated declaration remains in place and the command prints the manual
+recovery path.
 
 Scheduled cache refresh automation may update `flake.lock`, build the proposed dependency graph, warm Cachix, and open or refresh an `automation/refresh-flake-lock` pull request. It does not merge that PR or bypass branch protection; accepting dependency changes remains a normal reviewed PR merge.
 
