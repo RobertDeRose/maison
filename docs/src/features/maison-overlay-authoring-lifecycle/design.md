@@ -7,7 +7,7 @@
 - Design path: `docs/src/features/maison-overlay-authoring-lifecycle/design.md`
 - Implemented record: `docs/src/features/maison-overlay-authoring-lifecycle/index.md`
 - Base branch: `main`
-- Status: specification reviewed; ready for implementation
+- Status: delivered; direct fast-forward delivery pending
 
 ## Feature Summary
 
