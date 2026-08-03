@@ -21,14 +21,12 @@ This downloads the reviewed bootstrap script to a temporary file instead of pipi
 without an overlay, answer **yes** when prompted, and complete the Copier questions:
 
 ```bash
-tmp="$(mktemp)"
-trap 'rm -f "$tmp"' EXIT
-curl -fsSL https://raw.githubusercontent.com/RobertDeRose/maison/main/bootstrap.sh -o "$tmp"
-bash "$tmp" --host "$(hostname -s)"
+curl -fsSL https://raw.githubusercontent.com/RobertDeRose/maison/main/bootstrap.sh | bash
 ```
 
-Maison clones itself to `~/.maison` by default, creates the overlay at
-`${MAISON_OVERLAY_HOME:-$HOME/src/maison-overlay}`, and registers the current host.
+Maison clones itself to `~/.maison` by default. A new local overlay created through Copier uses
+`${MAISON_OVERLAY_HOME:-$HOME/src/maison-overlay}`; a remote overlay, including one restored from saved state, is
+cloned to `${XDG_DATA_HOME:-$HOME/.local/share}/maison/overlay`. Bootstrap registers the current host.
 
 ### 2. Install with curl and use an existing overlay
 
@@ -36,11 +34,8 @@ Set `MAISON_OVERLAY` to a local checkout or a remote Git repository. Bootstrap u
 remote sources into Maison's overlay data directory:
 
 ```bash
-tmp="$(mktemp)"
-trap 'rm -f "$tmp"' EXIT
-curl -fsSL https://raw.githubusercontent.com/RobertDeRose/maison/main/bootstrap.sh -o "$tmp"
-MAISON_OVERLAY=git@github.com:OWNER/my-maison-overlay.git \
-  bash "$tmp" --host "$(hostname -s)"
+curl -fsSL https://raw.githubusercontent.com/RobertDeRose/maison/main/bootstrap.sh \
+  | bash -s -- --overlay "git@github.com:OWNER/my-maison-overlay.git"
 ```
 
 The `--overlay <git-url-or-path>` option is equivalent and takes precedence over `MAISON_OVERLAY`.
