@@ -8,6 +8,8 @@ lockfile_platforms = ["macos-arm64", "linux-arm64", "linux-x64"]
 # Repository tools are pinned in mise.lock. User tools, applications, and
 # preferences live in config/mise and are separate from this project toolchain.
 [tools]
+# Bootstrap and Python-backed tasks use this project-owned runtime.
+python = "3.13.14"
 actionlint = "latest"
 "aqua:Mic92/nixfmt-rs" = "latest"
 aube = "latest"

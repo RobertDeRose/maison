@@ -227,8 +227,11 @@ case "${1:-}" in
     task="${resolution%%$'\t'*}"
     cd "$maison_home"
     case "$task" in
-      github:auth | bootstrap | tool:add | tool:remove)
+      github:auth | tool:add | tool:remove)
         exec "$mise_bin" run --skip-tools "$task" --help
+        ;;
+      bootstrap)
+        exec "$mise_bin" exec --locked python -- "$mise_bin" run --skip-tools "$task" --help
         ;;
     esac
     exec "$mise_bin" run "$task" --help
@@ -274,7 +277,8 @@ run_task() {
   local -a command=("$mise_bin" run)
 
   case "$task" in
-    github:auth | bootstrap | tool:add | tool:remove) command+=(--skip-tools) ;;
+    github:auth | tool:add | tool:remove) command+=(--skip-tools) ;;
+    bootstrap) command=("$mise_bin" exec --locked python -- "$mise_bin" run --skip-tools) ;;
   esac
   command+=("$task" -- "$@")
 

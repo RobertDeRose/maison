@@ -87,10 +87,13 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           ref: ${{ inputs.ref != '' && inputs.ref || github.sha }}
+      - uses: jdx/mise-action@4444d8fd7a1b92f1821c12f435db40f58b743d26 # v4.0.1
+        with:
+          install: false
       - name: Exercise the pre-mise bootstrap boundary
         run: |
           bash -n bootstrap.sh
           ./bootstrap.sh --help
           cat bootstrap.sh | bash -s -- --help
-          python3 -m unittest -v \
+          mise exec --locked python -- python -m unittest -v \
             tests.test_migration_behavior.MigrationBehaviorTest.test_bootstrap_help_pipe_and_clone_handoff
