@@ -9,6 +9,8 @@
 | `apply [--host host] [--force-dotfiles]`              | Apply Nix system state, then user convergence; the same force flag forwards to user apply and system failure stops the sequence                                                                                                                             |
 | `sync [--host host] [--user-only] [--force-dotfiles]` | Pull Maison and the active overlay with fast-forward-only Git pulls, then run `apply`; a pull failure stops before apply                                                                                                                                    |
 | `update [input] [--check]`                            | Update flake inputs atomically; optionally run full validation                                                                                                                                                                                              |
+| `status`                                              | Inspect the active private overlay, worktree, upstream relationship, and fresh or last-known remote comparison                                                                                                                                              |
+| `publish`                                             | Fetch and publish committed active-overlay changes through its configured upstream while preserving local work                                                                                                                                              |
 | `deploy <host>`                                       | Deploy Linux system state using the configured deployment account (`maison-deploy` by default), then stage source through a root-owned repository transaction, converge remote user state, and run rollback-verified restricted recovery after user failure |
 | `rollback`                                            | Roll back only the Nix system generation                                                                                                                                                                                                                    |
 | `bootstrap [--overlay SOURCE]`                        | Store or refresh the private overlay source, verify pinned mise and Lix artifacts, install or repair Nix, then converge both layers system-first                                                                                                            |
@@ -39,15 +41,15 @@
 
 ## Configuration commands
 
-| Task                             | Behavior                                                                                                                      |
-|----------------------------------|-------------------------------------------------------------------------------------------------------------------------------|
-| `host:add`                       | Authoring-only: add a host to the active public or overlay inventory through typed validation and parser-backed TOML edits    |
-| `host:list` / `host:validate`    | Read or validate the active public or overlay inventory                                                                       |
-| `tool:add` / `tool:remove`       | Authoring-only: atomically edit global mise tool configuration and locks with parser-backed TOML preservation                 |
-| `package:add` / `package:remove` | Authoring-only: manage common or platform bootstrap package declarations transactionally with parser-backed TOML preservation |
-| `package:search`                 | Search package sources without repository mutation                                                                            |
-| `app:add` / `app:remove`         | Authoring-only: manage Apple Silicon macOS cask declarations transactionally with parser-backed TOML preservation             |
-| `docs:build` / `docs:serve`      | Load the contributor environment and build or serve this book                                                                 |
+| Task                             | Behavior                                                                                                                                                        |
+|----------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `host:add`                       | Authoring-only: add a host to the active public or overlay inventory through typed validation and parser-backed TOML edits                                      |
+| `host:list` / `host:validate`    | Read or validate the active public or overlay inventory                                                                                                         |
+| `tool:add` / `tool:remove`       | Authoring-only: require the private overlay, refresh it fast-forward-only, then transactionally edit and focused-commit tool configuration and locks            |
+| `package:add` / `package:remove` | Authoring-only: require the private overlay, refresh it fast-forward-only, then transactionally edit and focused-commit common or platform package declarations |
+| `package:search`                 | Search package sources without repository mutation                                                                                                              |
+| `app:add` / `app:remove`         | Authoring-only: require the private overlay, refresh it fast-forward-only, then transactionally edit and focused-commit Apple Silicon macOS cask declarations   |
+| `docs:build` / `docs:serve`      | Load the contributor environment and build or serve this book                                                                                                   |
 
 `user:plan` and `user:apply` share one user-convergence command plan for the same flags. Plan uses dry-run variants for
 preparation, dotfiles, lock links, packages, and remaining mise user state. Apply trusts the repository mise config,
@@ -66,6 +68,12 @@ checkout for the target repository, acquire one fail-fast local lock, recover in
 mutable state. A deployed snapshot has `.maison-revision` without `.git` and rejects these commands with guidance to use
 the public source checkout or private overlay repository. Read-only commands such as plan, status, list, validate, and
 search do not take the repository mutation lock or authoring checkout guard.
+
+The covered software add/remove commands require an active private Git overlay and never mutate public fallback files.
+They refresh the overlay fast-forward-only before reading target files, preserve unrelated tracked/untracked work without
+touching ignored files, and reject a dirty declaration or lock target. Successful transactions create only focused
+`added(scope): \`identifier\`` or `removed(scope): \`identifier\`` commits; Git commit failures preserve the validated
+files and report manual recovery. `publish` never creates such commits for arbitrary edits.
 
 ## Overlay-aware behavior
 

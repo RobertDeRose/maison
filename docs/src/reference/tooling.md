@@ -58,6 +58,21 @@ loads the overlay's `config/mise/config.toml` as the global mise layer while the
 layer; without an overlay, public `config/mise` files are used. During convergence, Maison temporarily hides the
 installed overlay-backed global config so mise resolves relative dotfile sources from the overlay checkout.
 
+## Overlay authoring
+
+The top-level `maison status` command inspects the active private overlay and reports its worktree, upstream
+relationship, and fresh or last-known remote comparison. `maison publish` fetches first, refuses missing, unavailable,
+behind, or diverged upstreams, stashes tracked and untracked edits without touching ignored files, pushes committed
+changes, and restores the stash. It never commits arbitrary edits.
+
+`tool:add`, `tool:remove`, `package:add`, `package:remove`, `app:add`, and `app:remove` require that same active private
+Git overlay. They take the overlay mutation lock, refresh fast-forward-only before reading target files, reject dirty
+declaration or lock targets, preserve unrelated work, and create focused commits only after transaction completion.
+Subjects use `added(scope): \`identifier\`` or `removed(scope): \`identifier\``. Commit failures leave validated files
+in place and print manual recovery guidance. Common declarations use `config/mise/config.toml`; `package --macos`
+selects `config/mise/config.macos-arm64.toml`, and inventory profiles select Nix modules rather than a mise profile
+selector.
+
 ## Template updates
 
 `.copier-answers.yml` records the Copier source and rendered answers for a generated overlay. `copier update --trust`

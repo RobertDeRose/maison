@@ -154,7 +154,15 @@ class RepositoryContractTest(unittest.TestCase):
 
     def test_maison_exposes_layered_commands(self) -> None:
         cli = read("bin/maison")
-        for command in ('cmd "check"', 'cmd "system"', 'cmd "user"', 'cmd "deploy"', 'cmd "sync"'):
+        for command in (
+            'cmd "check"',
+            'cmd "system"',
+            'cmd "user"',
+            'cmd "deploy"',
+            'cmd "status"',
+            'cmd "publish"',
+            'cmd "sync"',
+        ):
             self.assertIn(command, cli)
         self.assertIn('export MISE_PROJECT_ROOT="$maison_home"', cli)
 
@@ -325,17 +333,25 @@ class RepositoryContractTest(unittest.TestCase):
             overview.stdout,
         )
         self.assertIn("Available commands and their subcommands:\n", overview.stdout)
-        groups = (
-            "workflow",
-            "github",
-            "app",
-            "package",
-            "tool",
-            "host",
-            "system",
-            "user",
-            "docs",
+        groups = ("github", "app", "package", "tool", "host", "system", "user", "docs")
+        workflow_rows = (
+            "  apply",
+            "  bootstrap",
+            "  deploy",
+            "  doctor",
+            "  fix",
+            "  plan",
+            "  publish",
+            "  rollback",
+            "  status",
+            "  sync",
+            "  update",
         )
+        self.assertNotIn("workflow:\n", overview.stdout)
+        for row in workflow_rows:
+            with self.subTest(row=row):
+                self.assertIn(row, overview.stdout)
+                self.assertLess(overview.stdout.index(row), overview.stdout.index("github:\n"))
         for group in groups:
             with self.subTest(group=group):
                 self.assertIn(f"{group}:\n", overview.stdout)
@@ -350,6 +366,8 @@ class RepositoryContractTest(unittest.TestCase):
         self.assertIn("docs:\n  serve", overview.stdout)
         self.assertIn("  sync", overview.stdout)
         self.assertIn("Pull Maison and your private overlay", overview.stdout)
+        self.assertIn("Show the active private overlay and remote status", overview.stdout)
+        self.assertIn("Publish committed private overlay changes", overview.stdout)
         self.assertNotIn("check:\n", overview.stdout)
         self.assertNotIn("package:add", overview.stdout)
         self.assertNotIn("docs:\n  build", overview.stdout)
@@ -373,6 +391,8 @@ class RepositoryContractTest(unittest.TestCase):
             (("docs", "check"), "Task: docs:check"),
             (("docs", "deployment", "enable"), "Task: docs:deployment:enable"),
             (("user", "restore"), "Usage: user:restore-dotfiles"),
+            (("status",), "Task: status"),
+            (("publish",), "Task: publish"),
         ):
             with self.subTest(command=command):
                 result = run(
@@ -384,6 +404,32 @@ class RepositoryContractTest(unittest.TestCase):
                 )
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assertIn(expected, result.stdout + result.stderr)
+
+    def test_overlay_authoring_reader_contracts(self) -> None:
+        readme = read("README.md")
+        operations = read("docs/operations.md")
+        task_reference = read("docs/task-reference.md")
+        tooling = read("docs/src/reference/tooling.md")
+        package_policy = read("docs/package-policy.md")
+        tool_guide = read("docs/add-a-tool.md")
+        app_guide = read("docs/add-an-app.md")
+        summary = read("docs/src/SUMMARY.md")
+        roadmap = read("docs/src/planned-features.md")
+
+        self.assertIn("maison status", readme)
+        self.assertIn("maison publish", readme)
+        self.assertIn("active private overlay", operations)
+        self.assertIn("last-known", operations)
+        self.assertIn("stash", operations)
+        self.assertIn("status", task_reference)
+        self.assertIn("publish", task_reference)
+        self.assertIn("active private", tooling)
+        self.assertIn("Git overlay", tooling)
+        self.assertIn("Inventory profiles", package_policy)
+        self.assertIn("focused commit", tool_guide)
+        self.assertIn("added(app)", app_guide)
+        self.assertIn("maison-overlay-authoring-lifecycle/design.md", summary)
+        self.assertIn("| In progress", roadmap)
 
     def test_readme_quickstart_covers_supported_installation_paths_in_order(self) -> None:
         readme = read("README.md")

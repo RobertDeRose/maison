@@ -106,6 +106,8 @@ artifacts against `bootstrap/artifacts.toml` before execution.
 maison doctor
 maison plan
 maison apply
+maison status
+maison publish
 maison update
 
 maison system plan
@@ -123,6 +125,17 @@ maison deploy example-linux
 ```
 
 The same operations are available as mise tasks, for example `mise run system:plan`.
+
+`maison status` and `maison publish` inspect and publish only the active private overlay. Status fetches when possible
+and reports clean/dirty, ahead/behind/diverged, no-upstream, and last-known/offline states without claiming a stale
+checkout is synchronized. Publish uses the configured upstream, refuses unsafe history before stashing, preserves
+tracked and untracked work while leaving ignored files untouched, and restores the stash after pushing. It does not
+create commits for arbitrary edits.
+
+Software add/remove commands also require the active private overlay. They refresh it fast-forward-only before editing,
+reject dirty declaration or lock targets, preserve unrelated work, and create focused commits only after successful
+transactions. Commit failures leave validated files in place for manual recovery; public Maison is never the mutation
+fallback.
 
 `maison apply` is deliberately system-first: it activates the Nix system layer and then converges the optional private
 user layer. A user-layer failure does not roll back the active Nix generation.

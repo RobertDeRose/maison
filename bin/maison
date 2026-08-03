@@ -12,7 +12,9 @@
 #USAGE cmd "fix" help="Apply deterministic repository fixes" { arg "[args]..." }
 #USAGE cmd "doctor" help="Diagnose both ownership layers" { arg "[args]..." }
 #USAGE cmd "plan" help="Preview system and user changes" { arg "[args]..." }
+#USAGE cmd "publish" help="Publish committed private overlay changes" { arg "[args]..." }
 #USAGE cmd "rollback" help="Roll back the Nix system layer" { arg "[args]..." }
+#USAGE cmd "status" help="Show the active private overlay and remote status" { arg "[args]..." }
 #USAGE cmd "sync" help="Pull Maison and the overlay, then apply configuration" { arg "[args]..." }
 #USAGE cmd "update" help="Update Nix inputs and mise-managed software" { arg "[args]..." }
 #USAGE cmd "tasks" help="List Maison tasks" { arg "[args]..." }
@@ -165,7 +167,7 @@ list_command_paths() {
 format_task_groups() {
   awk '
     function task_group(task) {
-      if (task ~ /^(apply|bootstrap|deploy|doctor|fix|plan|rollback|sync|update)$/) return "workflow"
+      if (task ~ /^(apply|bootstrap|deploy|doctor|fix|plan|publish|rollback|status|sync|update)$/) return "workflow"
       if (task == "github:auth") return "github"
       if (task ~ /^app:(add|remove|update)$/) return "app"
       if (task ~ /^package:(add|remove|search|update)$/) return "package"
@@ -188,7 +190,15 @@ format_task_groups() {
       sub(/^[^:]*:/, "", display)
       description = $0
       sub(/^[^[:space:]]+[[:space:]]*/, "", description)
-      if (description == $0) {
+      if (group == "workflow") {
+        if (description == $0) {
+          workflow = workflow "  " display "\n"
+        } else if (length(display) >= 16) {
+          workflow = workflow "  " display " " description "\n"
+        } else {
+          workflow = workflow sprintf("  %-16s%s\n", display, description)
+        }
+      } else if (description == $0) {
         grouped[group] = grouped[group] "  " display "\n"
       } else if (length(display) >= 16) {
         grouped[group] = grouped[group] "  " display " " description "\n"
@@ -198,7 +208,11 @@ format_task_groups() {
     }
 
     END {
-      order_count = split("workflow github app package tool host system user docs", order)
+      if (workflow != "") {
+        printf "%s", workflow
+        printed_group = 1
+      }
+      order_count = split("github app package tool host system user docs", order)
       for (position = 1; position <= order_count; position++) {
         group = order[position]
         if (group in grouped) {
