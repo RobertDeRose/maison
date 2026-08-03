@@ -66,9 +66,10 @@ updated at `${XDG_DATA_HOME:-$HOME/.local/share}/maison/overlay`, preserving the
 When no source is available:
 
 - An interactive terminal asks whether to set up a private overlay now, with yes as the default.
-- **Yes** installs the minimal Copier runner, renders `overlay_template/` into
+- **Yes** installs the minimal Copier runner, renders `overlay_template/` into a new local overlay at
   `${MAISON_OVERLAY_HOME:-$HOME/src/maison-overlay}`, seeds the inventory username from `id -un`, initializes its Git
-  repository, and runs the template task that registers the current host through Maison.
+  repository, and runs the template task that registers the current host through Maison. Remote sources, including
+  sources restored from saved state, are cloned or updated at `${XDG_DATA_HOME:-$HOME/.local/share}/maison/overlay`.
 - **No** installs Maison's verified mise runtime and `maison` CLI, prints the overlay setup documentation URL/path, and
   exits successfully without installing Nix or applying system/user state.
 - A non-interactive run behaves like No unless `MAISON_REQUIRE_OVERLAY=true`, in which case it fails with an actionable
