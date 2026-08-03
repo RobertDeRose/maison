@@ -40,13 +40,13 @@ selection.
 | `maison-016-pi-typescript-validation`           | MAISON-016: Pi TypeScript validation boundary        | `maison-mol-fmud` | Delivered     | `maison-015-linux-runtime-verification`         | [record](features/maison-016-pi-typescript-validation/index.md)           |
 | `maison-017-maison-terroir-repository-split`    | MAISON-017: Maison/Terroir repository split          | `maison-mol-jfhs` | Planned       | `maison-016-pi-typescript-validation`           | [design](features/maison-017-maison-terroir-repository-split/design.md)   |
 | `maison-overlay-copier-bootstrap`               | Copier-backed overlay setup and bootstrap onboarding | `maison-mol-5s9`  | Delivered     | `maison-017-maison-terroir-repository-split`    | [record](features/maison-overlay-copier-bootstrap/index.md)               |
-| `maison-overlay-authoring-lifecycle`            | Overlay authoring lifecycle and command surface      | `maison-mol-3jb`  | In progress   | `maison-overlay-copier-bootstrap`               | [design](features/maison-overlay-authoring-lifecycle/design.md)           |
+| `maison-overlay-authoring-lifecycle`            | Overlay authoring lifecycle and command surface      | `maison-mol-3jb`  | Delivered     | `maison-overlay-copier-bootstrap`               | [record](features/maison-overlay-authoring-lifecycle/index.md)            |
 
 `maison-overlay-authoring-lifecycle` follows the delivered Copier overlay setup. Its Beads epic
-`maison-mol-3jb` has a reviewed specification and three bounded implementation children; the shared Git lifecycle and
-mutation integration are delivered, with command-surface documentation completing the implementation boundary. It is
-sequenced after the overlay source/state contract so authoring requires a private Git overlay, refreshes it safely, and
-publishes commits without changing bootstrap or full `sync` semantics.
+`maison-mol-3jb` delivered the reviewed shared Git lifecycle, private-overlay software mutation integration, direct
+status/publish command surface, and reader-facing documentation. It is sequenced after the overlay source/state
+contract so authoring requires a private Git overlay, refreshes it safely, and publishes commits without changing
+bootstrap or full `sync` semantics.
 
 ## Later P2 maintainability follow-ups
 

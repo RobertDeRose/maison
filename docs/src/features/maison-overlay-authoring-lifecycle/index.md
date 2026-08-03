@@ -4,8 +4,8 @@
 
 - Beads feature root: `maison-mol-3jb`
 - Status: delivered
-- Pull request: not created (direct fast-forward merge requested)
-- Merge commit: pending delivery action
+- Pull request: not created (direct fast-forward merge)
+- Merge commit: `dc385400c78c80f81bd7cd9b31b20c629b86fc6d` (fast-forward into `main`)
 - Design record: [design.md](design.md)
 
 ## Delivered Capability
@@ -138,4 +138,5 @@ the temporary stash; a restoration conflict leaves that stash available for expl
 - Validation: `maison-mol-cm8`.
 - Holistic delivery review: `maison-mol-86a`.
 - Documentation drift review: `maison-mol-70j`.
-- Delivery action: `maison-mol-dv6`, pending direct fast-forward merge.
+- Delivery action: `maison-mol-dv6`, direct fast-forward merge into `main` at
+  `dc385400c78c80f81bd7cd9b31b20c629b86fc6d`.

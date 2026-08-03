@@ -429,7 +429,7 @@ class RepositoryContractTest(unittest.TestCase):
         self.assertIn("focused commit", tool_guide)
         self.assertIn("added(app)", app_guide)
         self.assertIn("maison-overlay-authoring-lifecycle/design.md", summary)
-        self.assertIn("| In progress", roadmap)
+        self.assertIn("| Delivered", roadmap)
 
     def test_readme_quickstart_covers_supported_installation_paths_in_order(self) -> None:
         readme = read("README.md")
