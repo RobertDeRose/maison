@@ -384,7 +384,7 @@ run_task() {
     # legitimately prompt through sudo. mise's native log file preserves the
     # error text needed for the GitHub-authentication hint without changing
     # the command's terminal semantics.
-    MISE_LOG_FILE="$output_file" MISE_LOG_FILE_LEVEL=info "${command[@]}"
+    MAISON_INTERACTIVE=true MISE_LOG_FILE="$output_file" MISE_LOG_FILE_LEVEL=info "${command[@]}"
   else
     "${command[@]}" > >(tee "$output_file") 2> >(tee -a "$output_file" >&2)
   fi

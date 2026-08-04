@@ -61,7 +61,7 @@ run_with_startup_spinner() {
       ;;
     always) ;;
     *)
-      if [ ! -t 2 ] || is_ci; then
+      if is_ci || { [ ! -t 2 ] && [ "${MAISON_INTERACTIVE:-false}" != true ]; }; then
         "$@"
         return
       fi

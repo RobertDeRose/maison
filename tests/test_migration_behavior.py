@@ -47,6 +47,7 @@ class MigrationBehaviorTest(unittest.TestCase):
                     #!/bin/sh
                     [ -t 2 ] || exit 91
                     [ -n "${MISE_LOG_FILE:-}" ] || exit 92
+                    [ "${MAISON_INTERACTIVE:-false}" = true ] || exit 93
                     printf '%s\\n' "$*" >"$OBSERVED"
                     """
                 ),
