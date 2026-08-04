@@ -4,17 +4,107 @@ import importlib.util
 import os
 import stat
 import sys
+import tarfile
 import tempfile
 import unittest
 from pathlib import Path
+from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 MODULE_PATH = ROOT / "scripts/maison_deploy_transaction.py"
 spec = importlib.util.spec_from_file_location("maison_deploy_transaction", MODULE_PATH)
 assert spec is not None and spec.loader is not None
-module = importlib.util.module_from_spec(spec)
+module: Any = importlib.util.module_from_spec(spec)
 sys.modules[spec.name] = module
 spec.loader.exec_module(module)
+
+
+class DeployArchiveResourceLimitTest(unittest.TestCase):
+    def make_archive(self, directory: Path, sizes: tuple[int, ...]) -> Path:
+        source = directory / "source"
+        source.mkdir()
+        files = []
+        for index, size in enumerate(sizes):
+            path = source / f"member-{index}"
+            with path.open("wb") as handle:
+                handle.truncate(size)
+            files.append(path)
+        archive = directory / "archive.tar.gz"
+        with tarfile.open(archive, "w:gz") as bundle:
+            for path in files:
+                bundle.add(path, arcname=path.name)
+        return archive
+
+    def test_extracts_valid_archive(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            archive = self.make_archive(root, (3, 5))
+            destination = root / "destination"
+            destination.mkdir()
+
+            module._safe_extract(archive, destination)
+
+            self.assertEqual((destination / "member-0").read_bytes(), b"\0" * 3)
+            self.assertEqual((destination / "member-1").read_bytes(), b"\0" * 5)
+
+    def test_rejects_compressed_archive_size_limit(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            archive = self.make_archive(root, (1,))
+            destination = root / "destination"
+            destination.mkdir()
+            previous = module.MAX_ARCHIVE_COMPRESSED_BYTES
+            module.MAX_ARCHIVE_COMPRESSED_BYTES = archive.stat().st_size - 1
+            try:
+                with self.assertRaisesRegex(module.DeploymentTransactionError, "compressed archive exceeds"):
+                    module._safe_extract(archive, destination)
+            finally:
+                module.MAX_ARCHIVE_COMPRESSED_BYTES = previous
+
+    def test_rejects_member_count_limit(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            archive = root / "archive.tar.gz"
+            with tarfile.open(archive, "w:gz") as bundle:
+                for index in range(3):
+                    bundle.addfile(tarfile.TarInfo(f"member-{index}"))
+            destination = root / "destination"
+            destination.mkdir()
+            previous = module.MAX_ARCHIVE_MEMBER_COUNT
+            module.MAX_ARCHIVE_MEMBER_COUNT = 2
+            try:
+                with self.assertRaisesRegex(module.DeploymentTransactionError, "member count exceeds"):
+                    module._safe_extract(archive, destination)
+            finally:
+                module.MAX_ARCHIVE_MEMBER_COUNT = previous
+
+    def test_rejects_per_member_expanded_size_limit(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            archive = self.make_archive(root, (4,))
+            destination = root / "destination"
+            destination.mkdir()
+            previous = module.MAX_ARCHIVE_MEMBER_BYTES
+            module.MAX_ARCHIVE_MEMBER_BYTES = 3
+            try:
+                with self.assertRaisesRegex(module.DeploymentTransactionError, "member exceeds"):
+                    module._safe_extract(archive, destination)
+            finally:
+                module.MAX_ARCHIVE_MEMBER_BYTES = previous
+
+    def test_rejects_total_expanded_size_limit(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            archive = self.make_archive(root, (3, 3))
+            destination = root / "destination"
+            destination.mkdir()
+            previous = module.MAX_ARCHIVE_EXPANDED_BYTES
+            module.MAX_ARCHIVE_EXPANDED_BYTES = 5
+            try:
+                with self.assertRaisesRegex(module.DeploymentTransactionError, "expanded size exceeds"):
+                    module._safe_extract(archive, destination)
+            finally:
+                module.MAX_ARCHIVE_EXPANDED_BYTES = previous
 
 
 class DeployTransactionPathContractTest(unittest.TestCase):

@@ -21,6 +21,8 @@ maison deploy example-linux
 
 Before system deployment starts, Maison requires a clean working tree and builds a source archive from committed Git content only. The archive contains `.maison-revision` but never `.git`, dirty changes, untracked files, ignored files, or local credentials. The resulting remote tree is a deployed runtime snapshot, not an authoring checkout; repository-writing commands must be run from the public source checkout or the private overlay repository instead. If a private overlay inventory is active, deployment targeting and Nix evaluation use that overlay inventory while the public Maison archive remains the reusable vehicle code.
 
+The privileged extractor bounds the uploaded archive at 256 MiB compressed, 4,096 members, 64 MiB per member, and 256 MiB total expanded regular-file content. It validates and extracts members incrementally, and rejects traversal, symlink, and special-file entries before they are installed.
+
 After successful system activation, Maison:
 
 1. Uploads the archive separately from the remote command stream.

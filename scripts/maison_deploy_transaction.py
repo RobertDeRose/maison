@@ -28,6 +28,12 @@ class DeploymentTransactionError(ValueError):
     """Raised when deployment transaction paths violate the safety contract."""
 
 
+MAX_ARCHIVE_COMPRESSED_BYTES = 256 * 1024 * 1024
+MAX_ARCHIVE_MEMBER_COUNT = 4096
+MAX_ARCHIVE_MEMBER_BYTES = 64 * 1024 * 1024
+MAX_ARCHIVE_EXPANDED_BYTES = 256 * 1024 * 1024
+
+
 @dataclass(frozen=True, slots=True)
 class TransactionPaths:
     """Concrete paths for one deployment transaction."""
@@ -327,15 +333,41 @@ def _load_active(namespace: Path, repo_path: Path, managed_user: str) -> dict[st
 
 
 def _safe_extract(archive: Path, destination: Path) -> None:
-    with tarfile.open(archive, "r:gz") as bundle:
-        for member in bundle.getmembers():
-            if not (member.isdir() or member.isfile()):
-                raise DeploymentTransactionError(f"archive member has unsupported type: {member.name}")
-            target = destination / member.name
-            resolved = target.resolve(strict=False)
-            if not _is_relative_to(resolved, destination.resolve(strict=False)):
-                raise DeploymentTransactionError(f"archive member escapes staging directory: {member.name}")
-        bundle.extractall(destination)
+    flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
+    try:
+        descriptor = os.open(archive, flags)
+    except OSError as exc:
+        raise DeploymentTransactionError(f"unable to open deployment archive: {archive}") from exc
+
+    with os.fdopen(descriptor, "rb") as archive_file:
+        archive_info = os.fstat(archive_file.fileno())
+        if not stat.S_ISREG(archive_info.st_mode):
+            raise DeploymentTransactionError(f"deployment archive must be a regular file: {archive}")
+        if archive_info.st_size > MAX_ARCHIVE_COMPRESSED_BYTES:
+            raise DeploymentTransactionError(f"compressed archive exceeds size limit: {archive}")
+
+        destination_real = destination.resolve(strict=False)
+        member_count = 0
+        expanded_size = 0
+        with tarfile.open(fileobj=archive_file, mode="r|gz") as bundle:
+            for member in bundle:
+                member_count += 1
+                if member_count > MAX_ARCHIVE_MEMBER_COUNT:
+                    raise DeploymentTransactionError("archive member count exceeds limit")
+                if member.size < 0 or member.size > MAX_ARCHIVE_MEMBER_BYTES:
+                    raise DeploymentTransactionError(f"archive member exceeds per-member size limit: {member.name}")
+                if not (member.isdir() or member.isfile()):
+                    raise DeploymentTransactionError(f"archive member has unsupported type: {member.name}")
+                if member.isfile():
+                    expanded_size += member.size
+                    if expanded_size > MAX_ARCHIVE_EXPANDED_BYTES:
+                        raise DeploymentTransactionError("archive expanded size exceeds limit")
+
+                target = destination / member.name
+                resolved = target.resolve(strict=False)
+                if not _is_relative_to(resolved, destination_real):
+                    raise DeploymentTransactionError(f"archive member escapes staging directory: {member.name}")
+                bundle.extract(member, destination, filter="data")
 
 
 def _revision(source: Path) -> str:
