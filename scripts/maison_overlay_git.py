@@ -171,7 +171,16 @@ def _upstream(repository: Path) -> Upstream | None:
     name = result.stdout.strip()
     if "/" not in name:
         return Upstream(name=name, remote=None, branch=name, ref=name)
-    remote, branch = name.split("/", 1)
+
+    # Remote names may contain `/`, so split at the longest configured remote
+    # prefix instead of assuming the first component is the remote name.
+    remotes = _git(repository, ["remote"], check=False).stdout.splitlines()
+    matching_remotes = [remote for remote in remotes if name.startswith(f"{remote}/")]
+    if matching_remotes:
+        remote = max(matching_remotes, key=len)
+        branch = name[len(remote) + 1 :]
+    else:
+        remote, branch = name.split("/", 1)
     return Upstream(name=name, remote=remote, branch=branch, ref=name)
 
 

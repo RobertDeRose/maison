@@ -49,7 +49,7 @@ class OverlayGitBehaviorTest(unittest.TestCase):
             text=True,
         )
 
-    def make_remote_overlay(self, directory: Path) -> tuple[Path, Path]:
+    def make_remote_overlay(self, directory: Path, remote_name: str = "origin") -> tuple[Path, Path]:
         remote = directory / "overlay.git"
         remote.parent.mkdir(parents=True, exist_ok=True)
         remote.mkdir()
@@ -64,8 +64,8 @@ class OverlayGitBehaviorTest(unittest.TestCase):
         git_init(overlay)
         (overlay / "state.txt").write_text("base\n")
         git_commit_all(overlay, "base")
-        self.git(overlay, "remote", "add", "origin", str(remote))
-        self.git(overlay, "push", "-q", "-u", "origin", "main")
+        self.git(overlay, "remote", "add", remote_name, str(remote))
+        self.git(overlay, "push", "-q", "-u", remote_name, "main")
         run(
             [
                 "git",
@@ -101,6 +101,36 @@ class OverlayGitBehaviorTest(unittest.TestCase):
             self.assertEqual(status.relationship, "in-sync")
             self.assertEqual(status.comparison, "fresh")
             self.assertEqual(status.upstream, "origin/main")
+
+    def test_status_refresh_and_publish_support_slash_remote_names(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            overlay, remote = self.make_remote_overlay(root, remote_name="team/origin")
+
+            status = self.overlay_git.inspect_repository(overlay)
+
+            self.assertEqual(status.upstream, "team/origin/main")
+            self.assertEqual(status.relationship, "in-sync")
+
+            other = self.clone_remote(remote, root / "other")
+            (other / "remote.txt").write_text("remote\n")
+            remote_head = git_commit_all(other, "remote")
+            self.git(other, "push", "-q")
+
+            refresh = self.overlay_git.refresh_repository(overlay)
+
+            self.assertTrue(refresh.updated)
+            self.assertEqual(self.git(overlay, "rev-parse", "HEAD").stdout.strip(), remote_head)
+
+            (overlay / "local.txt").write_text("local\n")
+            local_head = git_commit_all(overlay, "local")
+            publish = self.overlay_git.publish_repository(overlay)
+
+            self.assertTrue(publish.pushed)
+            self.assertEqual(
+                self.git(overlay, "--git-dir", str(remote), "rev-parse", "refs/heads/main").stdout.strip(),
+                local_head,
+            )
 
     def test_status_distinguishes_dirty_tracked_and_untracked_work(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
