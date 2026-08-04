@@ -255,7 +255,18 @@ class DeploymentContractTest(unittest.TestCase):
             linux_module,
         )
         self.assertIn("Cmnd_Alias MAISON_DEPLOY_ACTIVATE = /nix/store/*/activate-rs *", linux_module)
-        self.assertIn("extra-trusted-users = root ${user.username} ${deployUser}", linux_module)
+        trusted_users = re.search(r"extra-trusted-users = ([^\n]+)", linux_module)
+        self.assertIsNotNone(trusted_users)
+        assert trusted_users is not None
+        self.assertEqual(trusted_users.group(1), "root")
+        self.assertIn(
+            'extra-substituters = ${builtins.concatStringsSep " " cache.substituters}',
+            linux_module,
+        )
+        self.assertIn(
+            'extra-trusted-public-keys = ${builtins.concatStringsSep " " cache.trustedPublicKeys}',
+            linux_module,
+        )
         self.assertIn("${deployUser} ALL=(root) NOPASSWD:", linux_module)
         self.assertNotIn("NOPASSWD: ALL", linux_module)
 

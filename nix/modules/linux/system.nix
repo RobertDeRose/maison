@@ -116,7 +116,7 @@ in
       fallback = ${if cache.fallback then "true" else "false"}
       extra-substituters = ${builtins.concatStringsSep " " cache.substituters}
       extra-trusted-public-keys = ${builtins.concatStringsSep " " cache.trustedPublicKeys}
-      extra-trusted-users = root ${user.username} ${deployUser}
+      extra-trusted-users = root
     '';
     replaceExisting = true;
   };
