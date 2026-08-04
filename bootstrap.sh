@@ -5,7 +5,7 @@
 #   ./bootstrap.sh [--host HOST] [--overlay GIT-URL-OR-PATH] [--repo OWNER/REPO|URL|PATH] [--ref REF]
 #   Set MAISON_OVERLAY instead of passing --overlay to select an existing private repository.
 #   Download this file from a reviewed release, verify it against the published checksum, then run:
-#     bash bootstrap.sh --host HOST --overlay GIT-URL-OR-PATH --repo RobertDeRose/maison --ref main
+#     bash bootstrap.sh --host HOST --overlay GIT-URL-OR-PATH --repo RobertDeRose/maison --ref v0.1.0
 
 set -euo pipefail
 
@@ -21,7 +21,7 @@ Options:
   --host HOST       Inventory host; defaults to the short local hostname.
   --overlay SOURCE  Existing private overlay Git URL or local repository path.
   --repo REPO       GitHub owner/repository, Git URL, or local repository path.
-  --ref REF         Branch or tag to clone; defaults to main.
+  --ref REF         Branch, tag, or immutable commit to clone; defaults to main.
   -h, --help        Show this help text.
 
 Environment:
@@ -233,7 +233,12 @@ fi
 if [ ! -d "$repo_root/.git" ]; then
   [ ! -e "$repo_root" ] || bootstrap_die "$repo_root exists but is not a Git repository"
   log "Cloning $repo_url at $ref into $repo_root"
-  git clone --branch "$ref" --single-branch "$repo_url" "$repo_root"
+  if [[ "$ref" =~ ^[0-9a-f]{40}$ ]]; then
+    git clone --no-checkout "$repo_url" "$repo_root"
+    git -C "$repo_root" checkout --detach "$ref"
+  else
+    git clone --branch "$ref" --single-branch "$repo_url" "$repo_root"
+  fi
 elif [ ! -f "$repo_root/mise.toml" ] || [ ! -f "$repo_root/flake.nix" ]; then
   bootstrap_die "$repo_root does not look like Maison"
 else

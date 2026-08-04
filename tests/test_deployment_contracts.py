@@ -8,6 +8,7 @@ class VerifiedBootstrapContractTest(unittest.TestCase):
         "bootstrap.sh",
         ".mise/lib/bootstrap.sh",
         ".mise/tasks/deploy",
+        "README.md",
     )
 
     def test_bootstrap_sources_do_not_pipe_downloads_to_shells(self) -> None:

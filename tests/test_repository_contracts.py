@@ -294,6 +294,21 @@ class RepositoryContractTest(unittest.TestCase):
         self.assertIn("mise exec --locked python -- python -m unittest", workflow)
         self.assertNotIn("          python3 -m unittest", workflow)
 
+    def test_bootstrap_release_publishes_separate_checksum_asset(self) -> None:
+        workflow = read(".github/workflows/bootstrap-release.yml")
+        self.assertIn('tags:\n      - "v*"', workflow)
+        self.assertIn("permissions:\n  contents: write", workflow)
+        self.assertIn("sha256sum bootstrap.sh > SHA256SUMS", workflow)
+        self.assertIn("gh release create", workflow)
+        self.assertIn("bootstrap.sh SHA256SUMS", workflow)
+
+    def test_bootstrap_supports_immutable_commit_refs(self) -> None:
+        bootstrap = read("bootstrap.sh")
+        self.assertIn('if [[ "$ref" =~ ^[0-9a-f]{40}$ ]]; then', bootstrap)
+        self.assertIn('git clone --no-checkout "$repo_url" "$repo_root"', bootstrap)
+        self.assertIn('git -C "$repo_root" checkout --detach "$ref"', bootstrap)
+        self.assertIn('git clone --branch "$ref" --single-branch "$repo_url" "$repo_root"', bootstrap)
+
     def test_bootstrap_uses_template_and_current_user_for_copier(self) -> None:
         bootstrap = read("bootstrap.sh")
         self.assertIn('copier_user="$(id -un)"', bootstrap)
@@ -446,7 +461,20 @@ class RepositoryContractTest(unittest.TestCase):
         )
         positions = [readme.index(section) for section in sections]
         self.assertEqual(positions, sorted(positions))
-        self.assertEqual(readme.count("curl -fsSL"), 2)
+        self.assertEqual(readme.count("curl -fsSL"), 4)
+        self.assertNotRegex(readme, r"curl[^\n|]*\|\s*(?:bash|sh)\b")
+        self.assertNotIn("raw.githubusercontent.com", readme)
+        self.assertIn(
+            "github.com/RobertDeRose/maison/releases/download/${MAISON_BOOTSTRAP_VERSION}/bootstrap.sh",
+            readme,
+        )
+        self.assertIn(
+            "github.com/RobertDeRose/maison/releases/download/${MAISON_BOOTSTRAP_VERSION}/SHA256SUMS",
+            readme,
+        )
+        self.assertIn('MAISON_BOOTSTRAP_VERSION="v0.1.0"', readme)
+        self.assertIn("shasum -a 256 -c -", readme)
+        self.assertIn("sha256sum -c -", readme)
         self.assertIn("### 1. Install with curl and create an overlay during setup", readme)
         self.assertIn("### 2. Install with curl and use an existing overlay", readme)
         self.assertIn("### 3. Clone Maison and run Copier manually", readme)

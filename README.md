@@ -17,11 +17,27 @@ Choose one of these installation paths.
 
 ### 1. Install with curl and create an overlay during setup
 
-This downloads the reviewed bootstrap script to a temporary file instead of piping remote code to a shell. Run it
-without an overlay, answer **yes** when prompted, and complete the Copier questions:
+This downloads the reviewed bootstrap script and its separate `SHA256SUMS` release asset to temporary files, verifies
+the digest, and executes the script only after verification. Use a published versioned release; never substitute the
+mutable `main` ref. Run it without an overlay, answer **yes** when prompted, and complete the Copier questions:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/RobertDeRose/maison/main/bootstrap.sh | bash
+set -euo pipefail
+MAISON_BOOTSTRAP_VERSION="v0.1.0"
+bootstrap_dir="$(mktemp -d)"
+trap 'rm -rf "$bootstrap_dir"' EXIT
+curl -fsSL \
+  "https://github.com/RobertDeRose/maison/releases/download/${MAISON_BOOTSTRAP_VERSION}/bootstrap.sh" \
+  -o "$bootstrap_dir/bootstrap.sh"
+curl -fsSL \
+  "https://github.com/RobertDeRose/maison/releases/download/${MAISON_BOOTSTRAP_VERSION}/SHA256SUMS" \
+  -o "$bootstrap_dir/SHA256SUMS"
+if command -v shasum >/dev/null 2>&1; then
+  (cd "$bootstrap_dir" && grep -E '^[0-9a-f]{64}  bootstrap\.sh$' SHA256SUMS | shasum -a 256 -c -)
+else
+  (cd "$bootstrap_dir" && grep -E '^[0-9a-f]{64}  bootstrap\.sh$' SHA256SUMS | sha256sum -c -)
+fi
+bash "$bootstrap_dir/bootstrap.sh" --ref "$MAISON_BOOTSTRAP_VERSION"
 ```
 
 Maison clones itself to `~/.maison` by default. New Copier overlays and remote overlays use
@@ -34,8 +50,23 @@ Set `MAISON_OVERLAY` to a local checkout or a remote Git repository. Bootstrap u
 remote sources into Maison's overlay data directory:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/RobertDeRose/maison/main/bootstrap.sh \
-  | bash -s -- --overlay "git@github.com:OWNER/my-maison-overlay.git"
+set -euo pipefail
+MAISON_BOOTSTRAP_VERSION="v0.1.0"
+bootstrap_dir="$(mktemp -d)"
+trap 'rm -rf "$bootstrap_dir"' EXIT
+curl -fsSL \
+  "https://github.com/RobertDeRose/maison/releases/download/${MAISON_BOOTSTRAP_VERSION}/bootstrap.sh" \
+  -o "$bootstrap_dir/bootstrap.sh"
+curl -fsSL \
+  "https://github.com/RobertDeRose/maison/releases/download/${MAISON_BOOTSTRAP_VERSION}/SHA256SUMS" \
+  -o "$bootstrap_dir/SHA256SUMS"
+if command -v shasum >/dev/null 2>&1; then
+  (cd "$bootstrap_dir" && grep -E '^[0-9a-f]{64}  bootstrap\.sh$' SHA256SUMS | shasum -a 256 -c -)
+else
+  (cd "$bootstrap_dir" && grep -E '^[0-9a-f]{64}  bootstrap\.sh$' SHA256SUMS | sha256sum -c -)
+fi
+bash "$bootstrap_dir/bootstrap.sh" --ref "$MAISON_BOOTSTRAP_VERSION" \
+  --overlay "git@github.com:OWNER/my-maison-overlay.git"
 ```
 
 The `--overlay <git-url-or-path>` option is equivalent and takes precedence over `MAISON_OVERLAY`.
