@@ -98,9 +98,10 @@ maison publish
 
 `maison status` inspects only the active private overlay selected by saved state or the environment. It reports the
 checkout path, branch, configured upstream, worktree cleanliness, and whether the checkout is in sync, ahead, behind,
-diverged, or missing an upstream. It fetches the upstream when possible. If the fetch fails because the device is
-offline or credentials/network access are unavailable, the command reports the comparison as unavailable and labels
-any relationship as last-known; it never treats that result as a current synchronization claim.
+diverged, or missing an upstream. It fetches the upstream when possible, with a 30-second bound for the status
+fetch. If the fetch fails because the device is offline, credentials/network access are unavailable, or the bound
+expires, the command reports the comparison as unavailable and labels any relationship as last-known; it never treats
+that result as a current synchronization claim.
 
 `maison publish` uses the overlay's configured upstream and does not select a remote or branch implicitly. It fetches
 before changing the worktree and refuses missing, unreachable, behind, or diverged upstreams before stashing. When there

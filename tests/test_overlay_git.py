@@ -5,8 +5,10 @@ import os
 import stat
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from tests.support.topology import *
 
@@ -101,6 +103,63 @@ class OverlayGitBehaviorTest(unittest.TestCase):
             self.assertEqual(status.relationship, "in-sync")
             self.assertEqual(status.comparison, "fresh")
             self.assertEqual(status.upstream, "origin/main")
+
+    def test_status_fetch_converts_timeout_to_last_known_error(self) -> None:
+        upstream = self.overlay_git.Upstream(
+            name="origin/main",
+            remote="origin",
+            branch="main",
+            ref="origin/main",
+        )
+        timeout = self.overlay_git.OverlayGitTimeout("fetch timed out")
+        with patch.object(self.overlay_git, "_git", side_effect=timeout) as git:
+            result = self.overlay_git.fetch_upstream(
+                Path("/tmp/overlay"),
+                upstream,
+                timeout=self.overlay_git.FETCH_TIMEOUT_SECONDS,
+            )
+
+        self.assertFalse(result.succeeded)
+        self.assertEqual(result.error, "fetch timed out")
+        git.assert_called_once_with(
+            Path("/tmp/overlay"),
+            ["fetch", "--prune", "--quiet", "origin"],
+            check=False,
+            timeout=self.overlay_git.FETCH_TIMEOUT_SECONDS,
+        )
+
+    @unittest.skipUnless(os.name == "posix", "Git process-group cleanup requires POSIX")
+    def test_timed_git_terminates_descendant_process_group(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            fake_bin = root / "bin"
+            fake_bin.mkdir()
+            child_pid = root / "child.pid"
+            executable(
+                fake_bin / "git",
+                '#!/bin/sh\nsleep 30 &\nchild="$!"\nprintf "%s\\n" "$child" >"$CHILD_PID"\nwait "$child"\n',
+            )
+            env = fixture_git_env()
+            env.update(
+                {
+                    "PATH": f"{fake_bin}{os.pathsep}{env['PATH']}",
+                    "CHILD_PID": str(child_pid),
+                }
+            )
+            with self.assertRaises(self.overlay_git.OverlayGitTimeout):
+                self.overlay_git._git(root, ["fetch"], env=env, check=False, timeout=1.0)
+
+            child = int(child_pid.read_text())
+            deadline = time.monotonic() + 1.0
+            while True:
+                try:
+                    os.kill(child, 0)
+                except ProcessLookupError:
+                    break
+                if time.monotonic() >= deadline:
+                    os.kill(child, 9)
+                    self.fail("timed Git descendant remained alive")
+                time.sleep(0.01)
 
     def test_status_refresh_and_publish_support_slash_remote_names(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

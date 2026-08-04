@@ -61,7 +61,8 @@ installed overlay-backed global config so mise resolves relative dotfile sources
 ## Overlay authoring
 
 The top-level `maison status` command inspects the active private overlay and reports its worktree, upstream
-relationship, and fresh or last-known remote comparison. `maison publish` fetches first, refuses missing, unavailable,
+relationship, and fresh or last-known remote comparison. Its upstream fetch is bounded to 30 seconds; a timeout is
+reported as an unavailable, last-known comparison. `maison publish` fetches first, refuses missing, unavailable,
 behind, or diverged upstreams, stashes tracked and untracked edits without touching ignored files, pushes committed
 changes, and restores the stash. It never commits arbitrary edits.
 

@@ -4,8 +4,10 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import os
+import signal
 import subprocess
 import sys
 import tempfile
@@ -24,6 +26,13 @@ from maison_overlay import active_overlay_path, default_state_file
 
 class OverlayGitError(RuntimeError):
     """Raised when an overlay Git operation cannot safely continue."""
+
+
+class OverlayGitTimeout(OverlayGitError):
+    """Raised when a bounded overlay Git operation exceeds its time budget."""
+
+
+FETCH_TIMEOUT_SECONDS = 30.0
 
 
 @dataclass(frozen=True)
@@ -100,24 +109,62 @@ def _git_environment(overrides: dict[str, str] | None = None) -> dict[str, str]:
     return environment
 
 
+def _terminate_process_group(process: subprocess.Popen[str]) -> None:
+    if os.name == "posix":
+        with contextlib.suppress(ProcessLookupError):
+            os.killpg(process.pid, signal.SIGTERM)
+    else:
+        process.terminate()
+    try:
+        process.wait(timeout=1)
+        return
+    except subprocess.TimeoutExpired:
+        pass
+    if os.name == "posix":
+        with contextlib.suppress(ProcessLookupError):
+            os.killpg(process.pid, signal.SIGKILL)
+    else:
+        process.kill()
+    process.wait(timeout=1)
+
+
 def _git(
     repository: Path,
     arguments: list[str],
     *,
     env: dict[str, str] | None = None,
     check: bool = True,
+    timeout: float | None = None,
 ) -> subprocess.CompletedProcess[str]:
-    result = subprocess.run(
-        ["git", "-C", str(repository), *arguments],
-        env=_git_environment(env),
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    command = ["git", "-C", str(repository), *arguments]
+    if timeout is None:
+        result = subprocess.run(
+            command,
+            env=_git_environment(env),
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    else:
+        process = subprocess.Popen(
+            command,
+            env=_git_environment(env),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            start_new_session=os.name == "posix",
+        )
+        try:
+            stdout, stderr = process.communicate(timeout=timeout)
+        except subprocess.TimeoutExpired as error:
+            _terminate_process_group(process)
+            process.communicate()
+            raise OverlayGitTimeout(f"{' '.join(command)} timed out after {timeout:g} seconds") from error
+        result = subprocess.CompletedProcess(command, process.returncode, stdout, stderr)
     if check and result.returncode != 0:
         detail = (result.stderr or result.stdout).strip()
-        command = " ".join(["git", "-C", str(repository), *arguments])
-        raise OverlayGitError(f"{command} failed: {detail or f'exit {result.returncode}'}")
+        command_text = " ".join(command)
+        raise OverlayGitError(f"{command_text} failed: {detail or f'exit {result.returncode}'}")
     return result
 
 
@@ -184,10 +231,23 @@ def _upstream(repository: Path) -> Upstream | None:
     return Upstream(name=name, remote=remote, branch=branch, ref=name)
 
 
-def fetch_upstream(repository: Path, upstream: Upstream) -> FetchResult:
+def fetch_upstream(
+    repository: Path,
+    upstream: Upstream,
+    *,
+    timeout: float | None = None,
+) -> FetchResult:
     if upstream.remote in (None, "."):
         return FetchResult(succeeded=True)
-    result = _git(repository, ["fetch", "--prune", "--quiet", upstream.remote], check=False)
+    try:
+        result = _git(
+            repository,
+            ["fetch", "--prune", "--quiet", upstream.remote],
+            check=False,
+            timeout=timeout,
+        )
+    except OverlayGitTimeout as error:
+        return FetchResult(succeeded=False, error=str(error))
     if result.returncode == 0:
         return FetchResult(succeeded=True)
     return FetchResult(succeeded=False, error=_result_error(result))
@@ -251,7 +311,9 @@ def inspect_repository(repository: Path, *, fetch: bool = True) -> RepositorySta
     else:
         upstream_name = upstream.name
         fetch_result = (
-            fetch_upstream(repository, upstream) if fetch else FetchResult(succeeded=False, error="fetch skipped")
+            fetch_upstream(repository, upstream, timeout=FETCH_TIMEOUT_SECONDS)
+            if fetch
+            else FetchResult(succeeded=False, error="fetch skipped")
         )
         if not fetch_result.succeeded:
             fetch_error = fetch_result.error
