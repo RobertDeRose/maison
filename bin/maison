@@ -133,21 +133,33 @@ filesystem_task_names() {
     | LC_ALL=C sort -u
 }
 
-list_task_names() {
+task_names_cache=""
+task_names_cached=false
+
+cache_task_names() {
   local tasks
+  [ "$task_names_cached" = true ] && return
   if tasks="$($mise_bin -C "$maison_home" tasks --name-only --hidden 2> /dev/null)" && [ -n "$tasks" ]; then
-    printf '%s\n' "$tasks"
+    task_names_cache="$tasks"
   else
-    filesystem_task_names
+    task_names_cache="$(filesystem_task_names)"
   fi
+  task_names_cached=true
+}
+
+list_task_names() {
+  cache_task_names
+  [ -n "$task_names_cache" ] || return 0
+  printf '%s\n' "$task_names_cache"
 }
 
 list_public_task_names() {
   local task compatibility tasks all_tasks
+  cache_task_names
   if tasks="$($mise_bin -C "$maison_home" tasks --name-only 2> /dev/null)" && [ -n "$tasks" ]; then
-    all_tasks="$(list_task_names)"
+    all_tasks="$task_names_cache"
   else
-    tasks="$(filesystem_task_names)"
+    tasks="$task_names_cache"
     all_tasks="$tasks"
   fi
   while IFS= read -r task; do
@@ -229,6 +241,7 @@ resolve_task() {
   local -a words=("$@")
   local candidate="" best="" index best_count=0 task lookup_candidate
 
+  cache_task_names
   for ((index = 0; index < ${#words[@]}; index++)); do
     if [ -z "$candidate" ]; then
       candidate="${words[index]}"
@@ -244,7 +257,7 @@ resolve_task() {
         best_count=$((index + 1))
         break
       fi
-    done < <(list_task_names)
+    done <<<"$task_names_cache"
   done
 
   [ -n "$best" ] || return 1

@@ -34,6 +34,47 @@ class MigrationBehaviorTest(unittest.TestCase):
             self.assertEqual(len(calls), 1)
             self.assertIn("system:apply", calls[0])
 
+    def test_maison_launcher_discovers_tasks_once_per_resolution(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            temp = Path(directory)
+            fake_bin = temp / "bin"
+            fake_bin.mkdir()
+            discovery_log = temp / "discovery"
+            executable(
+                fake_bin / "mise",
+                "#!/bin/sh\n"
+                'case "$*" in\n'
+                '  *"tasks --name-only --hidden"*)\n'
+                '    printf "discovery\\n" >>"$DISCOVERY_LOG"\n'
+                '    printf "host:list\\nuser:restore-dotfiles\\n"\n'
+                "    ;;\n"
+                '  *"run host:list --"*) printf "host-list\\n" ;;\n'
+                '  *"run user:restore-dotfiles --"*) printf "user-restore\\n" ;;\n'
+                "  *) exit 91 ;;\n"
+                "esac\n",
+            )
+            env = os.environ.copy()
+            env.update(
+                {
+                    "PATH": f"{fake_bin}{os.pathsep}{env['PATH']}",
+                    "MAISON_HOME": str(ROOT),
+                    "DISCOVERY_LOG": str(discovery_log),
+                }
+            )
+            for arguments, expected in ((("host", "list"), "host-list\n"), (("user", "restore"), "user-restore\n")):
+                with self.subTest(arguments=arguments):
+                    discovery_log.write_text("")
+                    result = run(
+                        ["bash", str(ROOT / "bin/maison"), *arguments],
+                        env=env,
+                        cwd=ROOT,
+                        capture_output=True,
+                        text=True,
+                    )
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertEqual(result.stdout, expected)
+                    self.assertEqual(discovery_log.read_text().splitlines(), ["discovery"])
+
     def test_maison_launcher_preserves_interactive_stderr_for_tasks(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             temp = Path(directory)
