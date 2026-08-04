@@ -113,6 +113,18 @@ class InventoryBehaviorTest(unittest.TestCase):
                     )
                     self.assertEqual(default_user.stdout.strip(), "maison-deploy")
 
+    def test_inventory_accepts_root_deployment_ssh_user(self) -> None:
+        original = read("inventory.toml")
+        root_inventory = original.replace('ssh_user = "maison-deploy"', 'ssh_user = "root"', 1)
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "root-bootstrap.toml"
+            path.write_text(root_inventory)
+            result = self.run_inventory(path, "validate")
+            self.assertEqual(result.returncode, 0, result.stderr)
+            deploy_user = self.run_inventory(path, "host-field", "example-linux", "deploy.ssh_user")
+            self.assertEqual(deploy_user.returncode, 0, deploy_user.stderr)
+            self.assertEqual(deploy_user.stdout.strip(), "root")
+
     def test_inventory_rejects_deploy_ssh_user_matching_managed_user(self) -> None:
         original = read("inventory.toml")
         cases = {

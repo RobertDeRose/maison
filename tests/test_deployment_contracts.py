@@ -117,6 +117,53 @@ class VerifiedBootstrapContractTest(unittest.TestCase):
         self.assertEqual(set(lock), set())
 
 
+class RootDeploymentEvaluationContractTest(unittest.TestCase):
+    def test_root_deployment_evaluates_without_root_owned_policy(self) -> None:
+        if shutil.which("nix") is None:
+            self.skipTest("nix is required for root deployment evaluation")
+
+        fixture = ROOT / "tests/fixtures/inventory/valid/root-deployment"
+        result = run(
+            [
+                "nix",
+                "--accept-flake-config",
+                "--extra-experimental-features",
+                "nix-command flakes",
+                "eval",
+                "--no-update-lock-file",
+                "--override-input",
+                "overlay",
+                f"path:{fixture}",
+                "--json",
+                ".#systemConfigs.root-bootstrap",
+                "--apply",
+                (
+                    "configuration: { "
+                    "rootHome = configuration.config.users.users.root.home; "
+                    "rootGroup = configuration.config.users.groups.root.name; "
+                    "rootIsSystemUser = configuration.config.users.users.root.isSystemUser; "
+                    "hasDeploymentSudoers = builtins.hasAttr "
+                    '"sudoers.d/90-system-manager-wheel" configuration.config.environment.etc; '
+                    "}"
+                ),
+            ],
+            cwd=ROOT,
+            timeout=180,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(
+            json.loads(result.stdout),
+            {
+                "hasDeploymentSudoers": False,
+                "rootGroup": "root",
+                "rootHome": "/root",
+                "rootIsSystemUser": False,
+            },
+        )
+
+
 class DeploymentContractTest(unittest.TestCase):
     def deployment_environment(self, temp: Path, home: Path) -> tuple[str, dict[str, str]]:
         """Provide a deterministic portable Linux deployment user."""
@@ -269,6 +316,15 @@ class DeploymentContractTest(unittest.TestCase):
         )
         self.assertIn("${deployUser} ALL=(root) NOPASSWD:", linux_module)
         self.assertNotIn("NOPASSWD: ALL", linux_module)
+
+    def test_root_deployment_does_not_define_or_grant_root(self) -> None:
+        linux_module = read("nix/modules/linux/system.nix")
+        self.assertIn('users.users."${deployUser}" = lib.mkIf (deployUser != "root")', linux_module)
+        self.assertIn('users.groups."${deployUser}" = lib.mkIf (deployUser != "root")', linux_module)
+        self.assertIn(
+            'environment.etc."sudoers.d/90-system-manager-wheel" = lib.mkIf (deployUser != "root")',
+            linux_module,
+        )
 
     def test_deploy_is_two_explicit_transactions(self) -> None:
         script = read(".mise/tasks/deploy")

@@ -163,7 +163,7 @@ in
     replaceExisting = true;
   };
 
-  environment.etc."sudoers.d/90-system-manager-wheel" = {
+  environment.etc."sudoers.d/90-system-manager-wheel" = lib.mkIf (deployUser != "root") {
     text = ''
       Cmnd_Alias MAISON_DEPLOY_PREPARE = /usr/bin/install -d -m 0755 /nix/var/nix/profiles/system-manager-profiles
       Cmnd_Alias MAISON_DEPLOY_HELPER = /etc/maison/maison-deploy-transaction recover, /etc/maison/maison-deploy-transaction stage /tmp/maison-deploy.??????.tar.gz, /etc/maison/maison-deploy-transaction finalize commit, /etc/maison/maison-deploy-transaction finalize rollback
@@ -293,7 +293,7 @@ in
     ignoreShellProgramCheck = true;
   };
 
-  users.users."${deployUser}" = {
+  users.users."${deployUser}" = lib.mkIf (deployUser != "root") {
     isSystemUser = true;
     group = deployUser;
     home = "/var/lib/${deployUser}";
@@ -302,5 +302,5 @@ in
     hashedPassword = "!";
   };
 
-  users.groups."${deployUser}" = { };
+  users.groups."${deployUser}" = lib.mkIf (deployUser != "root") { };
 }
