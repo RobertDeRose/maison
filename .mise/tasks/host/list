@@ -9,7 +9,6 @@ cd "$REPO_ROOT"
 source "$REPO_ROOT/.mise/lib/inventory.sh"
 
 printf '%-24s %-18s %-16s %s\n' HOST SYSTEM USER PROFILES
-inventory_hosts "$REPO_ROOT" | while IFS= read -r host; do
-  profiles="$(inventory_host_profiles "$REPO_ROOT" "$host" | paste -sd, -)"
-  printf '%-24s %-18s %-16s %s\n' "$host" "$(inventory_host_system "$REPO_ROOT" "$host")" "$(inventory_host_user "$REPO_ROOT" "$host")" "$profiles"
+inventory_host_rows "$REPO_ROOT" | while IFS=$'\t' read -r host system user profiles; do
+  printf '%-24s %-18s %-16s %s\n' "$host" "$system" "$user" "$profiles"
 done

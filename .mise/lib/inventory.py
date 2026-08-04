@@ -354,6 +354,7 @@ def parser() -> argparse.ArgumentParser:
 
     rows = commands.add_parser("host-rows")
     rows.add_argument("--system", required=True)
+    commands.add_parser("host-table")
     return result
 
 
@@ -412,6 +413,9 @@ def main() -> int:
                     continue
                 user = users[host.user_key]
                 print(f"{host.name}\t{user.username}\t{user.full_name}")
+        elif args.command == "host-table":
+            for host in hosts.values():
+                print(f"{host.name}\t{host.system}\t{host.user_key}\t{','.join(host.profiles)}")
     except InventoryError as exc:
         print(f"error: inventory.toml: {exc}", file=sys.stderr)
         return 1

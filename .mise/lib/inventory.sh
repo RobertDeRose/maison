@@ -16,15 +16,18 @@ inventory_repo_root() {
 }
 
 inventory_cli() {
-  local root="$1"
+  local root="$1" inventory repo_root
   shift
-  if command -v python3 > /dev/null 2>&1 && python3 -c 'import tomllib' > /dev/null 2>&1; then
-    python3 "$root/.mise/lib/inventory.py" --file "$(inventory_path "$root")" --repo-root "$(inventory_repo_root "$root")" "$@"
+  load_maison_overlay_environment "$root"
+  inventory="${MAISON_INVENTORY:-$root/inventory.toml}"
+  repo_root="$(dirname "$inventory")"
+  if maison_overlay_python_available; then
+    python3 "$root/.mise/lib/inventory.py" --file "$inventory" --repo-root "$repo_root" "$@"
     return
   fi
   if command -v nix > /dev/null 2>&1; then
     nix run --accept-flake-config "$root#maison-inventory" -- \
-      --file "$(inventory_path "$root")" --repo-root "$(inventory_repo_root "$root")" "$@"
+      --file "$inventory" --repo-root "$repo_root" "$@"
     return
   fi
   printf 'inventory validation requires Python 3.11+ or Nix/Lix\n' >&2
@@ -53,6 +56,7 @@ validate_github_username() {
 }
 
 inventory_hosts() { inventory_cli "$1" list-hosts; }
+inventory_host_rows() { inventory_cli "$1" host-table; }
 inventory_users() { inventory_cli "$1" list-users; }
 inventory_has_host() { inventory_cli "$1" has-host "$2" > /dev/null 2>&1; }
 inventory_has_user() { inventory_cli "$1" has-user "$2" > /dev/null 2>&1; }

@@ -21,6 +21,106 @@ class InventoryBehaviorTest(unittest.TestCase):
         self.assertEqual(rows.returncode, 0, rows.stderr)
         self.assertIn("example-linux\toperator\tMaison Operator", rows.stdout)
 
+    def test_host_table_returns_all_host_list_columns_in_one_query(self) -> None:
+        result = self.run_inventory(ROOT / "inventory.toml", "host-table")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(
+            result.stdout.splitlines(),
+            [
+                "example-darwin\taarch64-darwin\toperator\tbase,dev,mac",
+                "example-linux\taarch64-linux\toperator\tbase,dev,linux",
+            ],
+        )
+
+    def test_shell_inventory_batch_query_falls_back_to_flake_app_without_tomllib(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            temp = Path(directory)
+            fake_bin = temp / "bin"
+            fake_bin.mkdir()
+            log = temp / "nix-log"
+            executable(fake_bin / "python3", "#!/bin/sh\nexit 1\n")
+            executable(
+                fake_bin / "nix",
+                "#!/bin/sh\n"
+                'printf "%s\\n" "$*" >"$NIX_LOG"\n'
+                'while [ "$#" -gt 0 ]; do [ "$1" = -- ] && { shift; break; }; shift; done\n'
+                'exec "$REAL_PYTHON" "$INVENTORY_SCRIPT" "$@"\n',
+            )
+            env = os.environ.copy()
+            env.update(
+                {
+                    "PATH": f"{fake_bin}{os.pathsep}{env['PATH']}",
+                    "NIX_LOG": str(log),
+                    "REAL_PYTHON": os.fspath(Path(sys.executable)),
+                    "INVENTORY_SCRIPT": str(ROOT / ".mise/lib/inventory.py"),
+                }
+            )
+            result = run(
+                [
+                    "bash",
+                    "-c",
+                    'source "$1/.mise/lib/inventory.sh"; inventory_host_rows "$1"',
+                    "_",
+                    str(ROOT),
+                ],
+                cwd=ROOT,
+                env=env,
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("example-darwin\taarch64-darwin\toperator\tbase,dev,mac", result.stdout)
+            self.assertIn("#maison-inventory -- --file", log.read_text())
+
+    def test_host_list_uses_one_inventory_query_and_one_overlay_resolution(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            temp = Path(directory)
+            fake_bin = temp / "bin"
+            fake_bin.mkdir()
+            calls = temp / "python-calls"
+            executable(
+                fake_bin / "python3",
+                '#!/bin/sh\nprintf "%s\\n" "$*" >>"$PYTHON_CALLS"\nexec "$REAL_PYTHON" "$@"\n',
+            )
+            env = os.environ.copy()
+            for key in (
+                "MAISON_INVENTORY",
+                "MAISON_OVERLAY",
+                "MAISON_OVERLAY_PATH",
+                "MAISON_OVERLAY_ENVIRONMENT_ROOT",
+                "MAISON_OVERLAY_PYTHON_AVAILABLE",
+                "MAISON_USER_CONFIG_ROOT",
+                "MISE_GLOBAL_CONFIG_FILE",
+            ):
+                env.pop(key, None)
+            env.update(
+                {
+                    "HOME": str(temp / "home"),
+                    "XDG_STATE_HOME": str(temp / "state"),
+                    "XDG_DATA_HOME": str(temp / "data"),
+                    "PATH": f"{fake_bin}{os.pathsep}{env['PATH']}",
+                    "PYTHON_CALLS": str(calls),
+                    "REAL_PYTHON": os.fspath(Path(sys.executable)),
+                    "MISE_PROJECT_ROOT": str(ROOT),
+                }
+            )
+            result = run(
+                [str(ROOT / ".mise/tasks/host/list")],
+                cwd=ROOT,
+                env=env,
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            python_calls = calls.read_text().splitlines()
+            inventory_calls = [call for call in python_calls if ".mise/lib/inventory.py" in call]
+            overlay_path_calls = [call for call in python_calls if "scripts/maison_overlay.py path" in call]
+            inventory_path_calls = [call for call in python_calls if "scripts/maison_overlay.py --repo-root" in call]
+            self.assertEqual(len(inventory_calls), 1)
+            self.assertEqual(len(overlay_path_calls), 1)
+            self.assertEqual(len(inventory_path_calls), 1)
+            self.assertIn("example-linux", result.stdout)
+
     def test_shell_inventory_falls_back_to_flake_app_without_tomllib(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             temp = Path(directory)

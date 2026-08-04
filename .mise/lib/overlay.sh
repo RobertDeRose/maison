@@ -1,7 +1,16 @@
 #!/usr/bin/env bash
 
 maison_overlay_python_available() {
-  command -v python3 > /dev/null 2>&1 && python3 -c 'import tomllib' > /dev/null 2>&1
+  case "${MAISON_OVERLAY_PYTHON_AVAILABLE:-}" in
+    true) return 0 ;;
+    false) return 1 ;;
+  esac
+  if command -v python3 > /dev/null 2>&1 && python3 -c 'import tomllib' > /dev/null 2>&1; then
+    MAISON_OVERLAY_PYTHON_AVAILABLE=true
+    return 0
+  fi
+  MAISON_OVERLAY_PYTHON_AVAILABLE=false
+  return 1
 }
 
 maison_overlay_path() {
@@ -32,15 +41,25 @@ maison_user_config_root() {
 
 load_maison_overlay_environment() {
   local root="$1" overlay_path inventory_path config_root
+  if [ "${MAISON_OVERLAY_ENVIRONMENT_ROOT:-}" = "$root" ] &&
+    [ -n "${MAISON_INVENTORY:-}" ] && [ -n "${MAISON_USER_CONFIG_ROOT:-}" ]; then
+    return 0
+  fi
+
+  maison_overlay_python_available || true
   overlay_path="$(maison_overlay_path "$root")"
   if [ -n "$overlay_path" ]; then
     export MAISON_OVERLAY_PATH="$overlay_path"
   fi
-  config_root="$(maison_user_config_root "$root")"
+  config_root="$root"
+  if [ -n "$overlay_path" ] && [ -f "$overlay_path/config/mise/config.toml" ]; then
+    config_root="$overlay_path"
+  fi
   export MAISON_USER_CONFIG_ROOT="$config_root"
   export MISE_GLOBAL_CONFIG_FILE="$config_root/config/mise/config.toml"
   inventory_path="$(maison_inventory_path "$root")"
   if [ -n "$inventory_path" ]; then
     export MAISON_INVENTORY="$inventory_path"
   fi
+  MAISON_OVERLAY_ENVIRONMENT_ROOT="$root"
 }
