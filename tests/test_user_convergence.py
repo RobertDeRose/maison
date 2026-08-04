@@ -315,6 +315,29 @@ class UserConvergencePlanTest(unittest.TestCase):
             self.assertEqual("old config\n", installed.read_text())
             self.assertEqual("old macos config\n", installed_macos.read_text())
 
+    def test_status_comparison_cache_preserves_metadata_change_detection(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "source"
+            target = root / "target"
+            source.mkdir()
+            target.mkdir()
+            source_file = source / "config.txt"
+            target_file = target / "config.txt"
+            source_file.write_text("same\n")
+            target_file.write_text("same\n")
+            cache = self.convergence._ComparisonCache()
+
+            self.assertTrue(self.convergence._paths_equal(source, target, cache))
+            self.assertTrue(self.convergence._paths_equal(source, target, cache))
+            self.assertEqual({source, target}, set(cache.file_entries))
+            self.assertEqual(1, len(cache.file_comparisons))
+
+            mtime_ns = target_file.stat().st_mtime_ns
+            target_file.write_text("changed\n")
+            os.utime(target_file, ns=(mtime_ns, mtime_ns))
+            self.assertFalse(self.convergence._paths_equal(source, target, cache))
+
     def test_status_uses_overlay_sources_without_moving_installed_config(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             temp = Path(directory)

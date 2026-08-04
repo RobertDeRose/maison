@@ -319,6 +319,17 @@ def _path_exists(path: Path) -> bool:
 
 
 ConfigGuard = tuple[tuple[Path, Path], ...]
+FileSignature = tuple[int, int, int, int, int]
+
+
+@dataclass
+class _ComparisonCache:
+    file_entries: dict[Path, tuple[FileSignature, frozenset[Path]]]
+    file_comparisons: dict[tuple[Path, Path], tuple[FileSignature, FileSignature, bool]]
+
+    def __init__(self) -> None:
+        self.file_entries = {}
+        self.file_comparisons = {}
 
 
 def _hide_installed_overlay_config(plan: CommandPlan) -> ConfigGuard | None:
@@ -380,19 +391,54 @@ def _expand_user_path(value: str, home: Path) -> Path:
     return Path(value).expanduser()
 
 
-def _paths_equal(left: Path, right: Path) -> bool:
+def _file_signature(path: Path) -> FileSignature:
+    stat = path.stat()
+    return (stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns)
+
+
+def _file_entries(directory: Path, cache: _ComparisonCache) -> frozenset[Path]:
+    signature = _file_signature(directory)
+    cached = cache.file_entries.get(directory)
+    if cached is not None and cached[0] == signature:
+        return cached[1]
+    entries = frozenset(path.relative_to(directory) for path in directory.rglob("*") if path.is_file())
+    cache.file_entries[directory] = (signature, entries)
+    return entries
+
+
+def _files_equal(left: Path, right: Path, cache: _ComparisonCache) -> bool:
+    left_signature = _file_signature(left)
+    right_signature = _file_signature(right)
+    if left_signature[:2] == right_signature[:2]:
+        return True
+    key = (left, right)
+    cached = cache.file_comparisons.get(key)
+    if cached is not None and cached[:2] == (left_signature, right_signature):
+        return cached[2]
+    equal = filecmp.cmp(left, right, shallow=False)
+    cache.file_comparisons[key] = (left_signature, right_signature, equal)
+    return equal
+
+
+def _paths_equal(left: Path, right: Path, cache: _ComparisonCache | None = None) -> bool:
+    comparison_cache = cache if cache is not None else _ComparisonCache()
     if left.is_dir() or right.is_dir():
         if not left.is_dir() or not right.is_dir():
             return False
-        left_entries = {path.relative_to(left) for path in left.rglob("*") if path.is_file()}
-        right_entries = {path.relative_to(right) for path in right.rglob("*") if path.is_file()}
+        left_entries = _file_entries(left, comparison_cache)
+        right_entries = _file_entries(right, comparison_cache)
         if left_entries != right_entries:
             return False
-        return all(filecmp.cmp(left / path, right / path, shallow=False) for path in left_entries)
-    return left.is_file() and right.is_file() and filecmp.cmp(left, right, shallow=False)
+        return all(_files_equal(left / path, right / path, comparison_cache) for path in left_entries)
+    return left.is_file() and right.is_file() and _files_equal(left, right, comparison_cache)
 
 
-def _dotfile_status(target: Path, source: Path, mode: str) -> str:
+def _dotfile_status(
+    target: Path,
+    source: Path,
+    mode: str,
+    comparison_cache: _ComparisonCache | None = None,
+) -> str:
     if not source.exists():
         return "source missing"
     if mode == "symlink":
@@ -413,7 +459,7 @@ def _dotfile_status(target: Path, source: Path, mode: str) -> str:
         return "missing"
     if mode == "template":
         return "present"
-    return "applied" if _paths_equal(target, source) else "differs"
+    return "applied" if _paths_equal(target, source, comparison_cache) else "differs"
 
 
 def _iter_dotfile_mappings(configuration_root: Path, home: Path) -> list[tuple[str, Path, Path, str]]:
@@ -455,10 +501,11 @@ def run_user_status(
     aggregate_output = getattr(status, "stdout", "")
     if aggregate_output:
         print("\n".join(line for line in aggregate_output.splitlines() if not line.startswith("dotfiles ")))
+    comparison_cache = _ComparisonCache()
     for target_name, source, target, mode in _iter_dotfile_mappings(configuration_root, home):
         print(
             f"dotfiles {target_name:<55} {mode:<12} "
-            f"{source.resolve()} {_dotfile_status(target, source.resolve(), mode)}"
+            f"{source.resolve()} {_dotfile_status(target, source.resolve(), mode, comparison_cache)}"
         )
 
 
