@@ -4,6 +4,7 @@ import argparse
 import filecmp
 import json
 import os
+import shlex
 import subprocess
 import sys
 import tempfile
@@ -461,16 +462,26 @@ def run_user_status(
         )
 
 
+def _commands_for_execution(plan: CommandPlan) -> tuple[Command, ...]:
+    if plan.mode in {"apply", "recovery"}:
+        return (*plan.apply_only_commands[:1], *plan.convergence_commands, *plan.apply_only_commands[1:])
+    return plan.convergence_commands
+
+
+def _print_command_plan(plan: CommandPlan) -> None:
+    for command in _commands_for_execution(plan):
+        print(f"[plan] {command.name}: {shlex.join(command.argv)}")
+
+
 def run_command_plan(plan: CommandPlan, *, event_file: Path | None = None) -> None:
-    commands = (
-        (*plan.apply_only_commands[:1], *plan.convergence_commands, *plan.apply_only_commands[1:])
-        if plan.mode in {"apply", "recovery"}
-        else plan.convergence_commands
-    )
+    if plan.mode == "plan":
+        _print_command_plan(plan)
+        return
+
     guard = _hide_installed_overlay_config(plan)
     succeeded = False
     try:
-        for command in commands:
+        for command in _commands_for_execution(plan):
             environment = os.environ.copy()
             environment.update(command.env)
             stdout = subprocess.DEVNULL if command.quiet else None

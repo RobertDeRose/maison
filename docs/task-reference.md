@@ -5,7 +5,7 @@
 | Task                                                  | Behavior                                                                                                                                                                                                                                                    |
 |-------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `doctor`                                              | Diagnose both ownership layers without mutation                                                                                                                                                                                                             |
-| `plan [--host host] [--force-dotfiles]`               | Preview the Nix system layer, then user convergence; `--force-dotfiles` forwards to user preview after the system preview                                                                                                                                   |
+| `plan [--host host] [--force-dotfiles]`               | Preview the Nix system layer, then render the read-only user convergence plan; `--force-dotfiles` forwards after the system preview                                                                                                                         |
 | `apply [--host host] [--force-dotfiles]`              | Apply Nix system state, then user convergence; the same force flag forwards to user apply and system failure stops the sequence                                                                                                                             |
 | `sync [--host host] [--user-only] [--force-dotfiles]` | Pull Maison and the active overlay with fast-forward-only Git pulls, then run `apply`; a pull failure stops before apply                                                                                                                                    |
 | `update [input] [--check]`                            | Update flake inputs atomically; optionally run full validation                                                                                                                                                                                              |
@@ -31,7 +31,7 @@
 
 | Task                                               | Behavior                                                                                                                                                                       |
 |----------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `user:plan [--force-dotfiles]`                     | Preview dotfile handoff, package dry-run support, tools, preferences, and lock links without mutation; force is opt-in and matches user apply                                  |
+| `user:plan [--force-dotfiles]`                     | Render the read-only user convergence command preview without invoking mise, package, dotfile, trust, or migration commands; force is opt-in and matches user apply            |
 | `user:apply [--force-dotfiles]`                    | Sanitize live app backups, then apply dotfiles, packages, tools, apps, and preferences; explicitly forced conflicts receive exact manifest-backed snapshots before replacement |
 | `user:restore-dotfiles <backup-directory> --force` | Restore pending entries from a Maison dotfile backup manifest; force is required to replace existing targets                                                                   |
 | `user:status`                                      | Report user-environment drift                                                                                                                                                  |
@@ -51,10 +51,10 @@
 | `app:add` / `app:remove`         | Authoring-only: require the private overlay, refresh it fast-forward-only, then transactionally edit and focused-commit Apple Silicon macOS cask declarations   |
 | `docs:build` / `docs:serve`      | Load the contributor environment and build or serve this book                                                                                                   |
 
-`user:plan` and `user:apply` share one user-convergence command plan for the same flags. Plan uses dry-run variants for
-preparation, dotfiles, lock links, packages, and remaining mise user state. Apply trusts the repository mise config,
-uses the package convergence helper, and runs user finalization; these execution-only substitutions do not change
-force-dotfile semantics.
+`user:plan` and `user:apply` share one user-convergence command plan for the same flags. Plan renders the dry-run
+variants for preparation, dotfiles, lock links, packages, and remaining mise user state without executing them. Apply
+trusts the repository mise config, uses the package convergence helper, and runs user finalization; these execution-only
+substitutions do not change force-dotfile semantics.
 
 Hidden `nix:*` tasks are compatibility aliases to the corresponding `system:*` tasks and contain no separate activation logic.
 

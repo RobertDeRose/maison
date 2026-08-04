@@ -241,6 +241,12 @@ class DeploymentContractTest(unittest.TestCase):
         digest = hashlib.sha256(str(repo).encode()).hexdigest()[:16]
         return home.parent / ".maison-deploy" / "transactions" / user / digest
 
+    def test_system_plan_builds_without_activation(self) -> None:
+        plan = read(".mise/tasks/system/plan")
+        self.assertIn("run_nh darwin build", plan)
+        self.assertNotIn("run_nh darwin switch", plan)
+        self.assertNotIn("system:apply", plan)
+
     def test_deploy_rs_activates_exact_system_manager_profile(self) -> None:
         deployment = read("nix/lib/deployments.nix")
         adapter = read("nix/lib/deploy-rs.nix")

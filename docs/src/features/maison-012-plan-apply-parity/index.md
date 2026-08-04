@@ -11,8 +11,8 @@
 ## Delivered Capability
 
 Maison now builds user convergence from one structured Python command plan. `maison user plan` and `maison user apply`
-use the same force-dotfile semantics and ordered convergence steps; plan substitutes supported dry-run execution where
-available.
+use the same force-dotfile semantics and ordered convergence steps; plan renders the supported dry-run commands without
+executing convergence or trust operations.
 
 ## User-Facing Behavior
 
@@ -30,15 +30,17 @@ maison user apply --force-dotfiles
 
 `.mise/lib/user_convergence.py` owns the ordered user convergence plan: preparation, dotfiles, mise lock links,
 packages, remaining mise user state, plus apply-only repository trust and finalization. The shell tasks remain thin
-argument adapters. Plan uses dry-run variants for preparation, dotfiles, lock links, packages, and remaining mise user
-state; apply uses the existing package helper, repository trust, and finalization. These documented execution-only
-substitutions preserve the Nix/Lix system and mise user ownership boundary.
+argument adapters. Plan renders dry-run variants for preparation, dotfiles, lock links, packages, and remaining mise user
+state without invoking them; apply uses the existing package helper, repository trust, and finalization. These
+execution-only substitutions preserve the Nix/Lix system and mise user ownership boundary.
 
 ## Operational Impact
 
-Use the same `--force-dotfiles` choice for preview and apply. A forced preview reports conflicts without modifying
-files. A forced apply backs up the exact targets before replacement. Existing package-manager dry-run capabilities are
-unchanged.
+Use the same `--force-dotfiles` choice for preview and apply. A forced preview renders the intended command sequence
+without modifying files. A forced apply backs up the exact targets before replacement. Existing package-manager dry-run
+capabilities are unchanged. The plan renderer no longer invokes those commands, so planning cannot alter mise trust state, dotfiles, lock
+links, migration backups, or installed user state. System planning may realize a Nix store derivation for comparison,
+but never activates it.
 
 ## Reference and Contracts
 

@@ -76,8 +76,8 @@ maison user plan --force-dotfiles
 maison user apply --force-dotfiles
 ```
 
-The forced dry run reports ownership changes without modifying files. The forced apply backs up the exact targets mise
-refused before replacement.
+The forced plan renders the intended command sequence without modifying files. Use `maison user status` to inspect
+current drift before applying. The forced apply backs up the exact targets mise refused before replacement.
 
 Targeted migration backups are stored under:
 

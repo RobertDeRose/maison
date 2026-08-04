@@ -37,19 +37,20 @@ maison user plan
 maison plan
 ```
 
-`maison plan` previews the system layer first and then the user layer, matching `maison apply`. For the same user flags,
-user plan and apply use the same convergence steps; dry-run execution and the documented package/trust/finalize
-substitutions are the only differences. Both default to non-forced dotfile handling. Preview a forced replacement before
-performing it:
+`maison plan` builds the system preview first and then renders the user-layer convergence preview, matching
+`maison apply`. The system preview may realize a Nix store/cache derivation, but it never activates the configuration.
+User planning is read-only: it prints the exact dry-run command sequence without invoking mise, package, dotfile, trust,
+or migration commands. Use `maison user status` to inspect current user-environment drift. Both plan and apply default to
+non-forced dotfile handling. Preview a forced replacement before performing it:
 
 ```bash
 maison user plan --force-dotfiles
 maison user apply --force-dotfiles
 ```
 
-`maison plan --force-dotfiles` forwards the same user-layer flag after the system preview. Forced plan reports ownership
-conflicts without changing files; forced apply snapshots the exact refused targets before replacement. Each snapshot has
-an atomic `manifest.json` under `~/.local/state/maison/backups/dotfiles/<timestamp>/`; it records the home-relative
+`maison plan --force-dotfiles` forwards the same user-layer flag after the system preview. Planning does not change
+files; forced apply snapshots the exact refused targets before replacement. Each snapshot has an atomic `manifest.json`
+under `~/.local/state/maison/backups/dotfiles/<timestamp>/`; it records the home-relative
 source, file/directory/symlink identity, supported metadata, payload path, symlink target, and restore status. Symlink
 payloads remain symlinks, so Maison never copies external symlink target content.
 

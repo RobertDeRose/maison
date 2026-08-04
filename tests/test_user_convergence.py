@@ -153,7 +153,7 @@ class UserConvergencePlanTest(unittest.TestCase):
             self.convergence.aggregate_user_arguments(force_dotfiles=True),
         )
 
-    def test_overlay_config_is_restored_after_a_dry_run(self) -> None:
+    def test_dry_run_does_not_execute_commands_or_move_overlay_config(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             temp = Path(directory)
             home = temp / "home"
@@ -168,10 +168,26 @@ class UserConvergencePlanTest(unittest.TestCase):
             installed.symlink_to(overlay_config)
             installed_macos = home / ".config/mise/config.macos.toml"
             installed_macos.symlink_to(overlay_macos_config)
+            marker = temp / "executed"
+            trust_state = temp / "trusted-configs"
+            dotfile = home / ".config/git/config"
+            lockfile = home / ".config/mise/mise.lock"
+            backup = temp / "migration-backup"
+            dotfile.parent.mkdir(parents=True)
+            trust_state.write_text("trusted\n")
+            dotfile.write_text("dotfile\n")
+            lockfile.write_text("lock\n")
+            backup.write_text("backup\n")
             probe = temp / "probe.sh"
             executable(
                 probe,
-                '#!/bin/sh\n[ ! -e "$HOME/.config/mise/config.toml" ] && [ ! -e "$HOME/.config/mise/config.macos.toml" ] && exit 0\nexit 11\n',
+                "#!/bin/sh\n"
+                'printf "changed\\n" > "$MAISON_TRUST_STATE"\n'
+                'printf "changed\\n" > "$MAISON_DOTFILE"\n'
+                'printf "changed\\n" > "$MAISON_LOCKFILE"\n'
+                'printf "changed\\n" > "$MAISON_BACKUP"\n'
+                f'touch "{marker}"\n'
+                "exit 11\n",
             )
             command = self.convergence.Command(
                 name="mise",
@@ -181,14 +197,48 @@ class UserConvergencePlanTest(unittest.TestCase):
                     "HOME": str(home),
                     "MAISON_USER_CONFIG_ROOT": str(overlay),
                     "MISE_GLOBAL_CONFIG_FILE": str(overlay / "config/mise/config.toml"),
+                    "MAISON_TRUST_STATE": str(trust_state),
+                    "MAISON_DOTFILE": str(dotfile),
+                    "MAISON_LOCKFILE": str(lockfile),
+                    "MAISON_BACKUP": str(backup),
                 },
                 dry_run=True,
                 semantic_action="probe",
             )
             plan = self.convergence.CommandPlan("plan", False, (command,))
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output):
+                self.convergence.run_command_plan(plan)
+
+            self.assertFalse(marker.exists())
+            self.assertEqual("trusted\n", trust_state.read_text())
+            self.assertEqual("dotfile\n", dotfile.read_text())
+            self.assertEqual("lock\n", lockfile.read_text())
+            self.assertEqual("backup\n", backup.read_text())
+            self.assertTrue(installed.is_symlink())
+            self.assertTrue(installed_macos.is_symlink())
+            self.assertIn("[plan] mise:", output.getvalue())
+            self.assertIn(str(probe), output.getvalue())
+
+    def test_plan_renders_every_convergence_step(self) -> None:
+        plan = self.convergence.build_command_plan(
+            mode="plan",
+            force_dotfiles=True,
+            root=self.root,
+            home=self.home,
+        )
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
             self.convergence.run_command_plan(plan)
-            self.assertEqual("old config\n", installed.read_text())
-            self.assertEqual("old macos config\n", installed_macos.read_text())
+
+        rendered = output.getvalue().splitlines()
+        self.assertEqual(
+            ["[plan] prepare:", "[plan] dotfiles:", "[plan] lockfiles:", "[plan] packages:", "[plan] mise:"],
+            [line.split(" ", 2)[0] + " " + line.split(" ", 2)[1] for line in rendered],
+        )
+        self.assertTrue(all("--dry-run" in line for line in rendered))
+        for name in ("prepare", "dotfiles", "mise"):
+            self.assertTrue(any(line.startswith(f"[plan] {name}:") and "--force-dotfiles" in line for line in rendered))
 
     def test_overlay_config_is_retained_after_successful_apply(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
