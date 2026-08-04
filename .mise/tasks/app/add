@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# [MISE] quiet=true
 # [MISE] description="Install a macOS cask, then atomically record its declaration"
 #USAGE arg "<cask>" help="Cask token"
 set -euo pipefail

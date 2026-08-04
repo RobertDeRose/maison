@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# [MISE] quiet=true
 # [MISE] description="Add a host only after a candidate inventory validates"
 #USAGE arg "<hostname>" help="Hostname to add"
 #USAGE flag "--system <system>" help="Nix system, for example aarch64-linux"

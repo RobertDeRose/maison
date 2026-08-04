@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# [MISE] quiet=true
 # [MISE] description="Atomically remove a bootstrap package declaration"
 #USAGE arg "<package>" help="manager:package"
 #USAGE flag "--macos" help="Edit the Apple Silicon macOS user config"

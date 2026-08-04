@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# [MISE] quiet=true
 # [MISE] description="Diagnose the Nix system and mise user layers without changing them"
 #USAGE flag "--host <host>" help="Inventory host"
 set -euo pipefail

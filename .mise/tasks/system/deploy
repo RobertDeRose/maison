@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# [MISE] quiet=true
 # [MISE] description="Deploy a Linux system-manager profile through deploy-rs"
 # [MISE] interactive=true
 #USAGE arg "<host>" help="Linux inventory host"

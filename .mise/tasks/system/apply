@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# [MISE] quiet=true
 # [MISE] description="Build and activate the selected Nix system configuration"
 # [MISE] interactive=true
 #USAGE flag "--host <host>" help="Inventory host (defaults to the current hostname)"

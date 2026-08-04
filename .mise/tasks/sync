@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# [MISE] quiet=true
 # [MISE] description="Pull Maison and your private overlay, then apply both layers"
 # [MISE] interactive=true
 #USAGE flag "--host <host>" help="Inventory host"

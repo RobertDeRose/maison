@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# [MISE] quiet=true
 # [MISE] description="Install/repair Nix, apply system configuration, and converge user state"
 # [MISE] interactive=true
 #USAGE flag "--host <host>" help="Inventory host (defaults to current hostname)"

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# [MISE] quiet=true
 # [MISE] description="Delete old Nix system generations and collect unreferenced store paths"
 #USAGE arg "[older_than]" default="7d" help="Generation retention window accepted by nix-env"
 set -euo pipefail

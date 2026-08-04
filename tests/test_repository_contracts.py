@@ -141,6 +141,19 @@ class ReviewGatedDependencyUpdateTest(unittest.TestCase):
 
 
 class RepositoryContractTest(unittest.TestCase):
+    def test_all_mise_tasks_suppress_command_banners(self) -> None:
+        task_files = sorted(path for path in (ROOT / ".mise/tasks").rglob("*") if path.is_file())
+        self.assertTrue(task_files)
+        for path in task_files:
+            with self.subTest(path=path.relative_to(ROOT)):
+                self.assertIn("# [MISE] quiet=true", path.read_text().splitlines()[:4])
+
+        tasks = tomllib.loads(read("mise.toml")).get("tasks", {})
+        self.assertTrue(tasks)
+        for name, task in tasks.items():
+            with self.subTest(task=name):
+                self.assertIs(task.get("quiet"), True)
+
     def test_task_and_script_entrypoints_are_executable(self) -> None:
         paths = [ROOT / "bootstrap.sh", ROOT / "bin/maison", ROOT / ".mise/lib/inventory.py"]
         paths.extend(sorted((ROOT / ".mise/tasks").rglob("*")))

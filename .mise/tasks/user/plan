@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# [MISE] quiet=true
 # [MISE] description="Preview user tools, applications, preferences, and dotfiles"
 #USAGE flag "--force-dotfiles" help="Preview replacement of conflicting whole-file targets"
 set -euo pipefail

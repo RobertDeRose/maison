@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# [MISE] quiet=true
 # [MISE] description="Search mise and Homebrew package sources"
 #USAGE arg "<query>" help="Package name or description"
 set -euo pipefail

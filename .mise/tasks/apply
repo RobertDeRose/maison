@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# [MISE] quiet=true
 # [MISE] description="Apply the Nix system layer, then converge the mise user layer"
 # [MISE] interactive=true
 #USAGE flag "--host <host>" help="Inventory host"

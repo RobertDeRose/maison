@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# [MISE] quiet=true
 # [MISE] description="Preview the Nix system layer, then the mise user layer"
 #USAGE flag "--host <host>" help="Inventory host"
 #USAGE flag "--force-dotfiles" help="Preview replacement of conflicting user dotfiles"

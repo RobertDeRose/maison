@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# [MISE] quiet=true
 # [MISE] description="Build the selected Nix system configuration without activation"
 #USAGE flag "--host <host>" help="Inventory host (defaults to the current hostname)"
 set -euo pipefail

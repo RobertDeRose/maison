@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# [MISE] quiet=true
 # [MISE] description="List configured hosts and their profiles"
 
 set -euo pipefail

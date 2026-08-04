@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# [MISE] quiet=true
 # [MISE] description="Roll back only the Nix system layer"
 # [MISE] interactive=true
 #USAGE flag "-y --yes" help="Skip confirmation"

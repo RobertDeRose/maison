@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# [MISE] quiet=true
 # [MISE] description="Compatibility alias for system:plan"
 # [MISE] hide=true
 set -euo pipefail

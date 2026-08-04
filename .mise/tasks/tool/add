@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# [MISE] quiet=true
 # [MISE] description="Install a global mise tool, then atomically commit config and lock changes"
 #USAGE arg "<tool>" help="Backend-qualified tool name"
 #USAGE arg "[version]" default="latest" help="Version"

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# [MISE] quiet=true
 # [MISE] description="Repair reversible user state from the restored remote repository"
 # [MISE] interactive=true
 #USAGE flag "--force-dotfiles" help="Replace conflicting whole-file targets"
