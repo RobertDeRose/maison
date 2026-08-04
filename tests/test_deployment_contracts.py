@@ -232,15 +232,24 @@ class DeploymentContractTest(unittest.TestCase):
         linux_module = read("nix/modules/linux/system.nix")
 
         self.assertIn('sudo_prefix=""', deploy_task)
-        self.assertIn("${sudo_prefix}/usr/bin/python3 $quoted_helper recover", deploy_task)
-        self.assertIn("${sudo_prefix}/usr/bin/python3 $quoted_helper stage", deploy_task)
-        self.assertIn("${sudo_prefix}/usr/bin/python3 $quoted_helper finalize", deploy_task)
+        self.assertIn("${sudo_prefix}$quoted_helper recover", deploy_task)
+        self.assertIn("${sudo_prefix}$quoted_helper stage", deploy_task)
+        self.assertIn("${sudo_prefix}$quoted_helper finalize", deploy_task)
+        self.assertIn('remote_helper="/etc/maison/maison-deploy-transaction"', deploy_task)
         self.assertIn('if [ "$ssh_user" != root ]; then', system_task)
         self.assertIn("/usr/bin/install -d -m 0755 /nix/var/nix/profiles/system-manager-profiles", system_task)
 
         self.assertIn(
-            "Cmnd_Alias MAISON_DEPLOY_HELPER = /usr/bin/python3 /tmp/maison-deploy-helper.*.py stage *", linux_module
+            "Cmnd_Alias MAISON_DEPLOY_HELPER = /etc/maison/maison-deploy-transaction recover,",
+            linux_module,
         )
+        self.assertIn(
+            "/etc/maison/maison-deploy-transaction stage /tmp/maison-deploy.??????.tar.gz,",
+            linux_module,
+        )
+        self.assertNotIn("/usr/bin/python3 /tmp/maison-deploy-helper", linux_module)
+        self.assertIn("transactionHelper", linux_module)
+        self.assertIn("maison-deploy-transaction", linux_module)
         self.assertIn(
             "Cmnd_Alias MAISON_DEPLOY_PREPARE = /usr/bin/install -d -m 0755 /nix/var/nix/profiles/system-manager-profiles",
             linux_module,
@@ -253,9 +262,10 @@ class DeploymentContractTest(unittest.TestCase):
     def test_deploy_is_two_explicit_transactions(self) -> None:
         script = read(".mise/tasks/deploy")
         self.assertIn("scripts/create-deploy-archive.sh", script)
-        self.assertIn("scripts/maison_deploy_transaction.py", script)
+        self.assertNotIn("scripts/maison_deploy_transaction.py", script)
         self.assertIn("mktemp /tmp/maison-deploy.XXXXXX.tar.gz", script)
-        self.assertIn("mktemp /tmp/maison-deploy-helper.XXXXXX.py", script)
+        self.assertIn("/etc/maison/maison-deploy-transaction", script)
+        self.assertNotIn("maison-deploy-helper.", script)
         self.assertNotIn("maison-deploy-${host}-$$", script)
         self.assertIn("mise run system:deploy", script)
         self.assertIn("mise run user:apply", script)

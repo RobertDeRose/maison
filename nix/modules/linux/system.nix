@@ -50,6 +50,50 @@ let
 
     exit 1
   '';
+  transactionHelperSource = pkgs.writeText "maison-deploy-transaction.py" (
+    builtins.readFile ../../../scripts/maison_deploy_transaction.py
+  );
+  transactionHelper = pkgs.writeShellApplication {
+    name = "maison-deploy-transaction";
+    runtimeInputs = [ pkgs.python3 ];
+    text = ''
+      set -euo pipefail
+
+      repo_path=${lib.escapeShellArg host.deploy.repoPath}
+      managed_user=${lib.escapeShellArg user.username}
+      helper=${lib.escapeShellArg transactionHelperSource}
+
+      die() {
+        echo "maison-deploy-transaction: $*" >&2
+        exit 2
+      }
+
+      case "''${1:-}" in
+        recover)
+          [ "$#" -eq 1 ] || die "recover takes no arguments"
+          exec ${pkgs.python3}/bin/python3 "$helper" recover "$repo_path" "$managed_user"
+          ;;
+        stage)
+          [ "$#" -eq 2 ] || die "stage requires one archive path"
+          archive="$2"
+          [[ "$archive" =~ ^/tmp/maison-deploy\.[[:alnum:]]{6}\.tar\.gz$ ]] ||
+            die "unsafe archive path: $archive"
+          exec ${pkgs.python3}/bin/python3 "$helper" stage "$repo_path" "$managed_user" "$archive"
+          ;;
+        finalize)
+          [ "$#" -eq 2 ] || die "finalize requires one action"
+          case "$2" in
+            commit | rollback) ;;
+            *) die "finalize action must be commit or rollback" ;;
+          esac
+          exec ${pkgs.python3}/bin/python3 "$helper" finalize "$repo_path" "$managed_user" "$2"
+          ;;
+        *)
+          die "expected recover, stage, or finalize"
+          ;;
+      esac
+    '';
+  };
 in
 {
   # Allow running on non-NixOS distros
@@ -113,12 +157,16 @@ in
     pkgs.nh
   ];
 
+  environment.etc."maison/maison-deploy-transaction" = {
+    source = "${transactionHelper}/bin/maison-deploy-transaction";
+    mode = "0755";
+    replaceExisting = true;
+  };
+
   environment.etc."sudoers.d/90-system-manager-wheel" = {
     text = ''
       Cmnd_Alias MAISON_DEPLOY_PREPARE = /usr/bin/install -d -m 0755 /nix/var/nix/profiles/system-manager-profiles
-      Cmnd_Alias MAISON_DEPLOY_HELPER = /usr/bin/python3 /tmp/maison-deploy-helper.*.py stage *,
-                                          /usr/bin/python3 /tmp/maison-deploy-helper.*.py recover *,
-                                          /usr/bin/python3 /tmp/maison-deploy-helper.*.py finalize *
+      Cmnd_Alias MAISON_DEPLOY_HELPER = /etc/maison/maison-deploy-transaction recover, /etc/maison/maison-deploy-transaction stage /tmp/maison-deploy.??????.tar.gz, /etc/maison/maison-deploy-transaction finalize commit, /etc/maison/maison-deploy-transaction finalize rollback
       Cmnd_Alias MAISON_DEPLOY_ACTIVATE = /nix/store/*/activate-rs *
 
       ${deployUser} ALL=(root) NOPASSWD: MAISON_DEPLOY_PREPARE, MAISON_DEPLOY_HELPER, MAISON_DEPLOY_ACTIVATE

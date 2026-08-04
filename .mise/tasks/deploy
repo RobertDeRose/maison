@@ -27,7 +27,6 @@ cleanup() {
   [ -z "$archive" ] || rm -f "$archive"
   cleanup_paths=()
   [ -z "$remote_archive" ] || cleanup_paths+=("$remote_archive")
-  [ -z "$remote_helper" ] || cleanup_paths+=("$remote_helper")
   [ -z "$remote_recovery_python" ] || cleanup_paths+=("$remote_recovery_python")
   [ -z "$remote_recovery_prepare" ] || cleanup_paths+=("$remote_recovery_prepare")
   if [ "${#cleanup_paths[@]}" -gt 0 ] && [ -n "$hostname" ] && [ -n "$ssh_user" ]; then
@@ -60,9 +59,7 @@ repo_path="$(inventory_deploy_repo_path "$root" "$host")"
 remote_archive="$(ssh "$ssh_user@$hostname" 'umask 077; mktemp /tmp/maison-deploy.XXXXXX.tar.gz')"
 [[ $remote_archive =~ ^/tmp/maison-deploy\.[A-Za-z0-9]+\.tar\.gz$ ]] ||
   die "remote mktemp returned an unsafe archive path: $remote_archive"
-remote_helper="$(ssh "$ssh_user@$hostname" 'umask 077; mktemp /tmp/maison-deploy-helper.XXXXXX.py')"
-[[ $remote_helper =~ ^/tmp/maison-deploy-helper\.[A-Za-z0-9]+\.py$ ]] ||
-  die "remote mktemp returned an unsafe helper path: $remote_helper"
+remote_helper="/etc/maison/maison-deploy-transaction"
 remote_recovery_python="$(ssh "$ssh_user@$hostname" 'umask 077; mktemp /tmp/maison-recovery-helper.XXXXXX.py')"
 [[ $remote_recovery_python =~ ^/tmp/maison-recovery-helper\.[A-Za-z0-9]+\.py$ ]] ||
   die "remote mktemp returned an unsafe recovery helper path: $remote_recovery_python"
@@ -77,8 +74,6 @@ quoted_recovery_prepare="$(printf '%q' "$remote_recovery_prepare")"
 # shellcheck disable=SC2029 # destinations are shell-escaped above
 ssh "$ssh_user@$hostname" "cat > $quoted_archive" < "$archive"
 # shellcheck disable=SC2029 # destinations are shell-escaped above
-ssh "$ssh_user@$hostname" "cat > $quoted_helper" < "$root/scripts/maison_deploy_transaction.py"
-# shellcheck disable=SC2029 # destinations are shell-escaped above
 ssh "$ssh_user@$hostname" "cat > $quoted_recovery_python" < "$root/.mise/lib/user_convergence.py"
 # shellcheck disable=SC2029 # destinations are shell-escaped above
 ssh "$ssh_user@$hostname" "cat > $quoted_recovery_prepare" < "$root/scripts/user-prepare.sh"
@@ -86,13 +81,12 @@ ssh "$ssh_user@$hostname" "cat > $quoted_recovery_prepare" < "$root/scripts/user
 ssh "$ssh_user@$hostname" "chmod 0644 $quoted_recovery_python; chmod 0755 $quoted_recovery_prepare"
 
 quoted_repo="$(printf '%q' "$repo_path")"
-quoted_user="$(printf '%q' "$user")"
 sudo_prefix=""
 if [ "$ssh_user" != root ]; then
   sudo_prefix="sudo "
 fi
 # shellcheck disable=SC2029 # argument escaping handled above
-if ! ssh "$ssh_user@$hostname" "${sudo_prefix}/usr/bin/python3 $quoted_helper recover $quoted_repo $quoted_user"; then
+if ! ssh "$ssh_user@$hostname" "${sudo_prefix}$quoted_helper recover"; then
   printf 'error: existing transaction state recovery failed for %s\n' "$repo_path" >&2
   exit 1
 fi
@@ -100,7 +94,7 @@ fi
 quoted_remote_archive="$(printf '%q' "$remote_archive")"
 # shellcheck disable=SC2029 # all arguments are shell-escaped above
 ssh "$ssh_user@$hostname" \
-  "${sudo_prefix}/usr/bin/python3 $quoted_helper stage $quoted_repo $quoted_user $quoted_remote_archive"
+  "${sudo_prefix}$quoted_helper stage $quoted_remote_archive"
 # The staging helper removes the remote archive after extracting it. Avoid a
 # second SSH cleanup attempt on every successful deployment.
 remote_archive=""
@@ -157,7 +151,7 @@ fi
 quoted_action="$(printf '%q' "$action")"
 # shellcheck disable=SC2029 # all arguments are shell-escaped above
 if ! ssh "$ssh_user@$hostname" \
-  "${sudo_prefix}/usr/bin/python3 $quoted_helper finalize $quoted_repo $quoted_user $quoted_action"; then
+  "${sudo_prefix}$quoted_helper finalize $quoted_action"; then
   if [ "$action" = rollback ]; then
     printf 'error: remote user convergence failed and repository rollback also failed; inspect the root-owned Maison transaction state for %s\n' "$repo_path" >&2
   else

@@ -151,7 +151,7 @@ class RemoteDeploymentRecoveryContractTest(unittest.TestCase):
         self.assertIn("mise run user:recover", deploy)
         self.assertIn("action=rollback", deploy)
         self.assertLess(deploy.index("action=rollback"), deploy.index("mise run user:recover"))
-        self.assertLess(deploy.index("finalize $quoted_repo"), deploy.index("mise run user:recover"))
+        self.assertLess(deploy.index("finalize $quoted_action"), deploy.index("mise run user:recover"))
         self.assertIn('ssh "$user@$hostname"', deploy)
         self.assertIn("MAISON_RECOVERY_REPORT", deploy)
         self.assertIn("run_recovery()", deploy)
