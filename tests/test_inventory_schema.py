@@ -183,6 +183,7 @@ class InventorySchemaFixtureContractTest(unittest.TestCase):
             capture_output=True,
             text=True,
             env=os.environ.copy(),
+            timeout=120,
         )
         self.assertEqual(nix_result.returncode, 0, nix_result.stderr)
         self.assertEqual(json.loads(nix_result.stdout), python_values)
