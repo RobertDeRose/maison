@@ -75,6 +75,63 @@ class MigrationBehaviorTest(unittest.TestCase):
                     self.assertEqual(result.stdout, expected)
                     self.assertEqual(discovery_log.read_text().splitlines(), ["discovery"])
 
+    def test_maison_hides_repository_fix_task_from_public_surface(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            temp = Path(directory)
+            fake_bin = temp / "bin"
+            fake_bin.mkdir()
+            invocations = temp / "invocations"
+            executable(
+                fake_bin / "mise",
+                "#!/bin/sh\n"
+                'case "$*" in\n'
+                '  *"tasks --name-only --hidden"*) printf "fix\\nstatus\\n" ;;\n'
+                '  *"tasks --name-only"*) printf "fix\\nstatus\\n" ;;\n'
+                '  *"tasks"*) printf "fix Apply deterministic repository fixes\\nstatus Show status\\n" ;;\n'
+                '  *) printf "%s\\n" "$*" >>"$INVOCATIONS"; exit 99 ;;\n'
+                "esac\n",
+            )
+            env = os.environ.copy()
+            env.update(
+                {
+                    "PATH": f"{fake_bin}{os.pathsep}{env['PATH']}",
+                    "MAISON_HOME": str(ROOT),
+                    "INVOCATIONS": str(invocations),
+                }
+            )
+
+            overview = run(
+                [str(ROOT / "bin/maison"), "--help"],
+                env=env,
+                cwd=Path(tempfile.gettempdir()),
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(overview.returncode, 0, overview.stderr)
+            self.assertNotIn("Apply deterministic repository fixes", overview.stdout)
+            self.assertNotIn("\n  fix", overview.stdout)
+
+            command_paths = run(
+                [str(ROOT / "bin/maison"), "__command-paths"],
+                env=env,
+                cwd=Path(tempfile.gettempdir()),
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(command_paths.returncode, 0, command_paths.stderr)
+            self.assertNotIn("fix", command_paths.stdout.split())
+
+            fix = run(
+                [str(ROOT / "bin/maison"), "fix"],
+                env=env,
+                cwd=Path(tempfile.gettempdir()),
+                capture_output=True,
+                text=True,
+            )
+            self.assertNotEqual(fix.returncode, 0)
+            self.assertIn("unknown command 'fix'", fix.stderr)
+            self.assertFalse(invocations.exists())
+
     def test_maison_launcher_preserves_interactive_stderr_for_tasks(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             temp = Path(directory)

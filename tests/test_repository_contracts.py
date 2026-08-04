@@ -367,7 +367,6 @@ class RepositoryContractTest(unittest.TestCase):
             "  bootstrap",
             "  deploy",
             "  doctor",
-            "  fix",
             "  plan",
             "  publish",
             "  rollback",
@@ -376,6 +375,8 @@ class RepositoryContractTest(unittest.TestCase):
             "  update",
         )
         self.assertNotIn("workflow:\n", overview.stdout)
+        self.assertNotIn("  fix", overview.stdout)
+        self.assertNotIn("Apply deterministic repository fixes", overview.stdout)
         for row in workflow_rows:
             with self.subTest(row=row):
                 self.assertIn(row, overview.stdout)
@@ -396,6 +397,8 @@ class RepositoryContractTest(unittest.TestCase):
         self.assertIn("Pull Maison and your private overlay", overview.stdout)
         self.assertIn("Show the active private overlay and remote status", overview.stdout)
         self.assertIn("Publish committed private overlay changes", overview.stdout)
+        self.assertIn("[tasks.fix]", read("mise.toml"))
+        self.assertIn('run = "hk fix -a"', read("mise.toml"))
         self.assertNotIn("check:\n", overview.stdout)
         self.assertNotIn("package:add", overview.stdout)
         self.assertNotIn("docs:\n  build", overview.stdout)
@@ -409,7 +412,8 @@ class RepositoryContractTest(unittest.TestCase):
         )
         self.assertEqual(generated.returncode, 0, generated.stderr)
         self.assertIn("docs:\n", generated.stdout)
-        for task in ("  fix", "  serve", "  restore", "  update"):
+        self.assertNotIn("  fix", generated.stdout)
+        for task in ("  serve", "  restore", "  update"):
             with self.subTest(task=task):
                 self.assertIn(task, overview.stdout)
 
