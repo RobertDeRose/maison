@@ -94,6 +94,20 @@ class VerifiedBootstrapContractTest(unittest.TestCase):
             self.assertNotEqual(refused.returncode, 0)
             self.assertIn("checksum", refused.stderr.lower())
 
+    def test_copier_bootstrap_uses_hashed_repository_lock(self) -> None:
+        bootstrap = read("bootstrap.sh")
+        readme = read("README.md")
+        requirements = read("bootstrap/copier-requirements.txt")
+        source = f"{bootstrap}\n{readme}"
+
+        self.assertNotIn("uvx --from copier", source)
+        self.assertIn(
+            'uv pip install \\\n      --python "$copier_env/bin/python" \\\n      --require-hashes', bootstrap
+        )
+        self.assertIn("bootstrap/copier-requirements.txt", source)
+        self.assertIn("copier==9.17.0", requirements)
+        self.assertIn("copier==9.17.0 \\\n    --hash=sha256:", requirements)
+
     def test_bootstrap_runtime_plugins_and_tools_are_immutable(self) -> None:
         project_config = tomllib.loads(read("mise.toml"))
         runtime_tools = {"usage": project_config["tools"]["usage"]}

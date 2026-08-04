@@ -5,7 +5,7 @@
 #   ./bootstrap.sh [--host HOST] [--overlay GIT-URL-OR-PATH] [--repo OWNER/REPO|URL|PATH] [--ref REF]
 #   Set MAISON_OVERLAY instead of passing --overlay to select an existing private repository.
 #   Download this file from a reviewed release, verify it against the published checksum, then run:
-#     bash bootstrap.sh --host HOST --overlay GIT-URL-OR-PATH --repo RobertDeRose/maison --ref v0.1.0
+#     bash bootstrap.sh --host HOST --overlay GIT-URL-OR-PATH --repo RobertDeRose/maison --ref v0.1.1
 
 set -euo pipefail
 
@@ -144,12 +144,22 @@ setup_overlay_with_copier() {
   [ -e "$destination" ] && [ ! -d "$destination" ] && bootstrap_die "overlay destination is not a directory: $destination"
   mkdir -p "$destination"
   destination="$(cd "$destination" && pwd -P)"
-  log "Installing the temporary Copier runner"
+  log "Installing the pinned Copier runner"
   mise install uv
   log "Creating private overlay at $destination"
-  MAISON_HOME="$repo_root" MAISON_OVERLAY_PATH="$destination" MAISON_HOST="$host" \
-    mise exec -- uvx --from copier copier copy --trust --data "username=$copier_user" \
-      "$repo_root/overlay_template" "$destination"
+  copier_env="$(mktemp -d)"
+  (
+    trap 'rm -rf "$copier_env"' EXIT
+    mise exec --locked python -- python -m venv "$copier_env"
+    mise exec --locked uv pip install \
+      --python "$copier_env/bin/python" \
+      --require-hashes \
+      --no-cache \
+      -r "$repo_root/bootstrap/copier-requirements.txt"
+    MAISON_HOME="$repo_root" MAISON_OVERLAY_PATH="$destination" MAISON_HOST="$host" \
+      "$copier_env/bin/copier" copy --trust --data "username=$copier_user" \
+        "$repo_root/overlay_template" "$destination"
+  )
   [ -d "$destination/.git" ] || bootstrap_die "Copier did not initialize the overlay Git repository: $destination"
   overlay="$destination"
 }

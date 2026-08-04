@@ -23,7 +23,7 @@ mutable `main` ref. Run it without an overlay, answer **yes** when prompted, and
 
 ```bash
 set -euo pipefail
-MAISON_BOOTSTRAP_VERSION="v0.1.0"
+MAISON_BOOTSTRAP_VERSION="v0.1.1"
 bootstrap_dir="$(mktemp -d)"
 trap 'rm -rf "$bootstrap_dir"' EXIT
 curl -fsSL \
@@ -51,7 +51,7 @@ remote sources into Maison's overlay data directory:
 
 ```bash
 set -euo pipefail
-MAISON_BOOTSTRAP_VERSION="v0.1.0"
+MAISON_BOOTSTRAP_VERSION="v0.1.1"
 bootstrap_dir="$(mktemp -d)"
 trap 'rm -rf "$bootstrap_dir"' EXIT
 curl -fsSL \
@@ -79,8 +79,14 @@ Use this when you want to inspect or customize the overlay before bootstrap:
 git clone https://github.com/RobertDeRose/maison.git
 cd maison
 mise install uv
+copier_env="$(mktemp -d)"
+trap 'rm -rf "$copier_env"' EXIT
+mise exec --locked python -- python -m venv "$copier_env"
+mise exec --locked uv pip install \
+  --python "$copier_env/bin/python" --require-hashes --no-cache \
+  -r bootstrap/copier-requirements.txt
 MAISON_HOME="$PWD" MAISON_HOST="$(hostname -s)" \
-  mise exec -- uvx --from copier copier copy --trust \
+  "$copier_env/bin/copier" copy --trust \
     --data "username=$(id -un)" overlay_template "$HOME/src/my-maison-overlay"
 
 ./bootstrap.sh --host "$(hostname -s)" --overlay "$HOME/src/my-maison-overlay"

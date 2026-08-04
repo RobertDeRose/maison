@@ -472,14 +472,16 @@ class RepositoryContractTest(unittest.TestCase):
             "github.com/RobertDeRose/maison/releases/download/${MAISON_BOOTSTRAP_VERSION}/SHA256SUMS",
             readme,
         )
-        self.assertIn('MAISON_BOOTSTRAP_VERSION="v0.1.0"', readme)
+        self.assertIn('MAISON_BOOTSTRAP_VERSION="v0.1.1"', readme)
         self.assertIn("shasum -a 256 -c -", readme)
         self.assertIn("sha256sum -c -", readme)
         self.assertIn("### 1. Install with curl and create an overlay during setup", readme)
         self.assertIn("### 2. Install with curl and use an existing overlay", readme)
         self.assertIn("### 3. Clone Maison and run Copier manually", readme)
         self.assertIn("git clone https://github.com/RobertDeRose/maison.git", readme)
-        self.assertIn("copier copy --trust", readme)
+        self.assertNotIn("uvx --from copier", readme)
+        self.assertIn("copy --trust", readme)
+        self.assertIn("bootstrap/copier-requirements.txt", readme)
         self.assertIn("overlay_template", readme)
 
     def test_template_documents_mise_dotfile_mapping(self) -> None:
