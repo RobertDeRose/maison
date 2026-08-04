@@ -47,41 +47,60 @@ run_nix_checked() {
 
 run_nix_checked flake metadata --no-update-lock-file >/dev/null
 
-run_nix_checked eval --no-update-lock-file --json .#packages \
-  --apply 'builtins.mapAttrs (_: packages: builtins.mapAttrs (_: package: package.drvPath) packages)' \
-  >/dev/null
-run_nix_checked eval --no-update-lock-file --json .#apps \
-  --apply '
-    builtins.mapAttrs (_: apps:
-      builtins.mapAttrs (_: app:
-        assert app.type == "app";
-        assert builtins.isString app.program;
-        app.program
-      ) apps
-    )
-  ' \
-  >/dev/null
-run_nix_checked eval --no-update-lock-file --json .#formatter \
-  --apply 'builtins.mapAttrs (_: formatter: formatter.drvPath)' \
-  >/dev/null
-run_nix_checked eval --no-update-lock-file --json .#checks \
-  --apply 'builtins.mapAttrs (_: checks: builtins.mapAttrs (_: check: check.drvPath) checks)' \
-  >/dev/null
-run_nix_checked eval --no-update-lock-file --json .#darwinConfigurations \
-  --apply 'builtins.mapAttrs (_: configuration: configuration.system.drvPath)' \
-  >/dev/null
-run_nix_checked eval --no-update-lock-file --json .#systemConfigs \
-  --apply 'builtins.mapAttrs (_: configuration: configuration.drvPath)' \
-  >/dev/null
-run_nix_checked eval --no-update-lock-file --json .#deploy >/dev/null
+# The expression path bypasses flake installable overrides, so carry the active
+# overlay into the expression explicitly while retaining nix_command's normal
+# input override handling for the other commands below.
+load_nix_overlay_environment
+MAISON_CHECK_OVERLAY_PATH="$(nix_overlay_path)"
+export MAISON_CHECK_OVERLAY_PATH
+BATCH_NIX_EVAL="$(cat <<'NIX'
+let
+  source = builtins.getFlake (toString ./.);
+  overlay = builtins.path { path = builtins.getEnv "MAISON_CHECK_OVERLAY_PATH"; };
+  inputs = source.inputs // { inherit overlay; self = source; };
+  inventoryFile = "${overlay}/inventory.toml";
+  inventory = builtins.fromTOML (builtins.readFile inventoryFile);
+  outputs = import ./nix/outputs.nix { inherit inputs inventoryFile inventory; };
+  packages = builtins.mapAttrs (_: packages: builtins.mapAttrs (_: package: package.drvPath) packages) outputs.packages;
+  apps = builtins.mapAttrs (_: apps:
+    builtins.mapAttrs (_: app:
+      assert app.type == "app";
+      assert builtins.isString app.program;
+      app.program
+    ) apps
+  ) outputs.apps;
+  formatter = builtins.mapAttrs (_: formatter: formatter.drvPath) outputs.formatter;
+  checks = builtins.mapAttrs (_: checks: builtins.mapAttrs (_: check: check.drvPath) checks) outputs.checks;
+  darwinConfigurations = builtins.mapAttrs (_: configuration: configuration.system.drvPath) outputs.darwinConfigurations;
+  systemConfigs = builtins.mapAttrs (_: configuration: configuration.drvPath) outputs.systemConfigs;
+in {
+  inherit packages apps formatter checks darwinConfigurations systemConfigs;
+  deploy = outputs.deploy;
+}
+NIX
+)"
+
+batch_json_file="$(mktemp)"
+trap 'rm -f "$batch_json_file"' EXIT
+run_nix_checked eval --impure --no-update-lock-file --json --expr "$BATCH_NIX_EVAL" >"$batch_json_file"
 
 current_system="$(run_nix_checked eval --impure --raw --expr builtins.currentSystem)"
+check_installables=()
+check_names="$(python3 -c '
+import json
+import sys
+
+checks = json.load(sys.stdin)["checks"].get(sys.argv[1])
+if checks is None:
+    raise SystemExit(f"missing Nix checks for {sys.argv[1]}")
+print("\n".join(checks))
+' "$current_system" <"$batch_json_file")"
 while IFS= read -r check_name; do
   [ -n "$check_name" ] || continue
-  run_nix_checked build --no-update-lock-file --no-link ".#checks.\"$current_system\".\"$check_name\"" >/dev/null
-done < <(
-  run_nix_checked eval --no-update-lock-file --json ".#checks.\"$current_system\"" --apply builtins.attrNames \
-    | python3 -c 'import json, sys; print("\n".join(json.load(sys.stdin)))'
-)
+  check_installables+=(".#checks.\"$current_system\".\"$check_name\"")
+done <<<"$check_names"
+if [ "${#check_installables[@]}" -gt 0 ]; then
+  run_nix_checked build --no-update-lock-file --no-link "${check_installables[@]}" >/dev/null
+fi
 
 run_nix_checked fmt --no-update-lock-file -- --ci

@@ -278,6 +278,18 @@ class DeploymentContractTest(unittest.TestCase):
         self.assertIn('attribute_names ".#checks.', matrix)
         self.assertIn('build_target ".#checks.', matrix)
 
+    def test_nix_validation_batches_compatible_work(self) -> None:
+        check = read(".mise/tasks/check/nix")
+        self.assertIn('MAISON_CHECK_OVERLAY_PATH="$(nix_overlay_path)"', check)
+        self.assertIn("export MAISON_CHECK_OVERLAY_PATH", check)
+        self.assertIn("BATCH_NIX_EVAL", check)
+        self.assertIn('check_installables+=(".#checks.\\"$current_system\\".\\"$check_name\\"")', check)
+        self.assertIn('run_nix_checked build --no-update-lock-file --no-link "${check_installables[@]}"', check)
+        self.assertNotIn(
+            'run_nix_checked build --no-update-lock-file --no-link ".#checks.\\"$current_system\\".\\"$check_name\\""',
+            check,
+        )
+
     def test_rollbacks_do_not_double_advance_darwin_profile(self) -> None:
         script = read(".mise/tasks/system/rollback")
         darwin_block = script.split("Darwin)", 1)[1].split("Linux)", 1)[0]
