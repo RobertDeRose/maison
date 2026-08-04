@@ -1,0 +1,12 @@
+schema = 1
+
+[users.operator]
+username = "operator"
+full_name = "Example Operator"
+email = 42
+github = "example-operator"
+
+[hosts.example-darwin]
+system = "aarch64-darwin"
+user = "operator"
+profiles = ["base", "dev", "mac"]

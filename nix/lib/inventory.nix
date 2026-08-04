@@ -33,14 +33,20 @@ let
       github = raw.github or (fail "user '${name}' is missing field 'github'");
       allowNonportable = raw.allow_nonportable or false;
     in
-    if username == "root" then
+    if !(builtins.isString username) then
+      fail "user '${name}' has a non-string username"
+    else if username == "root" then
       fail "user '${name}' may not use the root account"
+    else if !(builtins.isBool allowNonportable) then
+      fail "user '${name}' allow_nonportable must be true or false"
+    else if !(builtins.isString fullName) || fullName == "" then
+      fail "user '${name}' full_name must be a non-empty string"
+    else if !(builtins.isString email) || email == "" then
+      fail "user '${name}' email must be a non-empty string"
     else if !validation.validUsername username && !allowNonportable then
       fail "user '${name}' has invalid username '${username}'; expected a portable non-root account name, or set allow_nonportable = true only for an existing compatibility identity"
     else if !validation.validGithub github then
       fail "user '${name}' has invalid github value '${github}'; expected a 1-39 character GitHub username"
-    else if email == "" then
-      fail "user '${name}' has an empty email"
     else
       {
         inherit

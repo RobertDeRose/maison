@@ -69,6 +69,7 @@ public starter inventory; it is not merged with it.
 
 ## Fixture contract
 
-Inventory fixtures live under `tests/fixtures/inventory/`. Valid and invalid cases are consumed by both Python and Nix
-validation so CI fails when their accepted fields, defaults, type checks, profiles, feature keys, deploy keys, or deploy
-path rules drift.
+Inventory fixtures live under `tests/fixtures/inventory/`. The fixture corpus is the acceptance contract for both Python
+and Nix validation: every valid or invalid fixture must have the same result in both control planes. The parity tests
+also compare normalized deployment defaults, so CI fails when accepted fields, defaults, type checks, profiles, feature
+keys, deploy keys, or deploy path rules drift.
