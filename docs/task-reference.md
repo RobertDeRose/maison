@@ -18,14 +18,14 @@
 
 ## System commands
 
-| Task                 | Behavior                                            |
-|----------------------|-----------------------------------------------------|
-| `system:plan`        | `nh darwin build` or build a system-manager closure |
-| `system:apply`       | `nh darwin switch` or system-manager switch         |
-| `system:deploy`      | deploy-rs Linux system profile                      |
-| `system:history`     | List canonical system-profile generations           |
-| `system:rollback`    | Select and activate the previous generation         |
-| `system:clean [age]` | Remove old system generations and collect the store |
+| Task                 | Behavior                                                                                                                           |
+|----------------------|------------------------------------------------------------------------------------------------------------------------------------|
+| `system:plan`        | `nh darwin build` or build a system-manager closure without activation; interactive terminals show progress while evaluation waits |
+| `system:apply`       | `nh darwin switch` or system-manager switch                                                                                        |
+| `system:deploy`      | deploy-rs Linux system profile                                                                                                     |
+| `system:history`     | List canonical system-profile generations                                                                                          |
+| `system:rollback`    | Select and activate the previous generation                                                                                        |
+| `system:clean [age]` | Remove old system generations and collect the store                                                                                |
 
 ## User commands
 

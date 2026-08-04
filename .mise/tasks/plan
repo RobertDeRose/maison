@@ -4,9 +4,11 @@
 #USAGE flag "--host <host>" help="Inventory host"
 #USAGE flag "--force-dotfiles" help="Preview replacement of conflicting user dotfiles"
 set -euo pipefail
+printf '\n==> System preview (no activation)\n'
 args=()
 [ -z "${usage_host:-}" ] || args+=(--host "$usage_host")
 mise run system:plan -- "${args[@]}"
+printf '\n==> User preview (read-only)\n'
 args=()
 [ "${usage_force_dotfiles:-false}" != true ] || args+=(--force-dotfiles)
 mise run user:plan -- "${args[@]}"

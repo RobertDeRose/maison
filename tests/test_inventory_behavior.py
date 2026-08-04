@@ -310,6 +310,42 @@ class OverlayContractTest(unittest.TestCase):
         self.assertNotIn("--impure", nix)
         self.assertIn("load_maison_overlay_environment", nix)
 
+    def test_startup_spinner_preserves_output_and_exit_status(self) -> None:
+        result = run(
+            [
+                "bash",
+                "-c",
+                'source "$1/.mise/lib/common.sh"; run_with_startup_spinner "Planning system" sh -c \'sleep 0.05; printf ready; exit 7\'',
+                "_",
+                str(ROOT),
+            ],
+            cwd=ROOT,
+            env={**os.environ, "MAISON_SPINNER": "always"},
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(result.returncode, 7)
+        self.assertIn("ready", result.stdout)
+        self.assertIn("Planning system", result.stderr)
+
+    def test_startup_spinner_is_passthrough_without_tty(self) -> None:
+        result = run(
+            [
+                "bash",
+                "-c",
+                'source "$1/.mise/lib/common.sh"; run_with_startup_spinner "Planning system" sh -c \'printf ready; printf warning >&2; exit 3\'',
+                "_",
+                str(ROOT),
+            ],
+            cwd=ROOT,
+            env=os.environ.copy(),
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(result.returncode, 3)
+        self.assertEqual(result.stdout, "ready")
+        self.assertEqual(result.stderr, "warning")
+
     def test_run_nh_passes_overlay_input_for_private_inventory(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             temp = Path(directory)

@@ -243,9 +243,17 @@ class DeploymentContractTest(unittest.TestCase):
 
     def test_system_plan_builds_without_activation(self) -> None:
         plan = read(".mise/tasks/system/plan")
+        self.assertIn("run_with_startup_spinner", plan)
+        self.assertIn("Planning Darwin configuration", plan)
+        self.assertIn("Planning Linux configuration", plan)
         self.assertIn("run_nh darwin build", plan)
         self.assertNotIn("run_nh darwin switch", plan)
         self.assertNotIn("system:apply", plan)
+
+    def test_aggregate_plan_labels_system_and_user_phases(self) -> None:
+        plan = read(".mise/tasks/plan")
+        self.assertIn("==> System preview (no activation)", plan)
+        self.assertIn("==> User preview (read-only)", plan)
 
     def test_deploy_rs_activates_exact_system_manager_profile(self) -> None:
         deployment = read("nix/lib/deployments.nix")

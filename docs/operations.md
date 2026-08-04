@@ -37,11 +37,13 @@ maison user plan
 maison plan
 ```
 
-`maison plan` builds the system preview first and then renders the user-layer convergence preview, matching
-`maison apply`. The system preview may realize a Nix store/cache derivation, but it never activates the configuration.
-User planning is read-only: it prints the exact dry-run command sequence without invoking mise, package, dotfile, trust,
-or migration commands. Use `maison user status` to inspect current user-environment drift. Both plan and apply default to
-non-forced dotfile handling. Preview a forced replacement before performing it:
+`maison plan` labels the system and user phases, builds the system preview first, and then renders the user-layer
+convergence preview, matching `maison apply`. Interactive terminals show a spinner while system evaluation waits, then
+stream the evaluator output; non-interactive runs bypass the spinner and preserve direct output. The system preview may
+realize a Nix store/cache derivation, but it never activates the configuration. User planning is read-only: it prints the
+exact dry-run command sequence without invoking mise, package, dotfile, trust, or migration commands. Use
+`maison user status` to inspect current user-environment drift. Both plan and apply default to non-forced dotfile handling.
+Preview a forced replacement before performing it:
 
 ```bash
 maison user plan --force-dotfiles

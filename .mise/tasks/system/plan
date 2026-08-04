@@ -17,11 +17,13 @@ export NIX_SUPPRESS_DIRTY_WARNING=true
 case "$(inventory_host_system "$root" "$host")" in
   *-darwin)
     validate_host_platform "$root" "$host" "$(current_system)"
-    run_nh darwin build "$root" -H "$host"
+    run_with_startup_spinner "Planning Darwin configuration (no activation)" \
+      run_nh darwin build "$root" -H "$host"
     ;;
   *-linux)
     mkdir -p .build
-    nix_command build -L --out-link ".build/system-$host" "$root#systemConfigs.\"$host\""
+    run_with_startup_spinner "Planning Linux configuration for $host (no activation)" \
+      nix_command build -L --out-link ".build/system-$host" "$root#systemConfigs.\"$host\""
     ;;
   *) die "unsupported host: $host" ;;
 esac

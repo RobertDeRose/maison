@@ -33,6 +33,80 @@ log_info() { printf '==> %s\n' "$*"; }
 log_warn() { printf 'warning: %s\n' "$*" >&2; }
 log_error() { printf 'error: %s\n' "$*" >&2; }
 
+run_with_startup_spinner_relay() {
+  local ready_file="$1" release_file="$2" done_file="$3" line first=true
+  while IFS= read -r line || [ -n "$line" ]; do
+    if [ "$first" = true ]; then
+      : > "$ready_file"
+      while [ ! -e "$release_file" ]; do sleep 0.01; done
+      first=false
+    fi
+    printf '%s\n' "$line"
+  done
+  : > "$done_file"
+}
+
+run_with_startup_spinner() {
+  [ "$#" -ge 2 ] || {
+    log_error "run_with_startup_spinner requires a label and command"
+    return 2
+  }
+
+  local label="$1"
+  shift
+  case "${MAISON_SPINNER:-auto}" in
+    never)
+      "$@"
+      return
+      ;;
+    always) ;;
+    *)
+      if [ ! -t 2 ] || is_ci; then
+        "$@"
+        return
+      fi
+      ;;
+  esac
+
+  local output_dir ready_file release_file stdout_done stderr_done pid
+  local frame_index=0 frames='|/-' status
+  if ! output_dir="$(mktemp -d "${TMPDIR:-/tmp}/maison-spinner.XXXXXX")"; then
+    "$@"
+    return
+  fi
+  ready_file="$output_dir/ready"
+  release_file="$output_dir/release"
+  stdout_done="$output_dir/stdout-done"
+  stderr_done="$output_dir/stderr-done"
+
+  # Hold the first line until the spinner is cleared, then stream both output
+  # channels without letting carriage-return updates corrupt the terminal.
+  "$@" > >(run_with_startup_spinner_relay "$ready_file" "$release_file" "$stdout_done") \
+    2> >(run_with_startup_spinner_relay "$ready_file" "$release_file" "$stderr_done" >&2) &
+  pid=$!
+  while kill -0 "$pid" 2> /dev/null && [ ! -e "$ready_file" ]; do
+    printf '\r\033[2K==> %s %s' "$label" "${frames:frame_index:1}" >&2
+    frame_index=$(((frame_index + 1) % ${#frames}))
+    sleep 0.1
+  done
+  printf '\r\033[2K' >&2
+  : > "$release_file"
+
+  if wait "$pid"; then
+    status=0
+  else
+    status=$?
+  fi
+  while [ ! -e "$stdout_done" ] || [ ! -e "$stderr_done" ]; do sleep 0.01; done
+  rm -rf "$output_dir"
+  if [ "$status" -eq 0 ]; then
+    printf '==> %s done\n' "$label" >&2
+  else
+    printf '==> %s failed (exit %s)\n' "$label" "$status" >&2
+  fi
+  return "$status"
+}
+
 die() {
   log_error "$*"
   return 1
