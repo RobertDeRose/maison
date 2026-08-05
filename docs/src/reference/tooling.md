@@ -37,7 +37,7 @@ maison plan
 ```
 
 Consumer operations use the consumer flake and lock directly. They do not use Maison's lock as a fallback, do not pass a
-synthetic overlay input, and do not write Maison files.
+a synthetic alternate configuration root, and do not write Maison files.
 
 ## Tasks
 

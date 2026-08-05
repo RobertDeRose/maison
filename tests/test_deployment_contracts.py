@@ -102,7 +102,6 @@ class VerifiedBootstrapContractTest(unittest.TestCase):
         self.assertIn("flake.nix, flake.lock, and inventory.toml", source)
         self.assertIn("MAISON_REQUIRE_CONSUMER", source)
         self.assertNotIn("copier-requirements", source)
-        self.assertNotIn("MAISON_OVERLAY_HOME", source)
 
     def test_bootstrap_runtime_plugins_and_tools_are_immutable(self) -> None:
         project_config = tomllib.loads(read("mise.toml"))

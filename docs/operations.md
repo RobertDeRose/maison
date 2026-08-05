@@ -66,12 +66,11 @@ runtime verification.
 maison doctor
 maison user status
 maison system history
-maison status
+git -C "$MAISON_CONSUMER_ROOT" status --short
 ```
 
-`maison status` inspects the consumer checkout and its configured upstream. It reports worktree cleanliness,
-branch/upstream relationship, and last-known state when fetching is unavailable. `maison publish` publishes only existing
-consumer commits; it does not create commits for arbitrary edits.
+Maison reports user drift and system generations. Consumer Git history is operator-owned; inspect, pull, commit, and push
+it with Git rather than through a Maison repository command.
 
 ## Authoring and updates
 
@@ -102,17 +101,15 @@ implicit fallback. Use `maison self update` when upgrading the framework itself:
 input, builds and validates the candidate CLI, and rolls back the lock plus owner-only CLI state on failure. Scheduled
 Maison dependency automation updates only Maison's own lock and remains review-gated.
 
-## Sync and deployment
+## Deployment
 
 ```bash
-maison sync
-maison sync --user-only
 maison deploy example-linux
 ```
 
-`maison sync` fast-forwards only the consumer checkout and runs apply after a successful pull. Deployment requires a clean
-consumer tree and transfers committed consumer content only. Nix evaluation and deployment target the consumer flake;
-Maison's checkout remains untouched.
+Deployment requires a clean consumer tree and transfers committed consumer content only. Nix evaluation and deployment
+target the consumer flake; Maison's checkout remains untouched. Use a fast-forward-only Git pull or an explicit push for
+the consumer before or after deployment when needed.
 
 ## Recovery
 

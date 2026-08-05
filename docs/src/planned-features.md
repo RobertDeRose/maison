@@ -25,7 +25,7 @@ selection.
 | `maison-001-root-owned-deployment-transactions` | MAISON-001: Root-owned deployment transaction state  | `maison-mol-6y0`  | Delivered     | None                                            | [record](features/maison-001-root-owned-deployment-transactions/index.md) |
 | `maison-002-revision-bound-commit-rollback`     | MAISON-002: Revision-bound commit and rollback       | `maison-mol-quq`  | Delivered     | `maison-001-root-owned-deployment-transactions` | [record](features/maison-002-revision-bound-commit-rollback/index.md)     |
 | `maison-003-restricted-deployment-privilege`    | MAISON-003: Restricted deployment privilege model    | `maison-mol-4v3`  | Delivered     | `maison-002-revision-bound-commit-rollback`     | [record](features/maison-003-restricted-deployment-privilege/index.md)    |
-| `maison-004-private-overlay-configuration`      | MAISON-004: Private overlay configuration split      | `maison-mol-e9t`  | Delivered     | `maison-003-restricted-deployment-privilege`    | [record](features/maison-004-private-overlay-configuration/index.md)      |
+| `maison-004-private-overlay-configuration`      | MAISON-004: Private configuration split (superseded) | `maison-mol-e9t`  | Retired       | `maison-003-restricted-deployment-privilege`    | [record](features/maison-004-private-overlay-configuration/index.md)      |
 | `maison-005-verified-bootstrap-artifacts`       | MAISON-005: Verified bootstrap artifacts             | `maison-mol-pa6`  | Delivered     | `maison-004-private-overlay-configuration`      | [record](features/maison-005-verified-bootstrap-artifacts/index.md)       |
 | `maison-006-review-gated-dependency-updates`    | MAISON-006: Review-gated dependency updates          | `maison-mol-aqu`  | Delivered     | `maison-005-verified-bootstrap-artifacts`       | [record](features/maison-006-review-gated-dependency-updates/index.md)    |
 | `maison-007-parser-backed-toml-mutations`       | MAISON-007: Parser-backed TOML mutations             | `maison-mol-ywg`  | Delivered     | `maison-006-review-gated-dependency-updates`    | [record](features/maison-007-parser-backed-toml-mutations/index.md)       |
@@ -39,14 +39,11 @@ selection.
 | `maison-015-linux-runtime-verification`         | MAISON-015: Linux runtime activation verification    | `maison-mol-cg3x` | Delivered     | `maison-014-remote-convergence-restoration`     | [record](features/maison-015-linux-runtime-verification/index.md)         |
 | `maison-016-pi-typescript-validation`           | MAISON-016: Pi TypeScript validation boundary        | `maison-mol-fmud` | Delivered     | `maison-015-linux-runtime-verification`         | [record](features/maison-016-pi-typescript-validation/index.md)           |
 | `maison-017-maison-terroir-repository-split`    | MAISON-017: Maison/Terroir repository split          | `maison-mol-jfhs` | Delivered     | `maison-016-pi-typescript-validation`           | [record](features/maison-017-maison-terroir-repository-split/index.md)    |
-| `maison-overlay-copier-bootstrap`               | Copier-backed overlay setup and bootstrap onboarding | `maison-mol-5s9`  | Delivered     | `maison-017-maison-terroir-repository-split`    | [record](features/maison-overlay-copier-bootstrap/index.md)               |
-| `maison-overlay-authoring-lifecycle`            | Overlay authoring lifecycle and command surface      | `maison-mol-3jb`  | Delivered     | `maison-overlay-copier-bootstrap`               | [record](features/maison-overlay-authoring-lifecycle/index.md)            |
+| `maison-overlay-copier-bootstrap`               | Retired Copier consumer bootstrap                    | `maison-mol-5s9`  | Retired       | `maison-017-maison-terroir-repository-split`    | [record](features/maison-overlay-copier-bootstrap/index.md)               |
+| `maison-overlay-authoring-lifecycle`            | Retired alternate repository command surface         | `maison-mol-3jb`  | Retired       | `maison-overlay-copier-bootstrap`               | [record](features/maison-overlay-authoring-lifecycle/index.md)            |
 
-`maison-overlay-authoring-lifecycle` follows the delivered Copier overlay setup. Its Beads epic
-`maison-mol-3jb` delivered the reviewed shared Git lifecycle, private-overlay software mutation integration, direct
-status/publish command surface, and reader-facing documentation. It is sequenced after the overlay source/state
-contract so authoring requires a private Git overlay, refreshes it safely, and publishes commits without changing
-bootstrap or full `sync` semantics.
+The retired entries above remain only as historical delivery records. The supported architecture is the public Maison
+framework plus one selected consumer repository; consumer Git history is managed explicitly with Git.
 
 ## Later P2 maintainability follow-ups
 

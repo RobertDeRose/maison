@@ -176,8 +176,8 @@ class MigrationBehaviorTest(unittest.TestCase):
     def test_docker_structured_symlink_uses_homebrew_and_retries_other_packages(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             temp = Path(directory)
-            config_root = temp / "overlay"
-            config = config_root / "config/mise"
+            consumer = temp / "consumer"
+            config = consumer / "config/mise"
             config.mkdir(parents=True)
             (config / "config.toml").write_text(
                 textwrap.dedent(
@@ -248,7 +248,7 @@ class MigrationBehaviorTest(unittest.TestCase):
                     "MAISON_DOCKER_APP": str(docker),
                     "MAISON_DOCKER_KUBECTL_TARGET": str(target),
                     "MAISON_PLATFORM": "Darwin",
-                    "MAISON_USER_CONFIG_ROOT": str(config_root),
+                    "MAISON_CONSUMER_ROOT": str(consumer),
                     "MISE_CALLS": str(mise_calls),
                 }
             )
@@ -732,7 +732,7 @@ class MigrationBehaviorTest(unittest.TestCase):
             home = Path(directory) / "home"
             home.mkdir()
             env = os.environ.copy()
-            env["HOME"] = str(home)
+            env.update({"HOME": str(home), "MAISON_CONSUMER_ROOT": str(ROOT)})
             script = ROOT / "scripts/user-link-mise-lock.sh"
             preview = run(
                 [str(script), "--dry-run"],
@@ -754,21 +754,21 @@ class MigrationBehaviorTest(unittest.TestCase):
                 self.assertTrue(target.is_symlink())
                 self.assertEqual(target.resolve(), ROOT / "config/mise" / name)
 
-    def test_mise_lockfile_links_prefer_the_active_overlay(self) -> None:
+    def test_mise_lockfile_links_use_the_selected_consumer(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             temp = Path(directory)
             home = temp / "home"
             home.mkdir()
-            overlay = temp / "overlay"
-            config = overlay / "config/mise"
+            consumer = temp / "consumer"
+            config = consumer / "config/mise"
             config.mkdir(parents=True)
             for name in ("mise.lock", "config.macos.lock"):
-                (config / name).write_text(f"# overlay {name}\\n")
+                (config / name).write_text(f"# consumer {name}\\n")
             env = os.environ.copy()
             env.update(
                 {
                     "HOME": str(home),
-                    "MAISON_USER_CONFIG_ROOT": str(overlay),
+                    "MAISON_CONSUMER_ROOT": str(consumer),
                 }
             )
             script = ROOT / "scripts/user-link-mise-lock.sh"

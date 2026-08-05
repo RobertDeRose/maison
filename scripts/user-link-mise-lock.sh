@@ -2,8 +2,15 @@
 # Link generated global lockfiles outside mise dotfile processing.
 set -euo pipefail
 
-root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
-config_root="${MAISON_USER_CONFIG_ROOT:-$root}"
+consumer_root="${MAISON_CONSUMER_ROOT:-}"
+[ -n "$consumer_root" ] || {
+  printf 'MAISON_CONSUMER_ROOT is required to link consumer lockfiles\n' >&2
+  exit 1
+}
+consumer_root="$(cd "$consumer_root" 2> /dev/null && pwd -P)" || {
+  printf 'consumer repository is unavailable: %s\n' "$consumer_root" >&2
+  exit 1
+}
 dry_run=false
 
 while [ "$#" -gt 0 ]; do
@@ -19,9 +26,8 @@ done
 
 locks=(mise.lock config.macos.lock)
 for name in "${locks[@]}"; do
-  source="$config_root/config/mise/$name"
+  source="$consumer_root/config/mise/$name"
   target="$HOME/.config/mise/$name"
-  [ -f "$source" ] || source="$root/config/mise/$name"
   [ -f "$source" ] || {
     printf 'missing generated lockfile: %s\n' "$source" >&2
     exit 1

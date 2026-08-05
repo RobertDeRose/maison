@@ -13,8 +13,8 @@ root="$(maison_consumer_root "${BASH_SOURCE[0]}")"
 source "$framework_root/.mise/lib/platform.sh"
 source "$framework_root/.mise/lib/inventory.sh"
 source "$framework_root/.mise/lib/transaction.sh"
-source "$framework_root/.mise/lib/repository_git.sh"
-repository_require_authoring "$root" host:add
+source "$framework_root/.mise/lib/git.sh"
+git_require_authoring "$root" host:add
 cd "$root"
 
 host="${usage_hostname:?mise did not provide the required hostname argument}"

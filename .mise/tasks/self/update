@@ -17,10 +17,10 @@ cd "$root"
 source "$framework_root/.mise/lib/nix.sh"
 # shellcheck source=.mise/lib/transaction.sh
 source "$framework_root/.mise/lib/transaction.sh"
-# shellcheck source=.mise/lib/repository_git.sh
-source "$framework_root/.mise/lib/repository_git.sh"
+# shellcheck source=.mise/lib/git.sh
+source "$framework_root/.mise/lib/git.sh"
 
-repository_require_authoring "$root" self:update
+git_require_authoring "$root" self:update
 transaction_require_authoring_checkout "$root" self:update
 transaction_require_lock "$root" "${BASH_SOURCE[0]}" "$@"
 load_nix_environment

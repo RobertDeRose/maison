@@ -7,18 +7,11 @@ consumer_inventory_path() {
   printf '%s/inventory.toml\n' "$1"
 }
 
-consumer_config_root() {
-  local root="$1"
-  printf '%s\n' "$root"
-}
-
 load_maison_consumer_environment() {
-  local root="$1" inventory configuration_root
+  local root="$1" inventory
   export MAISON_CONSUMER_ROOT="$root"
   inventory="$(consumer_inventory_path "$root")"
   export MAISON_INVENTORY="$inventory"
-  configuration_root="$(consumer_config_root "$root")"
-  export MAISON_USER_CONFIG_ROOT="$configuration_root"
   export MISE_GLOBAL_CONFIG_FILE="$root/config/mise/config.toml"
 }
 

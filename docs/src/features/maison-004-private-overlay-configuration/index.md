@@ -1,9 +1,12 @@
 # MAISON-004: Private overlay configuration split
 
+> Historical record: this delivery was superseded by the single consumer-root model. The old source-selection state and
+> command paths described below are not supported; current migration guidance is in [Migration Contract](../../migration-contract.md).
+
 ## Delivery Summary
 
 - Beads feature root: `maison-mol-e9t`
-- Status: delivered
+- Status: delivered, later superseded by `maison-hi8`
 - Pull request: pending delivery action
 - Merge commit: pending delivery action
 - Design record: [design.md](design.md)

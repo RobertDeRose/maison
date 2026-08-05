@@ -1,9 +1,12 @@
 # Copier-backed overlay setup and bootstrap onboarding
 
+> Historical record: this bootstrap path is retired. Maison now requires an existing consumer repository and does not
+> create or persist a generated alternate configuration root. See [Migration Contract](../../migration-contract.md).
+
 ## Delivery Summary
 
 - Beads feature root: `maison-mol-5s9`
-- Status: delivered
+- Status: delivered, later retired by `maison-hi8`
 - Pull request: pending delivery action
 - Merge commit: `14a5e92` (fast-forward target)
 - Design record: [design.md](design.md)

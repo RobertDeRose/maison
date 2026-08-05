@@ -174,17 +174,8 @@ def aggregate_user_arguments(*, force_dotfiles: bool) -> tuple[str, ...]:
     return ("--force-dotfiles",) if force_dotfiles else ()
 
 
-def _configuration_root(root: Path) -> Path:
-    configured = os.environ.get("MAISON_USER_CONFIG_ROOT")
-    if configured:
-        configuration_root = Path(configured).expanduser().resolve()
-        if configuration_root == root or (configuration_root / "config/mise/config.toml").is_file():
-            return configuration_root
-    return root
-
-
 def _configuration_path(root: Path) -> Path:
-    return _configuration_root(root) / "config/mise/config.toml"
+    return root / "config/mise/config.toml"
 
 
 def build_command_plan(
@@ -205,11 +196,10 @@ def build_command_plan(
         if recovery
         else ((execution_argument, *force_arguments) if dry_run else force_arguments)
     )
-    configuration_root = _configuration_root(root)
     mise_environment = {
         "MISE_AUTO_ENV": "true",
         "MISE_GLOBAL_CONFIG_FILE": str(_configuration_path(root)),
-        "MAISON_USER_CONFIG_ROOT": str(configuration_root),
+        "MAISON_CONSUMER_ROOT": str(root),
     }
     framework_root = Path(os.environ.get("MAISON_HOME", root)).expanduser().resolve()
     prepare_script = framework_root / "scripts/user-prepare.sh"
@@ -321,7 +311,6 @@ def _path_exists(path: Path) -> bool:
     return path.exists() or path.is_symlink()
 
 
-ConfigGuard = tuple[tuple[Path, Path], ...]
 FileSignature = tuple[int, int, int, int, int]
 
 
@@ -333,57 +322,6 @@ class _ComparisonCache:
     def __init__(self) -> None:
         self.file_entries = {}
         self.file_comparisons = {}
-
-
-def _hide_installed_consumer_config(plan: CommandPlan) -> ConfigGuard | None:
-    mise_command = plan.command("mise")
-    config_root = mise_command.env.get("MAISON_USER_CONFIG_ROOT")
-    if not config_root:
-        return None
-    configuration_root = Path(config_root).resolve()
-    try:
-        project_root = plan.command("prepare").cwd
-    except KeyError:
-        project_root = mise_command.cwd
-    if configuration_root == project_root.resolve():
-        return None
-
-    installed_root = mise_command.cwd / ".config/mise"
-    guards: list[tuple[Path, Path]] = []
-    try:
-        for active_config in sorted((configuration_root / "config/mise").glob("config*.toml")):
-            installed = installed_root / active_config.name
-            if not _path_exists(installed):
-                continue
-            if not installed.is_symlink() or installed.resolve() != active_config.resolve():
-                continue
-            backup = installed.parent / f".{installed.name}.maison-backup-{os.getpid()}"
-            if _path_exists(backup):
-                raise RuntimeError(f"temporary consumer config backup already exists: {backup}")
-            os.replace(installed, backup)
-            guards.append((installed, backup))
-    except BaseException:
-        _restore_installed_consumer_config(tuple(guards), retain_new_config=False)
-        raise
-    return tuple(guards) or None
-
-
-def _restore_installed_consumer_config(
-    guard: ConfigGuard | None,
-    *,
-    retain_new_config: bool,
-) -> None:
-    if guard is None:
-        return
-    for installed, backup in reversed(guard):
-        if retain_new_config and _path_exists(installed):
-            backup.unlink()
-            continue
-        if _path_exists(installed):
-            if installed.is_dir() and not installed.is_symlink():
-                raise RuntimeError(f"refusing to remove directory {installed}")
-            installed.unlink()
-        os.replace(backup, installed)
 
 
 def _expand_user_path(value: str, home: Path) -> Path:
@@ -492,7 +430,7 @@ def run_user_status(
     plan = build_command_plan(mode="plan", force_dotfiles=False, root=root, home=home)
     environment = os.environ.copy()
     environment.update(plan.command("mise").env)
-    configuration_root = Path(environment["MAISON_USER_CONFIG_ROOT"]).resolve()
+    configuration_root = root.resolve()
     status = runner(
         ("mise", "bootstrap", "status"),
         cwd=root,
@@ -528,35 +466,26 @@ def run_command_plan(plan: CommandPlan, *, event_file: Path | None = None) -> No
         _print_command_plan(plan)
         return
 
-    guard = _hide_installed_consumer_config(plan)
-    succeeded = False
-    try:
-        for command in _commands_for_execution(plan):
-            environment = os.environ.copy()
-            environment.update(command.env)
-            stdout = subprocess.DEVNULL if command.quiet else None
-            _record_event(event_file, mode=plan.mode, phase=command.name, status="started")
-            try:
-                subprocess.run(command.argv, cwd=command.cwd, env=environment, check=True, stdout=stdout)
-            except subprocess.CalledProcessError as error:
-                _record_event(
-                    event_file,
-                    mode=plan.mode,
-                    phase=command.name,
-                    status="failed",
-                    exit_code=error.returncode,
-                )
-                raise
-            except OSError:
-                _record_event(event_file, mode=plan.mode, phase=command.name, status="failed", exit_code=127)
-                raise
-            _record_event(event_file, mode=plan.mode, phase=command.name, status="completed")
-        succeeded = True
-    finally:
-        _restore_installed_consumer_config(
-            guard,
-            retain_new_config=succeeded and plan.mode in {"apply", "recovery"},
-        )
+    for command in _commands_for_execution(plan):
+        environment = os.environ.copy()
+        environment.update(command.env)
+        stdout = subprocess.DEVNULL if command.quiet else None
+        _record_event(event_file, mode=plan.mode, phase=command.name, status="started")
+        try:
+            subprocess.run(command.argv, cwd=command.cwd, env=environment, check=True, stdout=stdout)
+        except subprocess.CalledProcessError as error:
+            _record_event(
+                event_file,
+                mode=plan.mode,
+                phase=command.name,
+                status="failed",
+                exit_code=error.returncode,
+            )
+            raise
+        except OSError:
+            _record_event(event_file, mode=plan.mode, phase=command.name, status="failed", exit_code=127)
+            raise
+        _record_event(event_file, mode=plan.mode, phase=command.name, status="completed")
 
 
 def _write_recovery_result(

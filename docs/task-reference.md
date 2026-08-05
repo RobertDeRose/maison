@@ -6,21 +6,18 @@ configuration root.
 
 ## Aggregate commands
 
-| Task                                                  | Behavior                                                            |
-|-------------------------------------------------------|---------------------------------------------------------------------|
-| `doctor`                                              | Diagnose the consumer's two ownership layers without mutation       |
-| `consumer validate [--consumer PATH]`                 | Validate consumer contracts without activation or provider access   |
-| `plan [--host HOST] [--force-dotfiles]`               | Preview consumer system state, then render the read-only user plan  |
-| `apply [--host HOST] [--force-dotfiles]`              | Apply consumer Nix state, then converge consumer user state         |
-| `sync [--host HOST] [--user-only] [--force-dotfiles]` | Fast-forward the consumer repository, then run `apply`              |
-| `update [INPUT] [--check]`                            | Update only the consumer `flake.lock`; optionally validate          |
-| `self:update`                                         | Transactionally upgrade Maison from the consumer lock               |
-| `status`                                              | Inspect the consumer worktree and upstream relationship             |
-| `publish`                                             | Publish existing consumer commits through its configured upstream   |
-| `deploy HOST`                                         | Deploy the consumer's Linux system profile and user state           |
-| `rollback`                                            | Roll back only the active Nix system generation                     |
-| `bootstrap [--consumer PATH]`                         | Verify Maison runtimes, select a consumer, and converge both layers |
-| `check`                                               | Validate Maison framework data, scripts, tests, and Nix outputs     |
+| Task                                     | Behavior                                                            |
+|------------------------------------------|---------------------------------------------------------------------|
+| `doctor`                                 | Diagnose the consumer's two ownership layers without mutation       |
+| `consumer validate [--consumer PATH]`    | Validate consumer contracts without activation or provider access   |
+| `plan [--host HOST] [--force-dotfiles]`  | Preview consumer system state, then render the read-only user plan  |
+| `apply [--host HOST] [--force-dotfiles]` | Apply consumer Nix state, then converge consumer user state         |
+| `update [INPUT] [--check]`               | Update only the consumer `flake.lock`; optionally validate          |
+| `self:update`                            | Transactionally upgrade Maison from the consumer lock               |
+| `deploy HOST`                            | Deploy the consumer's Linux system profile and user state           |
+| `rollback`                               | Roll back only the active Nix system generation                     |
+| `bootstrap [--consumer PATH]`            | Verify Maison runtimes, select a consumer, and converge both layers |
+| `check`                                  | Validate Maison framework data, scripts, tests, and Nix outputs     |
 
 ## System commands
 
@@ -57,9 +54,9 @@ configuration root.
 | `app:add` / `app:remove`         | Transactionally edit and focused-commit consumer cask config         |
 | `docs:build` / `docs:serve`      | Build or serve the Maison contributor book                           |
 
-Authoring commands require a Git checkout of the consumer and reject dirty mutation targets. `plan`, `status`, `list`,
-`validate`, and `search` remain read-only. Deployed snapshots without `.git` reject source mutations and point back to
-the consumer authoring checkout.
+Authoring commands require a Git checkout of the consumer and reject dirty mutation targets. `plan`, `user:status`,
+`list`, `validate`, and `search` remain read-only. Deployed snapshots without `.git` reject source mutations and point
+back to the consumer authoring checkout.
 
 `consumer validate` is read-only and runs the Maison-owned consumer contract. It checks the consumer flake and lock,
 inventory, supported systems, package and dotfile declarations, fnox references, documentation links, and raw

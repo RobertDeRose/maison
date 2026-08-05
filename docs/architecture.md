@@ -64,6 +64,10 @@ Consumers declare logical confidential values in `fnox.toml` and choose their pr
 SSH private keys, and signing private keys resolve only at runtime and belong in the selected provider, not in either
 repository or the Nix store.
 
+The canonical consumer is Terroir. The archived private `terroir.original` checkout is migration input only, and the
+former `nix-config` source is a private archived framework reference; neither is an active Maison input. Maison's public
+history is fresh and contains only reusable, neutral content. The migration manifest determines what belongs in Terroir.
+
 ## Nix system layer
 
 The framework exposes reusable modules and public helpers. A consumer composes them into its own
@@ -140,17 +144,17 @@ are resolved relative to the consumer root and are allowed only when they match 
 ## Transaction boundaries
 
 Local authoring commands require a Git checkout of the selected consumer. A deployed snapshot has `.maison-revision` but
-no `.git` and is runtime source only. `host:add`, tool/package/app mutations, `update`, `publish`, and sync operations
-fail rather than writing Maison or a deployed snapshot.
+no `.git` and is runtime source only. `host:add`, tool/package/app mutations, and `update` fail rather than writing
+Maison or a deployed snapshot.
 
 Local mutations serialize checked-in consumer writes through one target-repository lock. Journals live under
 `${XDG_STATE_HOME:-$HOME/.local/state}/maison/repository-mutations/` or the test override
 `MAISON_REPOSITORY_MUTATION_STATE_DIR`, keyed by the canonical consumer path with owner-only permissions. A journal
 copies original and candidate files so startup recovery can restore an incomplete mutation before reading mutable state.
 
-Covered add/remove operations refresh the consumer fast-forward-only, preserve unrelated tracked and untracked work,
-ignore ignored files, and reject dirty declaration or lock targets. Once validation and the journal complete, only the
-operation's declaration and generated lock paths enter a focused commit:
+Covered add/remove operations preserve unrelated tracked and untracked work, ignore ignored files, and reject dirty
+declaration or lock targets. Once validation and the journal complete, only the operation's declaration and generated lock
+paths enter a focused commit. Maison does not fetch, pull, or push the consumer:
 
 ```text
 added(scope): `identifier`

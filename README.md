@@ -98,9 +98,6 @@ maison doctor
 maison consumer validate
 maison plan
 maison apply
-maison status
-maison publish
-maison sync
 maison update
 maison self update
 
@@ -127,8 +124,9 @@ candidate CLI, validates the consumer through that candidate, and records the ca
 failed updates restore both the lock and the prior CLI state. Maison's own checkout and lock are never an update target.
 
 The same operations are available as Maison mise tasks, for example `mise -C ~/.maison run system:plan`. Authoring
-commands write only consumer files. They require a Git checkout, reject pre-existing changes in mutation targets, use
-fast-forward-only refreshes where applicable, and create focused commits only after successful transactions.
+commands write only consumer files. They require a Git checkout, reject pre-existing changes in mutation targets, and
+create focused commits only after successful transactions. Use Git for consumer history, with fast-forward-only pulls
+when you choose to synchronize it.
 
 `maison apply` is deliberately system-first: it activates the consumer's Nix system layer and then converges its user
 layer. A user-layer failure does not roll back the active Nix generation.

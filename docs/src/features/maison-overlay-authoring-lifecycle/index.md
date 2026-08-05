@@ -1,9 +1,12 @@
 # Overlay authoring lifecycle and command surface
 
+> Historical record: this alternate repository command surface is retired. Consumer Git history is now managed
+> explicitly with Git; see [Migration Contract](../../migration-contract.md).
+
 ## Delivery Summary
 
 - Beads feature root: `maison-mol-3jb`
-- Status: delivered
+- Status: delivered, later retired by `maison-hi8`
 - Pull request: not created (direct fast-forward merge)
 - Merge commit: `dc385400c78c80f81bd7cd9b31b20c629b86fc6d` (fast-forward into `main`)
 - Design record: [design.md](design.md)

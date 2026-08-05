@@ -11,8 +11,8 @@ root="$(maison_consumer_root "${BASH_SOURCE[0]}")"
 cd "$root"
 source "$framework_root/.mise/lib/nix.sh"
 source "$framework_root/.mise/lib/transaction.sh"
-source "$framework_root/.mise/lib/repository_git.sh"
-repository_require_authoring "$root" update
+source "$framework_root/.mise/lib/git.sh"
+git_require_authoring "$root" update
 transaction_require_authoring_checkout "$root" update
 transaction_require_lock "$root" "${BASH_SOURCE[0]}" "$@"
 load_nix_environment

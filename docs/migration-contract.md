@@ -1,44 +1,49 @@
-# Migration contract
+# Repository migration contract
 
-This document records where behavior moved before Home Manager and bespoke deployment logic were removed.
+Maison and Terroir are separate repositories with separate ownership:
 
-## Repository boundary
+| Repository                          | Role                        | Owns                                                                                                                  |
+|-------------------------------------|-----------------------------|-----------------------------------------------------------------------------------------------------------------------|
+| `RobertDeRose/maison`               | Public framework            | Reusable Nix modules, mise orchestration, CLI, schemas, validation, tests, and neutral documentation                  |
+| `RobertDeRose/terroir`              | Private consumer            | `flake.nix`, `flake.lock`, inventory, hosts, mise policy, dotfiles, deployment state, and personal/site configuration |
+| archived private `terroir.original` | Historical consumer source  | The pre-split personal/site configuration used to seed the fresh Terroir history                                      |
+| archived `nix-config`               | Historical framework source | The complete pre-split history and recovery reference                                                                 |
 
-Maison is the reusable public framework. A consumer repository is the execution, configuration, and lock root for one
-installation. The original source repository may be retained as a private archived historical source for recovery.
+Terroir is a consumer repository, not a second Maison checkout or command surface. Bitwarden and the consumer-selected
+fnox provider remain authoritative for passwords, tokens, private keys, and other confidential values. No secret value or
+private key is copied into either repository.
 
-| Previous behavior                  | New owner / implementation                                                    | Validation                                              |
-|------------------------------------|-------------------------------------------------------------------------------|---------------------------------------------------------|
-| Darwin build and switch            | `nh darwin` through `system:plan` / `system:apply` against the consumer flake | Build and switch the inventory host                     |
-| Linux system build                 | Consumer `systemConfigs.<host>`                                               | `system:plan --host <host>`                             |
-| Linux closure copy and activation  | deploy-rs `profiles.system` from the consumer flake                           | Deploy checks plus staged remote test                   |
-| Linux generation profile           | `/nix/var/nix/profiles/system-manager-profiles/system-manager`                | `system:history`                                        |
-| User-facing tools and packages     | Consumer `config/mise/` through mise                                          | `mise bootstrap status`                                 |
-| Linux user activation after deploy | Maison runtime convergence against the consumer checkout                      | Separate user convergence result                        |
-| Remote repository replacement      | Committed-only consumer archive with root-owned transaction state             | Failed convergence restores the prior consumer revision |
-| Home Manager generations           | Removed                                                                       | No `homeConfigurations` or Home Manager input           |
+## Migration order
 
-## Required staged verification
+1. Freeze the archived private Terroir source and the source framework checkout; preserve both complete Git histories.
+2. Produce a reviewable manifest classifying every candidate path as public Maison content, private Terroir content,
+   neutral replacement, or excluded material. Record the destination and rationale.
+3. Obtain explicit approval of the manifest before copying, replacing, or deleting any candidate path.
+4. Create fresh Git repositories for Maison and Terroir. Do not reuse `.git`, refs, source commits, or source author
+   metadata. Maison retains its dstack/Copier project controls; Terroir remains a plain configuration repository.
+5. Populate each repository only from approved manifest entries. Replace public personal data with neutral examples and
+   exclude secrets, private keys, real endpoints, and unrelated machine state.
+6. Validate both repositories without system activation: public-privacy scans, raw-secret scans, inventory validation,
+   consumer validation, flake checks, documentation checks, and fresh-history checks.
+7. Confirm the new checkouts and their remotes before changing the source repository's visibility or archive state.
+8. Make the historical `nix-config` repository private and archived only after all validation and remote checks pass.
+9. Retain the approved manifest, source backup, staging trees, and migration evidence until the operator confirms the
+   transition.
 
-Before treating deploy-rs as the only deployment path:
+## Fresh-history requirements
 
-1. Deploy Linux system generation A.
-2. Deploy generation B and verify both appear in history.
-3. Intentionally fail activation of C and confirm B is reactivated.
-4. Intentionally disrupt SSH during D and confirm magic rollback restores connectivity.
-5. Roll back manually from B to A.
-6. Run `system:clean` and confirm active/retained profiles remain valid.
-7. Apply the consumer user layer separately and verify a user-layer failure does not alter the active system profile.
+The public Maison history must contain only fresh logical commits and no imported source objects or private paths. The
+private Terroir history may contain only approved configuration and documentation, with no raw secrets or private-key
+material. A failed migration leaves both new repositories and the historical source intact for explicit repair; it never
+silently deletes or publishes a repository.
 
-## Removable backups
+## Recovery
 
-Do not delete these until the new topology has been used successfully:
+If a new repository fails validation, stop the transition and repair it from the approved manifest. If the source must be
+consulted, use the archived private `terroir.original` or `nix-config` checkout, or the preserved local source backup. Do not restore personal
+configuration into public Maison. Re-run privacy, fresh-history, consumer, inventory, and documentation checks before
+resuming the archive transition. The new Terroir checkout must retain a fresh history; do not import commits from
+`terroir.original`.
 
-- `/etc/nix/nix.conf.before-nix-darwin`
-- `/etc/nix/nix.custom.conf.before-nix-darwin`
-- Incomplete root-owned Maison transaction rollback trees under `/home/.maison-deploy/transactions/`
-- `~/.local/state/maison/backups/git/*`
-- `~/.local/state/maison/backups/dotfiles/*`
-- `~/.local/state/maison/backups/pi/*`
-- Archived `~/.local/state/maison/backups/**/*.app.zip` bundles
-- Old Nix system generations
+After migration, normal operations select Terroir with `MAISON_CONSUMER_ROOT` or by running from its checkout. Maison
+never stores a saved alternate configuration root and never writes the consumer's files into its own checkout.

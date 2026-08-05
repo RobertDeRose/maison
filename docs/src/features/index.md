@@ -9,7 +9,7 @@ Planned or partially implemented work remains in [Planned features](../planned-f
 - [MAISON-001: Root-owned deployment transaction state](maison-001-root-owned-deployment-transactions/index.md)
 - [MAISON-002: Revision-bound commit and rollback](maison-002-revision-bound-commit-rollback/index.md)
 - [MAISON-003: Restricted deployment privilege model](maison-003-restricted-deployment-privilege/index.md)
-- [MAISON-004: Private overlay configuration split](maison-004-private-overlay-configuration/index.md)
+- [MAISON-004: Private configuration split (superseded)](maison-004-private-overlay-configuration/index.md)
 - [MAISON-005: Verified bootstrap artifacts](maison-005-verified-bootstrap-artifacts/index.md)
 - [MAISON-006: Review-gated dependency updates](maison-006-review-gated-dependency-updates/index.md)
 - [MAISON-007: Parser-backed TOML mutations](maison-007-parser-backed-toml-mutations/index.md)
@@ -23,6 +23,6 @@ Planned or partially implemented work remains in [Planned features](../planned-f
 - [MAISON-015: Linux runtime activation verification](maison-015-linux-runtime-verification/index.md)
 - [MAISON-016: Pi TypeScript validation boundary](maison-016-pi-typescript-validation/index.md)
 - [MAISON-017: Maison/Terroir repository split](maison-017-maison-terroir-repository-split/index.md)
-- [Copier-backed overlay setup and bootstrap onboarding](maison-overlay-copier-bootstrap/index.md)
-- [Overlay authoring lifecycle and command surface](maison-overlay-authoring-lifecycle/index.md)
+- [Retired Copier consumer bootstrap](maison-overlay-copier-bootstrap/index.md)
+- [Retired alternate repository command surface](maison-overlay-authoring-lifecycle/index.md)
 <!-- END IMPLEMENTED FEATURES -->

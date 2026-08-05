@@ -21,57 +21,28 @@ class TransactionBehaviorTest(unittest.TestCase):
             ".mise/lib/repository_mutation.py",
             ".mise/lib/transaction.sh",
             ".mise/lib/consumer.sh",
-            ".mise/lib/repository_git.sh",
-            "scripts/maison_repository_git.py",
+            ".mise/lib/git.sh",
             "scripts/user-apply-packages.sh",
         )
         return repo
 
-    def make_overlay_repository(self, directory: Path, files: dict[str, str]) -> Path:
-        overlay = directory / "overlay"
-        overlay.mkdir(parents=True)
-        (overlay / "flake.nix").write_text("{ outputs = _: {}; }\n")
-        (overlay / "flake.lock").write_text('{"nodes": {}}\n')
-        (overlay / "inventory.toml").write_text("schema = 1\n")
+    def make_consumer_repository(self, directory: Path, files: dict[str, str]) -> Path:
+        consumer = directory / "consumer"
+        consumer.mkdir(parents=True)
+        (consumer / "flake.nix").write_text("{ outputs = _: {}; }\n")
+        (consumer / "flake.lock").write_text('{"nodes": {}}\n')
+        (consumer / "inventory.toml").write_text("schema = 1\n")
         for name, content in files.items():
-            path = overlay / name
+            path = consumer / name
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(content)
-        git_init(overlay)
-        git_commit_all(overlay, "initial overlay")
-        remote = directory / "overlay.git"
-        run(
-            ["git", "init", "--bare", "-q", str(remote)],
-            env=fixture_git_env(),
-            check=True,
-        )
-        run(
-            ["git", "-C", str(overlay), "remote", "add", "origin", str(remote)],
-            env=fixture_git_env(),
-            check=True,
-        )
-        run(
-            ["git", "-C", str(overlay), "push", "-q", "-u", "origin", "main"],
-            env=fixture_git_env(),
-            check=True,
-        )
-        run(
-            [
-                "git",
-                "--git-dir",
-                str(remote),
-                "symbolic-ref",
-                "HEAD",
-                "refs/heads/main",
-            ],
-            env=fixture_git_env(),
-            check=True,
-        )
-        return overlay
+        git_init(consumer)
+        git_commit_all(consumer, "initial consumer")
+        return consumer
 
-    def overlay_environment(self, overlay: Path, state: Path) -> dict[str, str]:
+    def consumer_environment(self, consumer: Path, state: Path) -> dict[str, str]:
         return {
-            "MAISON_CONSUMER_ROOT": str(overlay),
+            "MAISON_CONSUMER_ROOT": str(consumer),
             "MAISON_REPOSITORY_MUTATION_STATE_DIR": str(state),
         }
 
@@ -102,7 +73,7 @@ class TransactionBehaviorTest(unittest.TestCase):
                 ".mise/vendor/tomlkit-0.13.3-py3-none-any.whl",
                 ".mise/lib/repository_mutation.py",
                 ".mise/lib/transaction.sh",
-                ".mise/lib/repository_git.sh",
+                ".mise/lib/git.sh",
                 "inventory.toml",
             )
             original = (repo / "inventory.toml").read_text()
@@ -149,11 +120,11 @@ class TransactionBehaviorTest(unittest.TestCase):
                     temp = root / str(index)
                     repo = self.make_config_repo(temp)
                     copy_files(repo, task_name)
-                    overlay = self.make_overlay_repository(
+                    consumer = self.make_consumer_repository(
                         temp,
                         {f"config/mise/{config_name}": '[bootstrap.packages]\n"brew:existing" = "latest"\n'},
                     )
-                    config = overlay / "config/mise" / config_name
+                    config = consumer / "config/mise" / config_name
                     original = config.read_text()
                     fake_bin = temp / "bin"
                     fake_bin.mkdir(parents=True)
@@ -163,7 +134,7 @@ class TransactionBehaviorTest(unittest.TestCase):
                     )
                     env = os.environ.copy()
                     env.update(extra_env)
-                    env.update(self.overlay_environment(overlay, temp / "state"))
+                    env.update(self.consumer_environment(consumer, temp / "state"))
                     env["MISE_PROJECT_ROOT"] = str(repo)
                     env["PATH"] = f"{fake_bin}{os.pathsep}{env['PATH']}"
                     result = run(
@@ -176,21 +147,21 @@ class TransactionBehaviorTest(unittest.TestCase):
                     self.assertNotEqual(result.returncode, 0)
                     self.assertEqual(config.read_text(), original)
 
-    def test_user_mutators_edit_the_active_overlay_repository(self) -> None:
+    def test_user_mutators_edit_the_active_consumer_repository(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             temp = Path(directory)
             repo = self.make_config_repo(temp / "repo")
             copy_files(repo, ".mise/tasks/package/remove")
             public_config = repo / "config/mise/config.toml"
             public_config.write_text('[bootstrap.packages]\n"brew:public" = "latest"\n')
-            overlay = self.make_overlay_repository(
+            consumer = self.make_consumer_repository(
                 temp,
                 {"config/mise/config.toml": '[bootstrap.packages]\n"brew:private" = "latest"\n'},
             )
-            overlay_config = overlay / "config/mise/config.toml"
+            consumer_config = consumer / "config/mise/config.toml"
             before_public = public_config.read_text()
             env = os.environ.copy()
-            env.update(self.overlay_environment(overlay, temp / "state"))
+            env.update(self.consumer_environment(consumer, temp / "state"))
             env.update({"MISE_PROJECT_ROOT": str(repo), "usage_package": "brew:private"})
             result = run(
                 [str(repo / ".mise/tasks/package/remove")],
@@ -202,23 +173,23 @@ class TransactionBehaviorTest(unittest.TestCase):
             )
             self.assertIn("config/mise/config.toml", result.stdout)
             self.assertEqual(public_config.read_text(), before_public)
-            self.assertNotIn("brew:private", overlay_config.read_text())
+            self.assertNotIn("brew:private", consumer_config.read_text())
 
     def test_mutation_rejects_dirty_target_and_preserves_unrelated_work(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             temp = Path(directory)
             repo = self.make_config_repo(temp)
             copy_files(repo, ".mise/tasks/package/remove")
-            overlay = self.make_overlay_repository(
+            consumer = self.make_consumer_repository(
                 temp,
                 {"config/mise/config.toml": '[bootstrap.packages]\n"brew:private" = "latest"\n'},
             )
-            config = overlay / "config/mise/config.toml"
+            config = consumer / "config/mise/config.toml"
             config.write_text('[bootstrap.packages]\n"brew:private" = "latest"\n\n# local edit\n')
-            unrelated = overlay / "notes.txt"
+            unrelated = consumer / "notes.txt"
             unrelated.write_text("keep this work\n")
             env = os.environ.copy()
-            env.update(self.overlay_environment(overlay, temp / "state"))
+            env.update(self.consumer_environment(consumer, temp / "state"))
             env.update({"MISE_PROJECT_ROOT": str(repo), "usage_package": "brew:private"})
 
             result = run(
@@ -233,22 +204,22 @@ class TransactionBehaviorTest(unittest.TestCase):
             self.assertIn("mutation target is not clean", result.stderr)
             self.assertIn("brew:private", config.read_text())
             self.assertEqual(unrelated.read_text(), "keep this work\n")
-            self.assertEqual(self.git(overlay, "rev-list", "--count", "HEAD").stdout.strip(), "1")
+            self.assertEqual(self.git(consumer, "rev-list", "--count", "HEAD").stdout.strip(), "1")
 
     def test_commit_failure_preserves_successful_declaration_mutation(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             temp = Path(directory)
             repo = self.make_config_repo(temp)
             copy_files(repo, ".mise/tasks/package/remove")
-            overlay = self.make_overlay_repository(
+            consumer = self.make_consumer_repository(
                 temp,
                 {"config/mise/config.toml": '[bootstrap.packages]\n"brew:private" = "latest"\n'},
             )
-            hook = overlay / ".git/hooks/pre-commit"
+            hook = consumer / ".git/hooks/pre-commit"
             hook.write_text("#!/bin/sh\nexit 19\n")
             hook.chmod(hook.stat().st_mode | stat.S_IXUSR)
             env = os.environ.copy()
-            env.update(self.overlay_environment(overlay, temp / "state"))
+            env.update(self.consumer_environment(consumer, temp / "state"))
             env.update({"MISE_PROJECT_ROOT": str(repo), "usage_package": "brew:private"})
 
             result = run(
@@ -260,9 +231,56 @@ class TransactionBehaviorTest(unittest.TestCase):
             )
 
             self.assertNotEqual(result.returncode, 0)
-            self.assertNotIn("brew:private", (overlay / "config/mise/config.toml").read_text())
+            self.assertNotIn("brew:private", (consumer / "config/mise/config.toml").read_text())
             self.assertIn("Manual recovery", result.stderr)
-            self.assertEqual(self.git(overlay, "rev-list", "--count", "HEAD").stdout.strip(), "1")
+            self.assertEqual(self.git(consumer, "rev-list", "--count", "HEAD").stdout.strip(), "1")
+
+    def test_focused_commit_preserves_unrelated_staged_work(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            temp = Path(directory)
+            consumer = self.make_consumer_repository(
+                temp,
+                {
+                    "config/mise/config.toml": "before\n",
+                    "notes.txt": "before\n",
+                },
+            )
+            notes = consumer / "notes.txt"
+            notes.write_text("staged unrelated work\n")
+            self.git(consumer, "add", "--", "notes.txt")
+            config = consumer / "config/mise/config.toml"
+            config.write_text("consumer declaration\n")
+
+            result = run(
+                [
+                    "bash",
+                    "-c",
+                    (
+                        'source "$1/.mise/lib/git.sh"; '
+                        'git_commit_paths "$2" added package demo "$2/config/mise/config.toml"'
+                    ),
+                    "_",
+                    str(ROOT),
+                    str(consumer),
+                ],
+                env=fixture_git_env(),
+                capture_output=True,
+                text=True,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(
+                self.git(
+                    consumer,
+                    "diff-tree",
+                    "--no-commit-id",
+                    "--name-only",
+                    "-r",
+                    "HEAD",
+                ).stdout.split(),
+                ["config/mise/config.toml"],
+            )
+            self.assertEqual(self.git(consumer, "status", "--short").stdout, "M  notes.txt\n")
 
     def test_package_and_app_add_commit_after_successful_install(self) -> None:
         cases = (
@@ -289,7 +307,7 @@ class TransactionBehaviorTest(unittest.TestCase):
                     repo = self.make_config_repo(temp)
                     copy_files(repo, task_name)
                     package_name = identifier if identifier.startswith("brew:") else f"brew-cask:{identifier}"
-                    overlay = self.make_overlay_repository(
+                    consumer = self.make_consumer_repository(
                         temp,
                         {f"config/mise/{config_name}": '[bootstrap.packages]\n"brew:existing" = "latest"\n'},
                     )
@@ -297,7 +315,7 @@ class TransactionBehaviorTest(unittest.TestCase):
                     fake_bin.mkdir(parents=True)
                     executable(fake_bin / "mise", "#!/bin/sh\nexit 0\n")
                     env = os.environ.copy()
-                    env.update(self.overlay_environment(overlay, temp / "state"))
+                    env.update(self.consumer_environment(consumer, temp / "state"))
                     env.update(
                         {
                             "MISE_PROJECT_ROOT": str(repo),
@@ -308,12 +326,12 @@ class TransactionBehaviorTest(unittest.TestCase):
                     )
                     run([str(repo / task_name)], cwd=repo, env=env, check=True)
                     self.assertEqual(
-                        self.git(overlay, "log", "-1", "--format=%s").stdout.strip(),
+                        self.git(consumer, "log", "-1", "--format=%s").stdout.strip(),
                         subject,
                     )
                     self.assertIn(
                         package_name,
-                        (overlay / "config/mise" / config_name).read_text(),
+                        (consumer / "config/mise" / config_name).read_text(),
                     )
 
     def test_package_and_app_remove_commit_effective_identifiers(self) -> None:
@@ -341,12 +359,12 @@ class TransactionBehaviorTest(unittest.TestCase):
                     repo = self.make_config_repo(temp)
                     copy_files(repo, task_name)
                     package_name = identifier if identifier.startswith("brew:") else f"brew-cask:{identifier}"
-                    overlay = self.make_overlay_repository(
+                    consumer = self.make_consumer_repository(
                         temp,
                         {f"config/mise/{config_name}": f'[bootstrap.packages]\n"{package_name}" = "latest"\n'},
                     )
                     env = os.environ.copy()
-                    env.update(self.overlay_environment(overlay, temp / "state"))
+                    env.update(self.consumer_environment(consumer, temp / "state"))
                     env.update(
                         {
                             "MISE_PROJECT_ROOT": str(repo),
@@ -356,11 +374,11 @@ class TransactionBehaviorTest(unittest.TestCase):
                     )
                     run([str(repo / task_name)], cwd=repo, env=env, check=True)
                     self.assertEqual(
-                        self.git(overlay, "log", "-1", "--format=%s").stdout.strip(),
+                        self.git(consumer, "log", "-1", "--format=%s").stdout.strip(),
                         subject,
                     )
 
-    def test_add_mutators_refuse_public_fallback_without_overlay(self) -> None:
+    def test_add_mutators_require_a_selected_consumer(self) -> None:
         cases = (
             (".mise/tasks/package/add", "config.toml", {"usage_package": "brew:new"}),
             (
@@ -439,19 +457,19 @@ class TransactionBehaviorTest(unittest.TestCase):
             temp = Path(directory)
             root = self.make_config_repo(temp)
             copy_files(root, ".mise/tasks/tool/remove")
-            overlay = self.make_overlay_repository(
+            consumer = self.make_consumer_repository(
                 temp,
                 {
                     "config/mise/config.toml": '[tools]\nusage = "latest"\n',
                     "config/mise/mise.lock": '[[tools.usage]]\nversion = "1.0.0"\n',
                 },
             )
-            config = overlay / "config/mise/config.toml"
-            lock = overlay / "config/mise/mise.lock"
+            config = consumer / "config/mise/config.toml"
+            lock = consumer / "config/mise/mise.lock"
             before_config = config.read_bytes()
             before_lock = lock.read_bytes()
             env = os.environ.copy()
-            env.update(self.overlay_environment(overlay, temp / "state"))
+            env.update(self.consumer_environment(consumer, temp / "state"))
             env.update({"MISE_PROJECT_ROOT": str(root), "usage_tool": "usage@latest"})
             result = run([str(root / ".mise/tasks/tool/remove")], env=env)
             self.assertEqual(result.returncode, 2)
@@ -467,17 +485,17 @@ class TransactionBehaviorTest(unittest.TestCase):
                 '[[tools.node]]\nversion = "24.1.0"\nbackend = "core:node"\n\n'
                 '[[tools.usage]]\nversion = "2.1.0"\nbackend = "aqua:jdx/usage"\n'
             )
-            overlay = self.make_overlay_repository(
+            consumer = self.make_consumer_repository(
                 temp,
                 {
                     "config/mise/config.toml": '[tools]\nnode = "24"\nusage = "latest"\n',
                     "config/mise/mise.lock": original_lock,
                 },
             )
-            config = overlay / "config/mise/config.toml"
-            lock = overlay / "config/mise/mise.lock"
+            config = consumer / "config/mise/config.toml"
+            lock = consumer / "config/mise/mise.lock"
             env = os.environ.copy()
-            env.update(self.overlay_environment(overlay, temp / "state"))
+            env.update(self.consumer_environment(consumer, temp / "state"))
             env.update({"MISE_PROJECT_ROOT": str(repo), "usage_tool": "node"})
             run(
                 [str(repo / ".mise/tasks/tool/remove")],
@@ -516,15 +534,15 @@ class TransactionBehaviorTest(unittest.TestCase):
                 '[[tools.node]]\nversion = "22.20.0"\nbackend = "core:node"\n\n'
                 '[[tools.usage]]\nversion = "2.1.0"\nbackend = "aqua:jdx/usage"\n'
             )
-            overlay = self.make_overlay_repository(
+            consumer = self.make_consumer_repository(
                 temp,
                 {
                     "config/mise/config.toml": original_config,
                     "config/mise/mise.lock": original_lock,
                 },
             )
-            config = overlay / "config/mise/config.toml"
-            lock = overlay / "config/mise/mise.lock"
+            config = consumer / "config/mise/config.toml"
+            lock = consumer / "config/mise/mise.lock"
             fake_bin = temp / "bin"
             fake_bin.mkdir()
             log = temp / "mise-log"
@@ -549,7 +567,7 @@ class TransactionBehaviorTest(unittest.TestCase):
                 ),
             )
             env = os.environ.copy()
-            env.update(self.overlay_environment(overlay, temp / "state"))
+            env.update(self.consumer_environment(consumer, temp / "state"))
             env.update(
                 {
                     "MISE_PROJECT_ROOT": str(repo),
@@ -573,7 +591,7 @@ class TransactionBehaviorTest(unittest.TestCase):
 
             config.write_text(original_config)
             lock.write_text(original_lock)
-            git_commit_all(overlay, "restore original")
+            git_commit_all(consumer, "restore original")
             executable(fake_bin / "mise", "#!/bin/sh\nexit 31\n")
             failed = run(
                 [str(repo / ".mise/tasks/tool/remove")],
@@ -593,15 +611,15 @@ class TransactionBehaviorTest(unittest.TestCase):
             copy_files(repo, ".mise/tasks/tool/add")
             original_config = '[tools]\nnode = "24"\n'
             original_lock = "lock-before\n"
-            overlay = self.make_overlay_repository(
+            consumer = self.make_consumer_repository(
                 temp,
                 {
                     "config/mise/config.toml": original_config,
                     "config/mise/mise.lock": original_lock,
                 },
             )
-            config = overlay / "config/mise/config.toml"
-            lock = overlay / "config/mise/mise.lock"
+            config = consumer / "config/mise/config.toml"
+            lock = consumer / "config/mise/mise.lock"
             fake_bin = temp / "bin"
             fake_bin.mkdir()
             executable(
@@ -612,7 +630,7 @@ class TransactionBehaviorTest(unittest.TestCase):
                 "exit 0\n",
             )
             env = os.environ.copy()
-            env.update(self.overlay_environment(overlay, temp / "state"))
+            env.update(self.consumer_environment(consumer, temp / "state"))
             env.update(
                 {
                     "MISE_PROJECT_ROOT": str(repo),
@@ -640,15 +658,15 @@ class TransactionBehaviorTest(unittest.TestCase):
             copy_files(repo, ".mise/tasks/tool/add")
             original_config = '[tools]\nnode = "24"\n'
             original_lock = "lock-before\n"
-            overlay = self.make_overlay_repository(
+            consumer = self.make_consumer_repository(
                 temp,
                 {
                     "config/mise/config.toml": original_config,
                     "config/mise/mise.lock": original_lock,
                 },
             )
-            config = overlay / "config/mise/config.toml"
-            lock = overlay / "config/mise/mise.lock"
+            config = consumer / "config/mise/config.toml"
+            lock = consumer / "config/mise/mise.lock"
             fake_bin = temp / "bin"
             fake_bin.mkdir()
             executable(
@@ -667,7 +685,7 @@ class TransactionBehaviorTest(unittest.TestCase):
                 'exec /bin/mv "$@"\n',
             )
             env = os.environ.copy()
-            env.update(self.overlay_environment(overlay, temp / "state"))
+            env.update(self.consumer_environment(consumer, temp / "state"))
             env.update(
                 {
                     "MISE_PROJECT_ROOT": str(repo),
@@ -694,15 +712,15 @@ class TransactionBehaviorTest(unittest.TestCase):
             temp = Path(directory)
             repo = self.make_config_repo(temp)
             copy_files(repo, ".mise/tasks/tool/add")
-            overlay = self.make_overlay_repository(
+            consumer = self.make_consumer_repository(
                 temp,
                 {
                     "config/mise/config.toml": '[tools]\nnode = "24"\n',
                     "config/mise/mise.lock": "lock-before\n",
                 },
             )
-            config = overlay / "config/mise/config.toml"
-            lock = overlay / "config/mise/mise.lock"
+            config = consumer / "config/mise/config.toml"
+            lock = consumer / "config/mise/mise.lock"
             fake_bin = temp / "bin"
             fake_bin.mkdir()
             executable(
@@ -712,7 +730,7 @@ class TransactionBehaviorTest(unittest.TestCase):
                 "echo installed\n",
             )
             env = os.environ.copy()
-            env.update(self.overlay_environment(overlay, temp / "state"))
+            env.update(self.consumer_environment(consumer, temp / "state"))
             env.update(
                 {
                     "MISE_PROJECT_ROOT": str(repo),
@@ -727,13 +745,13 @@ class TransactionBehaviorTest(unittest.TestCase):
             self.assertEqual(tools["aqua:gastownhall/beads"], "1.1.0")
             self.assertEqual(lock.read_text(), "# lock-after\n")
             self.assertEqual(
-                self.git(overlay, "log", "-1", "--format=%s").stdout.strip(),
+                self.git(consumer, "log", "-1", "--format=%s").stdout.strip(),
                 "added(tool): `aqua:gastownhall/beads@1.1.0`",
             )
             self.assertEqual(
                 set(
                     self.git(
-                        overlay,
+                        consumer,
                         "diff-tree",
                         "--no-commit-id",
                         "--name-only",

@@ -6,11 +6,11 @@ set -euo pipefail
 framework_root="${MAISON_HOME:-${MISE_PROJECT_ROOT:-$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)}}"
 source "$framework_root/.mise/lib/common.sh"
 source "$framework_root/.mise/lib/transaction.sh"
-source "$framework_root/.mise/lib/repository_git.sh"
+source "$framework_root/.mise/lib/git.sh"
 root="$(maison_consumer_root "${BASH_SOURCE[0]}")"
-repository_require_authoring "$root" tool:remove
+git_require_authoring "$root" tool:remove
 config_root="$root"
-export MAISON_USER_CONFIG_ROOT="$config_root"
+export MAISON_CONSUMER_ROOT="$config_root"
 export MISE_GLOBAL_CONFIG_FILE="$config_root/config/mise/config.toml"
 config="$config_root/config/mise/config.toml"
 lock="$config_root/config/mise/mise.lock"
@@ -26,8 +26,7 @@ fi
   exit 2
 }
 transaction_require_lock "$config_root" "${BASH_SOURCE[0]}" "$@"
-repository_refresh "$framework_root" "$config_root" tool:remove
-repository_require_clean "$framework_root" "$config_root" tool:remove "$config" "$lock"
+git_require_clean_paths "$config_root" tool:remove "$config" "$lock"
 transaction_dir="$(transaction_directory)"
 original_config="$transaction_dir/config.original.toml"
 original_lock="$transaction_dir/mise.original.lock"
@@ -89,7 +88,7 @@ config_attempted=true
 atomic_replace "$candidate_config" "$config"
 success=true
 transaction_journal_complete
-if ! repository_commit "$framework_root" "$config_root" removed tool "$tool" "$config" "$lock"; then
+if ! git_commit_paths "$config_root" removed tool "$tool" "$config" "$lock"; then
   exit 1
 fi
 printf 'Removed %s from %s and its generated lock entries. Installed versions were intentionally left in the mise cache.\n' \

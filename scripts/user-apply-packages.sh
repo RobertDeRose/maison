@@ -92,10 +92,10 @@ restore_docker_completion_links() {
 
 configured_packages_without_docker() {
   local destination="$1"
-  local config_root="${MAISON_USER_CONFIG_ROOT:-}" config_dir platform_name architecture
+  local config_root="${MAISON_CONSUMER_ROOT:-}" config_dir platform_name architecture
   local -a config_paths
   [ -n "$config_root" ] || {
-    printf 'maison: MAISON_USER_CONFIG_ROOT is required for Docker Desktop fallback\n' >&2
+    printf 'maison: MAISON_CONSUMER_ROOT is required for Docker Desktop fallback\n' >&2
     return 1
   }
   config_dir="$config_root/config/mise"

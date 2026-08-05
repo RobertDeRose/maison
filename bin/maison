@@ -11,10 +11,7 @@
 #USAGE cmd "deploy" help="Deploy a Linux system and user environment" { arg "[args]..." }
 #USAGE cmd "doctor" help="Diagnose both ownership layers" { arg "[args]..." }
 #USAGE cmd "plan" help="Preview system and user changes" { arg "[args]..." }
-#USAGE cmd "publish" help="Publish committed consumer repository changes" { arg "[args]..." }
 #USAGE cmd "rollback" help="Roll back the Nix system layer" { arg "[args]..." }
-#USAGE cmd "status" help="Show the consumer repository and remote status" { arg "[args]..." }
-#USAGE cmd "sync" help="Pull the consumer repository, then apply configuration" { arg "[args]..." }
 #USAGE cmd "update" help="Update Nix inputs and mise-managed software" { arg "[args]..." }
 #USAGE cmd "tasks" help="List Maison tasks" { arg "[args]..." }
 #USAGE cmd "help" help="Print this message or the help of the given command" { arg "[command]..." }
@@ -227,7 +224,7 @@ list_command_paths() {
 format_task_groups() {
   awk '
     function task_group(task) {
-      if (task ~ /^(apply|bootstrap|deploy|doctor|fix|plan|publish|rollback|status|sync|update)$/) return "workflow"
+      if (task ~ /^(apply|bootstrap|deploy|doctor|fix|plan|rollback|update)$/) return "workflow"
       if (task == "github:auth") return "github"
       if (task ~ /^app:(add|remove|update)$/) return "app"
       if (task ~ /^package:(add|remove|search|update)$/) return "package"

@@ -80,7 +80,7 @@ profiles = ["base", "dev", "linux"]
             self.assertIn("example-linux", result.stdout)
             self.assertNotIn("example-darwin", result.stdout)
 
-    def test_system_plan_uses_the_consumer_flake_without_overlay_override(self) -> None:
+    def test_system_plan_uses_the_consumer_flake_directly(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             temp = Path(directory)
             consumer = self.make_consumer(temp)
@@ -178,22 +178,6 @@ printf '%s\\n' '{"nodes": {"updated": true}}' >"$output"
             )
             self.assertNotEqual(result.returncode, 0)
             self.assertIn("regular consumer file", result.stderr)
-
-    def test_removed_overlay_home_and_fake_path_contracts(self) -> None:
-        paths = [
-            ROOT / "flake.nix",
-            ROOT / "bootstrap.sh",
-            ROOT / "README.md",
-            ROOT / "bin/maison",
-            *(ROOT / ".mise").rglob("*"),
-        ]
-        for path in paths:
-            if path.is_file() and path.suffix not in {".pyc", ".whl"}:
-                with self.subTest(path=path.relative_to(ROOT)):
-                    text = path.read_text()
-                    self.assertNotIn("MAISON_OVERLAY_HOME", text)
-                    self.assertNotIn('url = "path:."', text)
-                    self.assertNotIn('"path:."', text)
 
 
 if __name__ == "__main__":

@@ -57,8 +57,8 @@ credentials. Provider selection remains consumer-owned.
 ## Mutation boundaries
 
 `plan` is read-only with respect to the consumer repository. `apply`, `update`, host authoring, software authoring,
-publish, deployment, and recovery operate on the selected consumer. `maison update` replaces only the consumer's
-`flake.lock`; Maison's lock is never an implicit fallback.
+deployment, and recovery operate on the selected consumer. `maison update` replaces only the consumer's `flake.lock`;
+Maison's lock is never an implicit fallback. Consumer Git operations remain outside Maison.
 
 `maison self update` is the focused framework upgrade. It updates only the Maison input, builds the candidate CLI from
 the resulting consumer lock, runs `maison consumer validate` through that candidate, and records its executable in

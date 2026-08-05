@@ -119,12 +119,12 @@ The one-time Darwin preflight may preserve unmanaged files as:
 
 Retain them until several successful switches have completed.
 
-## Failed repository transition
+## Failed repository migration
 
-If a repository migration or remote publication fails, keep the consumer staging checkout, the approved owner-only
-manifest, and the original historical source intact. Do not make the old source public, delete it, or remove local backups
-as a recovery step. Re-run privacy, consumer-boundary, fresh-history, and remote-state checks before any archive
-transition. Secrets and private keys are never recovered from Git.
+If the Maison/Terroir migration fails, keep both staging checkouts, the approved manifest, and the original historical
+source intact. Do not make the source public, delete it, or remove local backups as a recovery step. Re-run privacy,
+consumer-boundary, fresh-history, and remote-state checks before archiving the source repositories. Consult only the
+private `terroir.original` and `nix-config` archives. Secrets and private keys are never recovered from Git.
 
 ## Broken shell
 

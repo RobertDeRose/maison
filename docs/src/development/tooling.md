@@ -51,8 +51,8 @@ two output-sensitive edges: `gofumpt` follows `goimports`, then fix-only module 
 No recognized language profile is active; only the universal tooling baseline
 runs.
 
-Pi extensions are personal overlay content and are maintained in the private Terroir repository. Maison does not
-install, validate, or publish those runtime extensions.
+Pi extensions are personal consumer content and are maintained in the private Terroir repository. Maison does not
+install or validate those runtime extensions.
 
 The Python regression suite is split by subsystem. `check:tests` runs `unittest` discovery across every
 `tests/test_*.py` file and is expected to complete within five minutes on a warm supported development checkout. Use the

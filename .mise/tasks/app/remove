@@ -6,19 +6,18 @@ set -euo pipefail
 framework_root="${MAISON_HOME:-${MISE_PROJECT_ROOT:-$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)}}"
 source "$framework_root/.mise/lib/common.sh"
 source "$framework_root/.mise/lib/transaction.sh"
-source "$framework_root/.mise/lib/repository_git.sh"
+source "$framework_root/.mise/lib/git.sh"
 root="$(maison_consumer_root "${BASH_SOURCE[0]}")"
-repository_require_authoring "$root" app:remove
+git_require_authoring "$root" app:remove
 config_root="$root"
-export MAISON_USER_CONFIG_ROOT="$config_root"
+export MAISON_CONSUMER_ROOT="$config_root"
 export MISE_GLOBAL_CONFIG_FILE="$config_root/config/mise/config.toml"
 path="$config_root/config/mise/config.macos-arm64.toml"
 cask="${usage_cask:?mise did not provide the required cask argument}"
 package="brew-cask:$cask"
 transaction_require_authoring_checkout "$config_root" app:remove
 transaction_require_lock "$config_root" "${BASH_SOURCE[0]}" "$@"
-repository_refresh "$framework_root" "$config_root" app:remove
-repository_require_clean "$framework_root" "$config_root" app:remove "$path"
+git_require_clean_paths "$config_root" app:remove "$path"
 transaction_dir="$(transaction_directory)"
 cleanup() {
   local status=$?
@@ -35,7 +34,7 @@ transaction_journal_begin "$config_root" app:remove "$path"
 transaction_journal_mark validated
 atomic_replace "$candidate" "$path"
 transaction_journal_complete
-if ! repository_commit "$framework_root" "$config_root" removed app "$cask" "$path"; then
+if ! git_commit_paths "$config_root" removed app "$cask" "$path"; then
   exit 1
 fi
 printf 'Removed %s from the macOS config. The installed application was intentionally left in place.\n' "$package"

@@ -85,7 +85,6 @@ class InventoryBehaviorTest(unittest.TestCase):
             env = os.environ.copy()
             for key in (
                 "MAISON_INVENTORY",
-                "MAISON_USER_CONFIG_ROOT",
                 "MISE_GLOBAL_CONFIG_FILE",
             ):
                 env.pop(key, None)
@@ -111,7 +110,6 @@ class InventoryBehaviorTest(unittest.TestCase):
             python_calls = calls.read_text().splitlines()
             inventory_calls = [call for call in python_calls if ".mise/lib/inventory.py" in call]
             self.assertEqual(len(inventory_calls), 1)
-            self.assertNotIn("maison_overlay", "\n".join(python_calls))
             self.assertIn("example-linux", result.stdout)
 
     def test_shell_inventory_falls_back_to_flake_app_without_tomllib(self) -> None:

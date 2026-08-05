@@ -180,9 +180,6 @@ class RepositoryContractTest(unittest.TestCase):
             'cmd "system"',
             'cmd "user"',
             'cmd "deploy"',
-            'cmd "status"',
-            'cmd "publish"',
-            'cmd "sync"',
             'cmd "self"',
         ):
             self.assertIn(command, cli)
@@ -196,7 +193,6 @@ class RepositoryContractTest(unittest.TestCase):
             bootstrap,
         )
         self.assertIn("MAISON_CONSUMER_ROOT", bootstrap)
-        self.assertNotIn("scripts/maison_overlay.py", bootstrap)
         self.assertIn(
             'exec "$mise_bin" exec --locked python -- "$mise_bin" run --skip-tools "$requested_task" --help',
             cli,
@@ -205,97 +201,6 @@ class RepositoryContractTest(unittest.TestCase):
             'command=("$mise_bin" exec --locked python -- "$mise_bin" run --skip-tools)',
             cli,
         )
-
-    def test_sync_pulls_consumer_before_apply(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            temp = Path(directory)
-            consumer = temp / "consumer"
-            consumer.mkdir()
-            (consumer / "flake.nix").write_text("{ outputs = _: {}; }\n")
-            (consumer / "flake.lock").write_text('{"nodes": {}}\n')
-            (consumer / "inventory.toml").write_text("schema = 1\n")
-            fake_bin = temp / "bin"
-            fake_bin.mkdir()
-            log = temp / "sync.log"
-            executable(
-                fake_bin / "git",
-                '#!/bin/sh\nprintf \'git %s\\n\' "$*" >>"$SYNC_LOG"\n'
-                'status=0\n[ "${3:-}" != pull ] || status="${SYNC_GIT_STATUS:-0}"\n'
-                'exit "$status"\n',
-            )
-            executable(
-                fake_bin / "mise",
-                '#!/bin/sh\nprintf \'mise %s\\n\' "$*" >>"$SYNC_LOG"\n',
-            )
-            env = os.environ.copy()
-            env.update(
-                {
-                    "MAISON_HOME": str(ROOT),
-                    "MAISON_CONSUMER_ROOT": str(consumer),
-                    "MISE_PROJECT_ROOT": str(ROOT),
-                    "PATH": f"{fake_bin}{os.pathsep}{env['PATH']}",
-                    "SYNC_LOG": str(log),
-                }
-            )
-            result = run(
-                ["bash", str(ROOT / ".mise/tasks/sync")],
-                cwd=ROOT,
-                env=env,
-                capture_output=True,
-                text=True,
-            )
-            self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertEqual(
-                [line for line in log.read_text().splitlines() if "pull" in line or line.startswith("mise ")],
-                [
-                    f"git -C {consumer.resolve()} pull --ff-only --autostash",
-                    f"mise -C {ROOT} run apply --",
-                ],
-            )
-            self.assertNotIn(f"git -C {ROOT} pull", log.read_text())
-
-    def test_sync_does_not_apply_when_consumer_pull_fails(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            temp = Path(directory)
-            consumer = temp / "consumer"
-            consumer.mkdir()
-            (consumer / "flake.nix").write_text("{ outputs = _: {}; }\n")
-            (consumer / "flake.lock").write_text('{"nodes": {}}\n')
-            (consumer / "inventory.toml").write_text("schema = 1\n")
-            fake_bin = temp / "bin"
-            fake_bin.mkdir()
-            log = temp / "sync.log"
-            executable(
-                fake_bin / "git",
-                '#!/bin/sh\nprintf \'git %s\\n\' "$*" >>"$SYNC_LOG"\n'
-                'status=0\n[ "${3:-}" != pull ] || status="${SYNC_GIT_STATUS:-0}"\n'
-                'exit "$status"\n',
-            )
-            executable(
-                fake_bin / "mise",
-                '#!/bin/sh\nprintf \'mise %s\\n\' "$*" >>"$SYNC_LOG"\n',
-            )
-            env = os.environ.copy()
-            env.update(
-                {
-                    "MAISON_HOME": str(ROOT),
-                    "MAISON_CONSUMER_ROOT": str(consumer),
-                    "MISE_PROJECT_ROOT": str(ROOT),
-                    "PATH": f"{fake_bin}{os.pathsep}{env['PATH']}",
-                    "SYNC_LOG": str(log),
-                    "SYNC_GIT_STATUS": "7",
-                }
-            )
-            result = run(
-                ["bash", str(ROOT / ".mise/tasks/sync")],
-                cwd=ROOT,
-                env=env,
-                capture_output=True,
-                text=True,
-            )
-            self.assertNotEqual(result.returncode, 0)
-            self.assertNotIn("mise", log.read_text())
-            self.assertNotIn(f"git -C {ROOT} pull", log.read_text())
 
     def test_inventory_flake_app_is_built_on_every_supported_system(self) -> None:
         outputs = read("nix/outputs.nix")
@@ -331,6 +236,20 @@ class RepositoryContractTest(unittest.TestCase):
         self.assertIn("gh release create", workflow)
         self.assertIn("bootstrap.sh SHA256SUMS", workflow)
 
+    def test_retired_repository_architecture_is_absent(self) -> None:
+        retired_paths = (
+            ROOT / ".mise/tasks/publish",
+            ROOT / ".mise/tasks/status",
+            ROOT / ".mise/tasks/sync",
+            ROOT / ".mise/lib/repository_git.sh",
+            ROOT / "scripts/maison_overlay.py",
+            ROOT / "scripts/maison_repository_git.py",
+            ROOT / "overlay_template",
+        )
+        for path in retired_paths:
+            with self.subTest(path=path.relative_to(ROOT)):
+                self.assertFalse(path.exists())
+
     def test_bootstrap_supports_immutable_commit_refs(self) -> None:
         bootstrap = read("bootstrap.sh")
         self.assertIn('if [[ "$ref" =~ ^[0-9a-f]{40}$ ]]; then', bootstrap)
@@ -343,8 +262,6 @@ class RepositoryContractTest(unittest.TestCase):
         self.assertIn("--consumer PATH", bootstrap)
         self.assertIn("MAISON_CONSUMER_ROOT", bootstrap)
         self.assertIn("is_consumer_checkout", bootstrap)
-        self.assertNotIn("MAISON_OVERLAY_HOME", bootstrap)
-        self.assertNotIn("overlay_template", bootstrap)
 
     def test_cli_help_discovers_mise_tasks_and_forwards_command_help(self) -> None:
         environment = os.environ.copy()
@@ -376,10 +293,7 @@ class RepositoryContractTest(unittest.TestCase):
             "  deploy",
             "  doctor",
             "  plan",
-            "  publish",
             "  rollback",
-            "  status",
-            "  sync",
             "  update",
         )
         self.assertNotIn("workflow:\n", overview.stdout)
@@ -401,10 +315,6 @@ class RepositoryContractTest(unittest.TestCase):
         self.assertIn("user:\n  apply", overview.stdout)
         self.assertIn("  restore         Restore a manifest-backed dotfile handoff backup", overview.stdout)
         self.assertIn("docs:\n  serve", overview.stdout)
-        self.assertIn("  sync", overview.stdout)
-        self.assertIn("Pull the consumer repository, then apply its configuration", overview.stdout)
-        self.assertIn("Show the consumer repository and remote status", overview.stdout)
-        self.assertIn("Publish committed consumer repository changes", overview.stdout)
         self.assertIn("[tasks.fix]", read("mise.toml"))
         self.assertIn('run = "hk fix -a"', read("mise.toml"))
         self.assertNotIn("check:\n", overview.stdout)
@@ -431,8 +341,6 @@ class RepositoryContractTest(unittest.TestCase):
             (("docs", "check"), "Task: docs:check"),
             (("docs", "deployment", "enable"), "Task: docs:deployment:enable"),
             (("user", "restore"), "Usage: user:restore-dotfiles"),
-            (("status",), "Task: status"),
-            (("publish",), "Task: publish"),
         ):
             with self.subTest(command=command):
                 result = run(
@@ -470,10 +378,10 @@ class RepositoryContractTest(unittest.TestCase):
         summary = read("docs/src/SUMMARY.md")
         consumer_reference = read("docs/src/reference/consumer.md")
 
-        self.assertIn("maison status", readme)
-        self.assertIn("maison publish", readme)
+        self.assertNotIn("maison status", readme)
+        self.assertNotIn("maison publish", readme)
         self.assertIn("consumer repository", operations)
-        self.assertIn("last-known", operations)
+        self.assertNotIn("last-known", operations)
         self.assertIn("focused-commit", task_reference)
         self.assertIn("consumer", tooling)
         self.assertIn("consumer repository", package_policy)
@@ -501,8 +409,6 @@ class RepositoryContractTest(unittest.TestCase):
         self.assertIn("git clone git@github.com:RobertDeRose/terroir.git", readme)
         self.assertIn("MAISON_CONSUMER_ROOT", readme)
         self.assertIn("MAISON_BOOTSTRAP_VERSION", readme)
-        self.assertNotIn("MAISON_OVERLAY_HOME", readme)
-        self.assertNotIn("overlay_template", readme)
 
     def test_linux_user_creation_reuses_existing_primary_group(self) -> None:
         build = read(".github/scripts/build-platform-targets.sh")
