@@ -45,6 +45,7 @@ synthetic overlay input, and do not write Maison files.
 |---------------------|---------------------------------------------------------------------|
 | `check`             | Install Maison tools, then run data, shell, Python, and Nix checks. |
 | `consumer:validate` | Validate a consumer without activation or provider credentials.     |
+| `self:update`       | Upgrade Maison from the selected consumer's pinned input.           |
 | `check:tests`       | Run bounded Python unittest discovery across `tests/test_*.py`.     |
 | `fix`               | Apply deterministic hk fixes to the working tree.                   |
 | `docs:check`        | Build and validate documentation structure.                         |
@@ -52,7 +53,9 @@ synthetic overlay input, and do not write Maison files.
 | `docs:serve`        | Serve mdBook on port 3000 or a supplied port.                       |
 
 `consumer:validate` is the mise task behind `maison consumer validate`; it owns the framework-side contract so a
-consumer does not need a duplicate validation suite. Inventory fixtures live under `tests/fixtures/inventory/` and are
+consumer does not need a duplicate validation suite. `self:update` is the transactional framework upgrade path: it
+updates the consumer's Maison input, validates with the candidate CLI, and rolls back the consumer lock and local CLI
+state together when any step fails. Inventory fixtures live under `tests/fixtures/inventory/` and are
 consumed by Python tests and Nix evaluation checks. Add fixtures when changing schema fields, defaults, profile
 compatibility, deployment path rules, or host override layout.
 

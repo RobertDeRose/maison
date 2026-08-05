@@ -59,3 +59,9 @@ credentials. Provider selection remains consumer-owned.
 `plan` is read-only with respect to the consumer repository. `apply`, `update`, host authoring, software authoring,
 publish, deployment, and recovery operate on the selected consumer. `maison update` replaces only the consumer's
 `flake.lock`; Maison's lock is never an implicit fallback.
+
+`maison self update` is the focused framework upgrade. It updates only the Maison input, builds the candidate CLI from
+the resulting consumer lock, runs `maison consumer validate` through that candidate, and records its executable in
+owner-only local CLI state. A failed update restores both the prior consumer lock and prior CLI state. The state file is
+under `${XDG_STATE_HOME:-$HOME/.local/state}/maison/cli` unless `MAISON_CLI_STATE_FILE` is set; it is local runtime
+state and is not committed to either repository.

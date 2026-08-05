@@ -14,6 +14,7 @@ configuration root.
 | `apply [--host HOST] [--force-dotfiles]`              | Apply consumer Nix state, then converge consumer user state         |
 | `sync [--host HOST] [--user-only] [--force-dotfiles]` | Fast-forward the consumer repository, then run `apply`              |
 | `update [INPUT] [--check]`                            | Update only the consumer `flake.lock`; optionally validate          |
+| `self:update`                                         | Transactionally upgrade Maison from the consumer lock               |
 | `status`                                              | Inspect the consumer worktree and upstream relationship             |
 | `publish`                                             | Publish existing consumer commits through its configured upstream   |
 | `deploy HOST`                                         | Deploy the consumer's Linux system profile and user state           |

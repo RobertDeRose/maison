@@ -43,6 +43,9 @@
 #USAGE cmd "consumer" help="Validate a consumer repository" {
 #USAGE   cmd "validate" help="Validate without activation" { arg "[args]..." }
 #USAGE }
+#USAGE cmd "self" help="Manage the Maison framework" {
+#USAGE   cmd "update" help="Upgrade Maison from the consumer lock" { arg "[args]..." }
+#USAGE }
 #USAGE cmd "tool" help="Manage global mise tools" {
 #USAGE   cmd "add" help="Add a tool" { arg "[args]..." }
 #USAGE   cmd "remove" help="Remove a tool" { arg "[args]..." }
@@ -74,6 +77,24 @@
 #USAGE cmd "__command-paths" hide=#true
 
 set -euo pipefail
+
+# A successful `maison self update` stores the candidate package executable in
+# owner-only state. Explicit MAISON_HOME remains authoritative for development
+# and recovery, while ordinary invocations follow the persisted CLI revision.
+if [ -z "${MAISON_HOME:-}" ] && [ "${MAISON_CLI_STATE_ACTIVE:-false}" != true ]; then
+  maison_cli_state_file="${MAISON_CLI_STATE_FILE:-${XDG_STATE_HOME:-${HOME:-$PWD}/.local/state}/maison/cli}"
+  if [ -f "$maison_cli_state_file" ] && [ ! -L "$maison_cli_state_file" ]; then
+    IFS= read -r maison_persisted_cli < "$maison_cli_state_file" || maison_persisted_cli=""
+    case "$maison_persisted_cli" in
+      /*)
+        if [ -x "$maison_persisted_cli" ]; then
+          export MAISON_CLI_STATE_ACTIVE=true
+          exec "$maison_persisted_cli" "$@"
+        fi
+        ;;
+    esac
+  fi
+fi
 
 log_error() {
   printf 'maison: %s\n' "$*" >&2
@@ -213,6 +234,7 @@ format_task_groups() {
       if (task ~ /^tool:(add|remove)$/) return "tool"
       if (task ~ /^host:(add|list)$/) return "host"
       if (task == "consumer:validate") return "consumer"
+      if (task == "self:update") return "self"
       if (task ~ /^system:(apply|clean|deploy|history|plan|rollback)$/) return "system"
       if (task ~ /^user:(apply|plan|recover|restore-dotfiles|status|update)$/) return "user"
       if (task == "docs:serve") return "docs"
@@ -253,7 +275,7 @@ format_task_groups() {
         printf "%s", workflow
         printed_group = 1
       }
-      order_count = split("github app package tool host consumer system user docs", order)
+      order_count = split("github app package tool host consumer self system user docs", order)
       for (position = 1; position <= order_count; position++) {
         group = order[position]
         if (group in grouped) {

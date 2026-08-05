@@ -230,6 +230,7 @@ class RepositoryMutationTaskSurfaceTest(unittest.TestCase):
         ".mise/tasks/app/remove",
         ".mise/tasks/host/add",
         ".mise/tasks/update",
+        ".mise/tasks/self/update",
     )
     runtime_tasks = (
         ".mise/tasks/apply",

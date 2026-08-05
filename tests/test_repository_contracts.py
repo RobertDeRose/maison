@@ -183,6 +183,7 @@ class RepositoryContractTest(unittest.TestCase):
             'cmd "status"',
             'cmd "publish"',
             'cmd "sync"',
+            'cmd "self"',
         ):
             self.assertIn(command, cli)
         self.assertIn('export MISE_PROJECT_ROOT="$maison_home"', cli)
@@ -368,7 +369,7 @@ class RepositoryContractTest(unittest.TestCase):
             overview.stdout,
         )
         self.assertIn("Available commands and their subcommands:\n", overview.stdout)
-        groups = ("github", "app", "package", "tool", "host", "system", "user", "docs")
+        groups = ("github", "app", "package", "tool", "host", "consumer", "self", "system", "user", "docs")
         workflow_rows = (
             "  apply",
             "  bootstrap",
@@ -480,6 +481,7 @@ class RepositoryContractTest(unittest.TestCase):
         self.assertIn("consumer", app_guide)
         self.assertIn("Consumer Repository Reference", summary)
         self.assertIn("MAISON_CONSUMER_ROOT", consumer_reference)
+        self.assertIn("maison self update", consumer_reference)
 
     def test_readme_quickstart_covers_consumer_installation(self) -> None:
         readme = read("README.md")

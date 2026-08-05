@@ -102,6 +102,7 @@ maison status
 maison publish
 maison sync
 maison update
+maison self update
 
 maison system plan
 maison system apply
@@ -120,6 +121,10 @@ maison deploy example-linux
 `maison consumer validate` runs the read-only consumer contract: flake composition, inventory, mise package and dotfile
 declarations, fnox references, documentation links, supported systems, and raw-credential/private-key boundaries. It
 never activates a system, mutates a lock file, or invokes fnox providers, so CI does not need personal credentials.
+
+`maison self update` upgrades only the Maison input in the selected consumer's `flake.lock`. It builds the locked
+candidate CLI, validates the consumer through that candidate, and records the candidate CLI in owner-only local state;
+failed updates restore both the lock and the prior CLI state. Maison's own checkout and lock are never an update target.
 
 The same operations are available as Maison mise tasks, for example `mise -C ~/.maison run system:plan`. Authoring
 commands write only consumer files. They require a Git checkout, reject pre-existing changes in mutation targets, use

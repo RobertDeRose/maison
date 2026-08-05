@@ -1,0 +1,166 @@
+#!/usr/bin/env bash
+# [MISE] quiet=true
+# [MISE] description="Update the Maison framework in the consumer"
+# [MISE] interactive=true
+#USAGE flag "--consumer <path>" help="Consumer repository containing flake.nix, flake.lock, and inventory.toml"
+set -euo pipefail
+
+framework_root="${MAISON_HOME:-${MISE_PROJECT_ROOT:-$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)}}"
+# shellcheck source=.mise/lib/common.sh
+source "$framework_root/.mise/lib/common.sh"
+if [ -n "${usage_consumer:-}" ]; then
+  export MAISON_CONSUMER_ROOT="$usage_consumer"
+fi
+root="$(maison_consumer_root "${BASH_SOURCE[0]}")"
+cd "$root"
+# shellcheck source=.mise/lib/nix.sh
+source "$framework_root/.mise/lib/nix.sh"
+# shellcheck source=.mise/lib/transaction.sh
+source "$framework_root/.mise/lib/transaction.sh"
+# shellcheck source=.mise/lib/repository_git.sh
+source "$framework_root/.mise/lib/repository_git.sh"
+
+repository_require_authoring "$root" self:update
+transaction_require_authoring_checkout "$root" self:update
+transaction_require_lock "$root" "${BASH_SOURCE[0]}" "$@"
+load_nix_environment
+configure_github_access_token "$root"
+
+state_file="${MAISON_CLI_STATE_FILE:-${XDG_STATE_HOME:-${HOME:-$PWD}/.local/state}/maison/cli}"
+case "$state_file" in
+  /*) ;;
+  *) die "MAISON_CLI_STATE_FILE must be an absolute path: $state_file" ;;
+esac
+if [ -L "$state_file" ]; then
+  die "Maison CLI state must be a regular file: $state_file"
+fi
+if [ -e "$state_file" ] && [ ! -f "$state_file" ]; then
+  die "Maison CLI state must be a regular file: $state_file"
+fi
+
+backup_dir="$(transaction_directory)"
+cp -p flake.lock "$backup_dir/flake.lock"
+state_was_present=false
+previous_cli_state=""
+if [ -f "$state_file" ]; then
+  cp -p "$state_file" "$backup_dir/cli-state"
+  IFS= read -r previous_cli_state < "$state_file" || previous_cli_state=""
+  state_was_present=true
+fi
+candidate_root=""
+state_parent="$(dirname "$state_file")"
+state_parent_created=false
+
+# Invoked indirectly by the EXIT trap below.
+# shellcheck disable=SC2329
+restore_self_update() {
+  local exit_status="$1" rollback_status=0
+  if [ "$exit_status" -ne 0 ]; then
+    cp -p "$backup_dir/flake.lock" flake.lock || rollback_status=$?
+    if [ "$state_was_present" = true ]; then
+      cp -p "$backup_dir/cli-state" "$state_file" || rollback_status=$?
+    else
+      rm -f "$state_file" || rollback_status=$?
+    fi
+    if [ -n "${MAISON_REPOSITORY_MUTATION_JOURNAL:-}" ]; then
+      if [ "$rollback_status" -eq 0 ]; then
+        transaction_journal_complete || rollback_status=$?
+      else
+        printf 'self:update: rollback failed; preserved mutation journal at %s\n' \
+          "$MAISON_REPOSITORY_MUTATION_JOURNAL" >&2
+      fi
+    fi
+    if [ -n "$candidate_root" ]; then
+      rm -rf "$candidate_root"
+    fi
+    if [ "$state_parent_created" = true ] && [ -d "$state_parent" ]; then
+      rmdir "$state_parent" 2> /dev/null || true
+    fi
+    [ "$rollback_status" -eq 0 ] || exit_status="$rollback_status"
+  fi
+  rm -rf "$backup_dir"
+  trap - EXIT
+  exit "$exit_status"
+}
+trap 'restore_self_update "$?"' EXIT
+
+max_attempts="${MAISON_NIX_UPDATE_ATTEMPTS:-1}"
+connect_timeout="${MAISON_NIX_UPDATE_CONNECT_TIMEOUT:-10}"
+stalled_timeout="${MAISON_NIX_UPDATE_STALLED_TIMEOUT:-60}"
+retry_delay="${MAISON_NIX_UPDATE_RETRY_DELAY:-2}"
+candidate_lock="$backup_dir/flake.lock.candidate"
+
+case "$max_attempts" in
+  '' | *[!0-9]*) die "MAISON_NIX_UPDATE_ATTEMPTS must be a positive integer" ;;
+esac
+[ "$max_attempts" -gt 0 ] || die "MAISON_NIX_UPDATE_ATTEMPTS must be greater than zero"
+
+update_succeeded=false
+for ((attempt = 1; attempt <= max_attempts; attempt++)); do
+  rm -f "$candidate_lock"
+  log_info "Updating the Maison input (attempt $attempt/$max_attempts)"
+  if nix_command \
+    --option connect-timeout "$connect_timeout" \
+    --option stalled-download-timeout "$stalled_timeout" \
+    --option download-attempts 1 \
+    flake update --output-lock-file "$candidate_lock" maison; then
+    [ -s "$candidate_lock" ] || die "Nix update succeeded without producing a candidate lockfile"
+    update_succeeded=true
+    break
+  fi
+  if [ "$attempt" -lt "$max_attempts" ]; then
+    log_warn "Maison input update failed; retrying in ${retry_delay}s"
+    sleep "$retry_delay"
+  fi
+done
+[ "$update_succeeded" = true ] || die "Maison input update failed after $max_attempts attempt(s)"
+
+transaction_journal_begin "$root" self:update flake.lock
+transaction_journal_mark validated
+atomic_replace "$candidate_lock" flake.lock
+
+if [ ! -d "$state_parent" ]; then
+  mkdir -p "$state_parent"
+  chmod 700 "$state_parent"
+  state_parent_created=true
+fi
+
+candidate_store="$(MAISON_SELF_CONSUMER_ROOT="$root" nix_command build \
+  --no-update-lock-file \
+  --no-link \
+  --print-out-paths \
+  --impure \
+  --expr "let consumer = builtins.getFlake (builtins.getEnv \"MAISON_SELF_CONSUMER_ROOT\"); in consumer.inputs.maison.packages.\${builtins.currentSystem}.maison" | tail -n 1)"
+[ -n "$candidate_store" ] || die "candidate Maison package did not produce a store path"
+
+store_command="$(command -v nix-store || command -v lix-store || true)"
+[ -n "$store_command" ] || die "nix-store or lix-store is required to retain the candidate Maison CLI"
+candidate_root="$(mktemp "${state_file}.root.XXXXXX")"
+rm -f "$candidate_root"
+"$store_command" --add-root "$candidate_root" --indirect --realise "$candidate_store"
+candidate_cli="$candidate_root/bin/maison"
+[ -x "$candidate_cli" ] || die "candidate Maison package has no executable CLI"
+
+log_info "Validating the consumer with the candidate Maison CLI"
+if ! env \
+  -u MAISON_HOME \
+  -u MISE_PROJECT_ROOT \
+  MAISON_CLI_STATE_ACTIVE=true \
+  MAISON_CONSUMER_ROOT="$root" \
+  "$candidate_cli" consumer validate --consumer "$root"; then
+  die "candidate Maison validation failed; restored the consumer lock and CLI state"
+fi
+
+state_candidate="$backup_dir/cli-state.candidate"
+printf '%s\n' "$candidate_cli" >"$state_candidate"
+chmod 600 "$state_candidate"
+mv -f "$state_candidate" "$state_file"
+transaction_journal_complete
+case "$previous_cli_state" in
+  "$state_file.root."*/bin/maison)
+    previous_root="${previous_cli_state%/bin/maison}"
+    [ "$previous_root" = "$candidate_root" ] || [ ! -L "$previous_root" ] || rm -f "$previous_root" || true
+    ;;
+esac
+log_info "Maison CLI and consumer input updated"
+exit 0

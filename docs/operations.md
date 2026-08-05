@@ -91,13 +91,16 @@ Update the consumer flake independently from Maison:
 maison update                # update the consumer flake.lock
 maison update nixpkgs        # update one consumer input
 maison update --check        # update, then validate
+maison self update            # upgrade Maison from the consumer's pinned input
 maison user update           # upgrade consumer mise-managed tools
 maison package update        # upgrade consumer Homebrew formulae
 maison app update            # upgrade consumer applications
 ```
 
 `maison update` restores the consumer `flake.lock` if the update or optional validation fails. Maison's lock is never an
-implicit fallback. Scheduled Maison dependency automation updates only Maison's own lock and remains review-gated.
+implicit fallback. Use `maison self update` when upgrading the framework itself: it updates only the consumer's Maison
+input, builds and validates the candidate CLI, and rolls back the lock plus owner-only CLI state on failure. Scheduled
+Maison dependency automation updates only Maison's own lock and remains review-gated.
 
 ## Sync and deployment
 

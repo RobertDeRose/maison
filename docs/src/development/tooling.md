@@ -94,7 +94,9 @@ maison consumer validate --consumer /path/to/consumer
 The read-only check validates the consumer flake and lock, inventory, supported systems, mise package and dotfile
 configuration, fnox references, documentation links, and raw credential/private-key boundaries. It evaluates expected
 Nix outputs without activation or lock updates, and the validator itself never invokes fnox providers; provider
-credentials are therefore not needed by the validation contract in CI.
+credentials are therefore not needed by the validation contract in CI. `maison self update` uses this same command
+through the candidate Maison package after changing only the consumer's Maison input, so failed framework upgrades can
+restore the prior lock and local CLI state without touching Maison's own checkout lock.
 
 ## Hooks and recovery
 
