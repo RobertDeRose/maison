@@ -1,33 +1,32 @@
 #!/usr/bin/env bash
-# Install Maison and hand machine setup to its mise-backed bootstrap task.
+# Install Maison and hand machine setup to a consumer repository.
 #
 # Usage:
-#   ./bootstrap.sh [--host HOST] [--overlay GIT-URL-OR-PATH] [--repo OWNER/REPO|URL|PATH] [--ref REF]
-#   Set MAISON_OVERLAY instead of passing --overlay to select an existing private repository.
+#   ./bootstrap.sh [--host HOST] [--consumer PATH] [--repo OWNER/REPO|URL|PATH] [--ref REF]
+#   Run from the consumer checkout or pass MAISON_CONSUMER_ROOT explicitly.
 #   Download this file from a reviewed release, verify it against the published checksum, then run:
-#     bash bootstrap.sh --host HOST --overlay GIT-URL-OR-PATH --repo RobertDeRose/maison --ref v0.1.1
+#     bash bootstrap.sh --consumer "$HOME/src/terroir" --repo RobertDeRose/maison --ref v0.1.1
 
 set -euo pipefail
 
 show_help() {
   cat << 'HELP'
-Install Maison and hand machine setup to its mise-backed bootstrap task.
+Install Maison and hand machine setup to a consumer repository.
 
 Usage:
-  bootstrap.sh [--host HOST] [--overlay GIT-URL-OR-PATH] [--repo OWNER/REPO|URL|PATH] [--ref REF]
+  bootstrap.sh [--host HOST] [--consumer PATH] [--repo OWNER/REPO|URL|PATH] [--ref REF]
   bootstrap.sh [HOST]
 
 Options:
-  --host HOST       Inventory host; defaults to the short local hostname.
-  --overlay SOURCE  Existing private overlay Git URL or local repository path.
-  --repo REPO       GitHub owner/repository, Git URL, or local repository path.
-  --ref REF         Branch, tag, or immutable commit to clone; defaults to main.
+  --host HOST       Consumer inventory host; defaults to the short local hostname.
+  --consumer PATH   Consumer Git repository with flake.nix, flake.lock, and inventory.toml.
+  --repo REPO       GitHub owner/repository, Git URL, or local Maison repository path.
+  --ref REF         Maison branch, tag, or immutable commit; defaults to main.
   -h, --help        Show this help text.
 
 Environment:
-  MAISON_OVERLAY          Existing private overlay Git URL or local repository path.
-  MAISON_OVERLAY_HOME     Copier destination; defaults to ${XDG_DATA_HOME:-$HOME/.local/share}/maison/overlay.
-  MAISON_REQUIRE_OVERLAY  Fail instead of deferring when no overlay is available.
+  MAISON_CONSUMER_ROOT  Consumer repository path; equivalent to --consumer.
+  MAISON_REQUIRE_CONSUMER  Fail instead of deferring when no consumer is selected.
 HELP
 }
 
@@ -41,7 +40,7 @@ host="$(hostname -s)"
 repo="${REPO:-RobertDeRose/maison}"
 ref="${REF:-${BRANCH:-main}}"
 profiles="${PROFILES:-}"
-overlay="${MAISON_OVERLAY:-${MAISON_OVERLAY_SOURCE:-}}"
+consumer="${MAISON_CONSUMER_ROOT:-${MAISON_REPOSITORY:-${MAISON_REPO:-}}}"
 
 while [ "$#" -gt 0 ]; do
   case "$1" in
@@ -50,9 +49,9 @@ while [ "$#" -gt 0 ]; do
       host="$2"
       shift 2
       ;;
-    --overlay)
-      [ "$#" -ge 2 ] || bootstrap_die "--overlay requires a value"
-      overlay="$2"
+    --consumer | --repository)
+      [ "$#" -ge 2 ] || bootstrap_die "--consumer requires a value"
+      consumer="$2"
       shift 2
       ;;
     --repo)
@@ -130,77 +129,22 @@ install_macos_prerequisites() {
   run_root softwareupdate -i "$product" --verbose
 }
 
-print_overlay_setup_help() {
+is_maison_checkout() {
+  local path="$1"
+  [ -f "$path/mise.toml" ] && [ -f "$path/flake.nix" ] && [ -d "$path/.mise/tasks" ]
+}
+
+is_consumer_checkout() {
+  local path="$1"
+  [ -d "$path" ] && [ -f "$path/flake.nix" ] && [ -f "$path/flake.lock" ] && [ -f "$path/inventory.toml" ]
+}
+
+print_consumer_setup_help() {
   log "Maison CLI installed at $HOME/.local/bin/maison"
-  printf '%s\n' "No private overlay was selected, so Nix and user activation were skipped."
-  printf '%s\n' "Create an overlay with the Copier template, then rerun bootstrap with --overlay or MAISON_OVERLAY."
-  printf '%s\n' "Read: $repo_root/README.md#private-overlay"
-  printf '%s\n' "Template: $repo_root/overlay_template"
-}
-
-setup_overlay_with_copier() {
-  local destination="${MAISON_OVERLAY_HOME:-${XDG_DATA_HOME:-$HOME/.local/share}/maison/overlay}" copier_user
-  copier_user="$(id -un)"
-  [ -e "$destination" ] && [ ! -d "$destination" ] && bootstrap_die "overlay destination is not a directory: $destination"
-  mkdir -p "$destination"
-  destination="$(cd "$destination" && pwd -P)"
-  log "Installing the pinned Copier runner"
-  mise install uv
-  log "Creating private overlay at $destination"
-  copier_env="$(mktemp -d)"
-  (
-    trap 'rm -rf "$copier_env"' EXIT
-    mise exec --locked python -- python -m venv "$copier_env"
-    mise exec --locked uv pip install \
-      --python "$copier_env/bin/python" \
-      --require-hashes \
-      --no-cache \
-      -r "$repo_root/bootstrap/copier-requirements.txt"
-    MAISON_HOME="$repo_root" MAISON_OVERLAY_PATH="$destination" MAISON_HOST="$host" \
-      "$copier_env/bin/copier" copy --trust --data "username=$copier_user" \
-        "$repo_root/overlay_template" "$destination"
-  )
-  [ -d "$destination/.git" ] || bootstrap_die "Copier did not initialize the overlay Git repository: $destination"
-  overlay="$destination"
-}
-
-select_overlay_or_defer() {
-  local saved reply
-  if [ -n "$overlay" ]; then
-    return 0
-  fi
-  if [ -f "$repo_root/scripts/maison_overlay.py" ]; then
-    saved="$(mise exec --locked python -- python "$repo_root/scripts/maison_overlay.py" resolve 2> /dev/null || true)"
-    if [ -n "$saved" ]; then
-      overlay="$saved"
-      return 0
-    fi
-  fi
-  if [ "${MAISON_REQUIRE_OVERLAY:-false}" = true ] && [ ! -t 0 ]; then
-    bootstrap_die "overlay source is required in non-interactive mode; pass --overlay or set MAISON_OVERLAY"
-  fi
-  if [ ! -t 0 ]; then
-    print_overlay_setup_help
-    return 1
-  fi
-  printf 'No private overlay selected. Set one up now with Copier? [Y/n] ' >&2
-  IFS= read -r reply || reply=n
-  case "$reply" in
-    "" | y | Y | yes | YES | Yes)
-      setup_overlay_with_copier
-      return 0
-      ;;
-    n | N | no | NO | No)
-      if [ "${MAISON_REQUIRE_OVERLAY:-false}" = true ]; then
-        bootstrap_die "overlay source is required; pass --overlay or set MAISON_OVERLAY"
-      fi
-      print_overlay_setup_help
-      return 1
-      ;;
-    *)
-      bootstrap_die "answer yes or no when choosing whether to create a private overlay"
-      ;;
-  esac
+  printf '%s\n' "No consumer repository was selected, so Nix and user activation were skipped."
+  printf '%s\n' "Set MAISON_CONSUMER_ROOT or rerun bootstrap with --consumer /path/to/consumer."
+  printf '%s\n' "The consumer must own flake.nix, flake.lock, inventory.toml, hosts, and user configuration."
+  printf '%s\n' "Read: $repo_root/docs/src/reference/consumer.md"
 }
 
 case "$(uname -s)" in
@@ -227,10 +171,11 @@ case "$repo" in
   *) repo_url="https://github.com/${repo%.git}.git" ;;
 esac
 repo_root=""
-if git_root="$(git rev-parse --show-toplevel 2> /dev/null)" &&
-  [ -f "$git_root/mise.toml" ] &&
-  [ -f "$git_root/flake.nix" ]; then
+if git_root="$(git rev-parse --show-toplevel 2> /dev/null)" && is_maison_checkout "$git_root"; then
   repo_root="$git_root"
+  if [ -z "$consumer" ] && [ "$git_root" != "$(pwd -P)" ] && is_consumer_checkout "$(pwd -P)"; then
+    consumer="$(pwd -P)"
+  fi
 elif [ -n "${MAISON_HOME:-}" ]; then
   repo_root="$MAISON_HOME"
 elif [ -n "${NIX_CONFIG_DIR:-}" ]; then
@@ -249,13 +194,26 @@ if [ ! -d "$repo_root/.git" ]; then
   else
     git clone --branch "$ref" --single-branch "$repo_url" "$repo_root"
   fi
-elif [ ! -f "$repo_root/mise.toml" ] || [ ! -f "$repo_root/flake.nix" ]; then
+elif ! is_maison_checkout "$repo_root"; then
   bootstrap_die "$repo_root does not look like Maison"
 else
-  log "Using repository at $repo_root"
+  log "Using Maison repository at $repo_root"
+fi
+
+if [ -z "$consumer" ] &&
+  git_root="$(git -C "$PWD" rev-parse --show-toplevel 2> /dev/null)" &&
+  [ "$git_root" != "$repo_root" ] &&
+  is_consumer_checkout "$git_root"; then
+  consumer="$git_root"
+fi
+if [ -n "$consumer" ]; then
+  consumer="$(cd "$consumer" 2> /dev/null && pwd -P)" || bootstrap_die "consumer repository is unavailable: $consumer"
+  is_consumer_checkout "$consumer" ||
+    bootstrap_die "consumer repository must contain flake.nix, flake.lock, and inventory.toml: $consumer"
 fi
 
 cd "$repo_root"
+export MAISON_HOME="$repo_root"
 export MISE_TRUSTED_CONFIG_PATHS="$repo_root${MISE_TRUSTED_CONFIG_PATHS:+:$MISE_TRUSTED_CONFIG_PATHS}"
 
 # Bootstrap only the executors required by the two ownership layers: mise and Nix/Lix.
@@ -272,21 +230,23 @@ log "Installing Maison command"
 mkdir -p "$HOME/.local/bin"
 ln -sfn "$repo_root/bin/maison" "$HOME/.local/bin/maison"
 
-log "Trusting repository configuration"
+log "Trusting Maison project configuration"
 mise trust "$repo_root/mise.toml" > /dev/null
 
-if ! select_overlay_or_defer; then
+if [ -z "$consumer" ]; then
+  if [ "${MAISON_REQUIRE_CONSUMER:-false}" = true ] || [ ! -t 0 ]; then
+    bootstrap_die "a consumer repository is required; pass --consumer or set MAISON_CONSUMER_ROOT"
+  fi
+  print_consumer_setup_help
   exit 0
 fi
 
+export MAISON_CONSUMER_ROOT="$consumer"
 install_nix_or_lix_if_missing
 
-log "Handing off to Maison for host $host"
-bootstrap_args=(--host "$host")
-if [ -n "$overlay" ]; then
-  bootstrap_args+=(--overlay "$overlay")
-fi
+log "Handing off to Maison for consumer host $host"
+bootstrap_args=(--host "$host" --consumer "$consumer")
 if [ -n "$profiles" ]; then
-  log "Ignoring legacy --profiles=$profiles; profiles now select only Nix system modules in inventory.toml"
+  log "Ignoring legacy --profiles=$profiles; profiles select only Nix system modules in the consumer inventory"
 fi
 exec mise exec --locked python -- mise run --skip-tools bootstrap -- "${bootstrap_args[@]}"

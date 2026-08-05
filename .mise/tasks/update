@@ -5,11 +5,14 @@
 #USAGE arg "[input]" help="Optional single flake input"
 #USAGE flag "--check" help="Run full validation after updating"
 set -euo pipefail
-root="${MISE_PROJECT_ROOT:-$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)}"
+framework_root="${MAISON_HOME:-${MISE_PROJECT_ROOT:-$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)}}"
+source "$framework_root/.mise/lib/common.sh"
+root="$(maison_consumer_root "${BASH_SOURCE[0]}")"
 cd "$root"
-source "$root/.mise/lib/common.sh"
-source "$root/.mise/lib/nix.sh"
-source "$root/.mise/lib/transaction.sh"
+source "$framework_root/.mise/lib/nix.sh"
+source "$framework_root/.mise/lib/transaction.sh"
+source "$framework_root/.mise/lib/repository_git.sh"
+repository_require_authoring "$root" update
 transaction_require_authoring_checkout "$root" update
 transaction_require_lock "$root" "${BASH_SOURCE[0]}" "$@"
 load_nix_environment
@@ -87,5 +90,5 @@ done
 [ "$update_succeeded" = true ] || die "Nix input update failed after $max_attempts attempt(s)"
 
 if [ "${usage_check:-false}" = true ]; then
-  mise run check
+  mise -C "$framework_root" run check
 fi

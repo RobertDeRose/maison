@@ -7,11 +7,14 @@
 #USAGE flag "--profiles <profiles>" help="Comma-separated profiles"
 #USAGE flag "--overrides" help="Create a host-specific system.nix stub"
 set -euo pipefail
-root="${MISE_PROJECT_ROOT:-$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)}"
-source "$root/.mise/lib/common.sh"
-source "$root/.mise/lib/platform.sh"
-source "$root/.mise/lib/inventory.sh"
-source "$root/.mise/lib/transaction.sh"
+framework_root="${MAISON_HOME:-${MISE_PROJECT_ROOT:-$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)}}"
+source "$framework_root/.mise/lib/common.sh"
+root="$(maison_consumer_root "${BASH_SOURCE[0]}")"
+source "$framework_root/.mise/lib/platform.sh"
+source "$framework_root/.mise/lib/inventory.sh"
+source "$framework_root/.mise/lib/transaction.sh"
+source "$framework_root/.mise/lib/repository_git.sh"
+repository_require_authoring "$root" host:add
 cd "$root"
 
 host="${usage_hostname:?mise did not provide the required hostname argument}"
@@ -90,7 +93,7 @@ cleanup() {
 trap cleanup EXIT
 transaction_set_signal_traps
 
-python3 "$root/.mise/lib/config_edit.py" host \
+python3 "$framework_root/.mise/lib/config_edit.py" host \
   --file "$candidate" \
   --name "$host" \
   --system "$system" \
@@ -107,7 +110,7 @@ if [ "${usage_overrides:-false}" = true ]; then
 NIX
 fi
 
-python3 "$root/.mise/lib/inventory.py" \
+python3 "$framework_root/.mise/lib/inventory.py" \
   --file "$candidate" \
   --repo-root "$inventory_root" \
   validate >/dev/null

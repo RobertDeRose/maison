@@ -11,10 +11,10 @@
 #USAGE cmd "deploy" help="Deploy a Linux system and user environment" { arg "[args]..." }
 #USAGE cmd "doctor" help="Diagnose both ownership layers" { arg "[args]..." }
 #USAGE cmd "plan" help="Preview system and user changes" { arg "[args]..." }
-#USAGE cmd "publish" help="Publish committed private overlay changes" { arg "[args]..." }
+#USAGE cmd "publish" help="Publish committed consumer repository changes" { arg "[args]..." }
 #USAGE cmd "rollback" help="Roll back the Nix system layer" { arg "[args]..." }
-#USAGE cmd "status" help="Show the active private overlay and remote status" { arg "[args]..." }
-#USAGE cmd "sync" help="Pull Maison and the overlay, then apply configuration" { arg "[args]..." }
+#USAGE cmd "status" help="Show the consumer repository and remote status" { arg "[args]..." }
+#USAGE cmd "sync" help="Pull the consumer repository, then apply configuration" { arg "[args]..." }
 #USAGE cmd "update" help="Update Nix inputs and mise-managed software" { arg "[args]..." }
 #USAGE cmd "tasks" help="List Maison tasks" { arg "[args]..." }
 #USAGE cmd "help" help="Print this message or the help of the given command" { arg "[command]..." }
@@ -122,6 +122,28 @@ elif [ -x "$HOME/.local/bin/mise" ]; then
 else
   die "mise is unavailable; rerun Maison bootstrap"
 fi
+
+maison_home="$(cd "$maison_home" && pwd -P)"
+export MAISON_HOME="$maison_home"
+
+# Maison supplies the executable and task definitions; the current checkout
+# supplies the consumer's flake, lock, inventory, and user configuration.
+# Never infer the Maison installation itself as the consumer repository.
+resolve_consumer_from_pwd() {
+  local candidate
+  if [ -n "${MAISON_CONSUMER_ROOT:-${MAISON_REPOSITORY:-${MAISON_REPO:-}}}" ]; then
+    candidate="${MAISON_CONSUMER_ROOT:-${MAISON_REPOSITORY:-${MAISON_REPO:-}}}"
+  elif candidate="$(git -C "$PWD" rev-parse --show-toplevel 2> /dev/null)" &&
+    [ "$(cd "$candidate" && pwd -P)" != "$maison_home" ]; then
+    :
+  else
+    return 0
+  fi
+  candidate="$(cd "$candidate" 2> /dev/null && pwd -P)" ||
+    die "consumer repository is unavailable: ${MAISON_CONSUMER_ROOT:-$candidate}"
+  export MAISON_CONSUMER_ROOT="$candidate"
+}
+resolve_consumer_from_pwd
 
 export MISE_PROJECT_ROOT="$maison_home"
 export MISE_TRUSTED_CONFIG_PATHS="$maison_home${MISE_TRUSTED_CONFIG_PATHS:+:$MISE_TRUSTED_CONFIG_PATHS}"

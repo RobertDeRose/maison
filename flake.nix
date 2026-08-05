@@ -17,11 +17,6 @@
   };
 
   inputs = {
-    overlay = {
-      url = "path:.";
-      flake = false;
-    };
-
     nixpkgs.url = "git+https://github.com/NixOS/nixpkgs?ref=nixpkgs-unstable&shallow=1";
 
     flake-parts = {
@@ -51,7 +46,9 @@
   outputs =
     inputs:
     let
-      inventoryFile = "${inputs.overlay}/inventory.toml";
+      # Maison's own flake is a neutral development/release flake. Consumer
+      # repositories import the public helpers and own their own inventory.
+      inventoryFile = ./inventory.toml;
     in
     import ./nix/outputs.nix {
       inherit inputs inventoryFile;

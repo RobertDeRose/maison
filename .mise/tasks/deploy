@@ -6,10 +6,11 @@
 #USAGE flag "--system-only" help="Skip repository transfer and remote user bootstrap"
 #USAGE flag "--force-dotfiles" help="Replace conflicting remote user dotfiles"
 set -euo pipefail
-root="${MISE_PROJECT_ROOT:-$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)}"
+framework_root="${MAISON_HOME:-${MISE_PROJECT_ROOT:-$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)}}"
+source "$framework_root/.mise/lib/common.sh"
+root="$(maison_consumer_root "${BASH_SOURCE[0]}")"
 cd "$root"
-source "$root/.mise/lib/common.sh"
-source "$root/.mise/lib/inventory.sh"
+source "$framework_root/.mise/lib/inventory.sh"
 
 host="${usage_host:?mise did not provide the required host argument}"
 require_inventory_host "$root" "$host"
@@ -18,18 +19,21 @@ require_inventory_host "$root" "$host"
 archive=""
 remote_archive=""
 remote_helper=""
-remote_recovery_python=""
-remote_recovery_prepare=""
+remote_framework_root=""
 hostname=""
 ssh_user=""
+user=""
 cleanup() {
   local status=$?
   trap - EXIT HUP INT TERM
   [ -z "$archive" ] || rm -f "$archive"
   cleanup_paths=()
   [ -z "$remote_archive" ] || cleanup_paths+=("$remote_archive")
-  [ -z "$remote_recovery_python" ] || cleanup_paths+=("$remote_recovery_python")
-  [ -z "$remote_recovery_prepare" ] || cleanup_paths+=("$remote_recovery_prepare")
+  if [ -n "$remote_framework_root" ] && [ -n "$hostname" ] && [ -n "$user" ]; then
+    quoted_framework_root="$(printf '%q' "$remote_framework_root")"
+    # shellcheck disable=SC2029 # validated mktemp paths are shell-escaped above
+    ssh "$user@$hostname" "rm -rf -- $quoted_framework_root" > /dev/null 2>&1 || true
+  fi
   if [ "${#cleanup_paths[@]}" -gt 0 ] && [ -n "$hostname" ] && [ -n "$ssh_user" ]; then
     quoted_cleanup=""
     for cleanup_path in "${cleanup_paths[@]}"; do
@@ -47,10 +51,10 @@ trap 'exit 143' TERM
 
 if [ "${usage_system_only:-false}" != true ]; then
   archive="$(mktemp "${TMPDIR:-/tmp}/maison-deploy.XXXXXX.tar.gz")"
-  "$root/scripts/create-deploy-archive.sh" "$root" "$archive"
+  "$framework_root/scripts/create-deploy-archive.sh" "$root" "$archive"
 fi
 
-mise run system:deploy -- "$host"
+mise -C "$framework_root" run system:deploy -- "$host"
 [ "${usage_system_only:-false}" != true ] || exit 0
 
 hostname="$(inventory_deploy_hostname "$root" "$host")"
@@ -61,25 +65,45 @@ remote_archive="$(ssh "$ssh_user@$hostname" 'umask 077; mktemp /tmp/maison-deplo
 [[ $remote_archive =~ ^/tmp/maison-deploy\.[A-Za-z0-9]+\.tar\.gz$ ]] ||
   die "remote mktemp returned an unsafe archive path: $remote_archive"
 remote_helper="/etc/maison/maison-deploy-transaction"
-remote_recovery_python="$(ssh "$ssh_user@$hostname" 'umask 077; mktemp /tmp/maison-recovery-helper.XXXXXX.py')"
-[[ $remote_recovery_python =~ ^/tmp/maison-recovery-helper\.[A-Za-z0-9]+\.py$ ]] ||
-  die "remote mktemp returned an unsafe recovery helper path: $remote_recovery_python"
-remote_recovery_prepare="$(ssh "$ssh_user@$hostname" 'umask 077; mktemp /tmp/maison-recovery-prepare.XXXXXX.sh')"
-[[ $remote_recovery_prepare =~ ^/tmp/maison-recovery-prepare\.[A-Za-z0-9]+\.sh$ ]] ||
-  die "remote mktemp returned an unsafe recovery prepare path: $remote_recovery_prepare"
-
+remote_framework_root="$(ssh "$user@$hostname" 'umask 077; mktemp -d /tmp/maison-runtime.XXXXXX')"
+[[ $remote_framework_root =~ ^/tmp/maison-runtime\.[A-Za-z0-9]+$ ]] ||
+  die "remote mktemp returned an unsafe Maison runtime path: $remote_framework_root"
 quoted_archive="$(printf '%q' "$remote_archive")"
 quoted_helper="$(printf '%q' "$remote_helper")"
-quoted_recovery_python="$(printf '%q' "$remote_recovery_python")"
-quoted_recovery_prepare="$(printf '%q' "$remote_recovery_prepare")"
+quoted_framework_root="$(printf '%q' "$remote_framework_root")"
 # shellcheck disable=SC2029 # destinations are shell-escaped above
 ssh "$ssh_user@$hostname" "cat > $quoted_archive" < "$archive"
-# shellcheck disable=SC2029 # destinations are shell-escaped above
-ssh "$ssh_user@$hostname" "cat > $quoted_recovery_python" < "$root/.mise/lib/user_convergence.py"
-# shellcheck disable=SC2029 # destinations are shell-escaped above
-ssh "$ssh_user@$hostname" "cat > $quoted_recovery_prepare" < "$root/scripts/user-prepare.sh"
-# shellcheck disable=SC2029 # paths are shell-escaped above
-ssh "$ssh_user@$hostname" "chmod 0644 $quoted_recovery_python; chmod 0755 $quoted_recovery_prepare"
+# shellcheck disable=SC2029 # the runtime path is validated and shell-escaped above
+ssh "$user@$hostname" "mkdir -p $quoted_framework_root/.mise/lib $quoted_framework_root/scripts $quoted_framework_root/bin $quoted_framework_root/dotfiles/pi $quoted_framework_root/bootstrap $quoted_framework_root/config/mise"
+runtime_files=(
+  .mise/lib/common.sh
+  .mise/lib/platform.sh
+  .mise/lib/bootstrap.sh
+  .mise/lib/dotfile_backups.py
+  .mise/lib/user_convergence.py
+  scripts/user-prepare.sh
+  scripts/user-link-mise-lock.sh
+  scripts/user-apply-packages.sh
+  scripts/user-finalize.sh
+  mise.toml
+  mise.lock
+  bin/maison
+  dotfiles/pi/settings.defaults.json
+  bootstrap/artifacts.toml
+  config/mise/config.toml
+  config/mise/config.macos.toml
+  config/mise/config.macos-arm64.toml
+  config/mise/config.linux.toml
+  config/mise/mise.lock
+  config/mise/config.macos.lock
+)
+for runtime_file in "${runtime_files[@]}"; do
+  quoted_runtime_file="$(printf '%q' "$remote_framework_root/$runtime_file")"
+  # shellcheck disable=SC2029 # the runtime path is validated and shell-escaped above
+  ssh "$user@$hostname" "cat > $quoted_runtime_file" < "$framework_root/$runtime_file"
+done
+# shellcheck disable=SC2029 # paths are validated and shell-escaped above
+ssh "$user@$hostname" "chmod 0644 $quoted_framework_root/.mise/lib/user_convergence.py; chmod 0755 $quoted_framework_root/scripts/user-prepare.sh $quoted_framework_root/scripts/user-link-mise-lock.sh $quoted_framework_root/scripts/user-apply-packages.sh $quoted_framework_root/scripts/user-finalize.sh $quoted_framework_root/bin/maison"
 
 quoted_repo="$(printf '%q' "$repo_path")"
 sudo_prefix=""
@@ -110,21 +134,26 @@ quoted_user_args=""
 for arg in "${remote_args[@]}"; do
   quoted_user_args+=" $(printf '%q' "$arg")"
 done
-quoted_args=" $quoted_failed_revision$quoted_user_args"
-# shellcheck disable=SC2029 # repository and optional arguments are shell-escaped
+quoted_args=" $quoted_failed_revision $quoted_framework_root$quoted_user_args"
+# shellcheck disable=SC2029 # repository, runtime, and optional arguments are shell-escaped
 if ssh "$user@$hostname" "bash -s -- $quoted_repo$quoted_args" << 'REMOTE_USER'; then
 set -eu
 repo_path="$1"
 failed_revision="$2"
-shift 2
+runtime_root="$3"
+shift 3
+export MAISON_HOME="$runtime_root"
+export MAISON_CONSUMER_ROOT="$repo_path"
 if ! command -v mise >/dev/null 2>&1; then
   # shellcheck source=.mise/lib/common.sh
-  . "$repo_path/.mise/lib/common.sh"
+  . "$runtime_root/.mise/lib/common.sh"
   # shellcheck source=.mise/lib/platform.sh
-  . "$repo_path/.mise/lib/platform.sh"
+  . "$runtime_root/.mise/lib/platform.sh"
   # shellcheck source=.mise/lib/bootstrap.sh
-  . "$repo_path/.mise/lib/bootstrap.sh"
+  . "$runtime_root/.mise/lib/bootstrap.sh"
+  export MISE_PROJECT_ROOT="$runtime_root"
   install_mise_if_missing
+  unset MISE_PROJECT_ROOT
 fi
 cd "$repo_path"
 export MISE_TRUSTED_CONFIG_PATHS="$repo_path${MISE_TRUSTED_CONFIG_PATHS:+:$MISE_TRUSTED_CONFIG_PATHS}"
@@ -134,8 +163,8 @@ report_file="$recovery_dir/remote-convergence-$failed_revision.json"
 mkdir -p -m 700 "$recovery_dir"
 rm -f -- "$phase_file" "$report_file"
 export MAISON_CONVERGENCE_EVENT_FILE="$phase_file"
-mise trust "$repo_path/mise.toml" >/dev/null
-if mise run user:apply -- "$@"; then
+mise trust "$runtime_root/mise.toml" >/dev/null
+if "$runtime_root/.mise/lib/user_convergence.py" apply --root "$repo_path" "$@"; then
   rm -f -- "$phase_file"
 else
   status=$?
@@ -170,20 +199,20 @@ if [ "$user_status" -ne 0 ]; then
   }
   quoted_restored_revision="$(printf '%q' "$restored_revision")"
   quoted_initial_exit_code="$(printf '%q' "$user_status")"
-  # shellcheck disable=SC2029 # repository and recovery arguments are shell-escaped above
-  quoted_recovery_python="$(printf '%q' "$remote_recovery_python")"
-  quoted_recovery_prepare="$(printf '%q' "$remote_recovery_prepare")"
-  # shellcheck disable=SC2029 # repository, helper, and recovery arguments are shell-escaped above
+  # shellcheck disable=SC2029 # repository, runtime, and recovery arguments are shell-escaped above
   if ! ssh "$user@$hostname" \
-    "bash -s -- $quoted_repo $quoted_failed_revision $quoted_restored_revision $quoted_initial_exit_code $quoted_recovery_python $quoted_recovery_prepare$quoted_user_args" << 'REMOTE_RECOVERY'; then
+    "bash -s -- $quoted_repo $quoted_failed_revision $quoted_restored_revision $quoted_initial_exit_code $quoted_framework_root$quoted_user_args" << 'REMOTE_RECOVERY'; then
 set -eu
 repo_path="$1"
 failed_revision="$2"
 restored_revision="$3"
 initial_exit_code="$4"
-recovery_python="$5"
-recovery_prepare="$6"
-shift 6
+runtime_root="$5"
+shift 5
+export MAISON_HOME="$runtime_root"
+export MAISON_CONSUMER_ROOT="$repo_path"
+recovery_python="$runtime_root/.mise/lib/user_convergence.py"
+recovery_prepare="$runtime_root/scripts/user-prepare.sh"
 actual_restored_revision="$(cat -- "$repo_path/.maison-revision")"
 [ "$actual_restored_revision" = "$restored_revision" ] || {
   printf 'error: restored repository revision changed before restricted recovery\n' >&2
@@ -200,22 +229,9 @@ export MAISON_RECOVERY_INITIAL_EXIT_CODE="$initial_exit_code"
 export MAISON_RECOVERY_PREPARE_SCRIPT="$recovery_prepare"
 cd "$repo_path"
 export MISE_TRUSTED_CONFIG_PATHS="$repo_path${MISE_TRUSTED_CONFIG_PATHS:+:$MISE_TRUSTED_CONFIG_PATHS}"
-run_recovery() {
-  python3 "$recovery_python" recovery --root "$repo_path" --report "$report_file" \
-    --failed-revision "$failed_revision" --restored-revision "$restored_revision" \
-    --initial-exit-code "$initial_exit_code" --event-file "$phase_file" "$@"
-}
-if command -v mise >/dev/null 2>&1 && mise trust "$repo_path/mise.toml" >/dev/null; then
-  if [ -f "$repo_path/.mise/tasks/user/recover" ] &&
-    grep -q 'MAISON_RECOVERY_REPORT' "$repo_path/.mise/tasks/user/recover" &&
-    grep -q 'build_recovery_report' "$repo_path/.mise/lib/user_convergence.py"; then
-    mise run user:recover -- "$@"
-  else
-    run_recovery "$@"
-  fi
-else
-  run_recovery "$@"
-fi
+python3 "$recovery_python" recovery --root "$repo_path" --report "$report_file" \
+  --failed-revision "$failed_revision" --restored-revision "$restored_revision" \
+  --initial-exit-code "$initial_exit_code" --event-file "$phase_file" "$@"
 REMOTE_RECOVERY
     recovery_status=0
   else

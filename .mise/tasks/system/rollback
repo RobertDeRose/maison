@@ -4,9 +4,9 @@
 # [MISE] interactive=true
 #USAGE flag "-y --yes" help="Skip confirmation"
 set -euo pipefail
-root="${MISE_PROJECT_ROOT:-$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)}"
-source "$root/.mise/lib/common.sh"
-source "$root/.mise/lib/nix.sh"
+framework_root="${MAISON_HOME:-${MISE_PROJECT_ROOT:-$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)}}"
+source "$framework_root/.mise/lib/common.sh"
+source "$framework_root/.mise/lib/nix.sh"
 load_nix_environment
 profile="$(system_profile_for_current_os)"
 [ -e "$profile" ] || die "system profile does not exist: $profile"

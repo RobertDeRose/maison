@@ -848,13 +848,13 @@ class MigrationBehaviorTest(unittest.TestCase):
                 capture_output=True,
                 text=True,
             )
-            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertNotEqual(result.returncode, 0)
             self.assertTrue((home / ".maison/.git").is_dir())
             self.assertTrue((home / ".local/bin/maison").is_symlink())
             calls = log.read_text()
             self.assertIn("trust", calls)
             self.assertNotIn("run --skip-tools bootstrap", calls)
-            self.assertIn("No private overlay was selected", result.stdout)
+            self.assertIn("consumer repository is required", result.stderr)
 
     def test_maison_version_uses_deployment_revision_without_git(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

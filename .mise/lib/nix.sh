@@ -36,53 +36,16 @@ nix_common_flags() {
   [ "${NIX_SUPPRESS_DIRTY_WARNING:-false}" = true ] && printf '%s\n' --no-warn-dirty
 }
 
-load_nix_overlay_environment() {
-  if [ -z "${MAISON_INVENTORY:-}" ]; then
-    local maison_root="${MISE_PROJECT_ROOT:-$PWD}"
-    if [ -f "$maison_root/.mise/lib/overlay.sh" ]; then
-      # shellcheck source=.mise/lib/overlay.sh
-      source "$maison_root/.mise/lib/overlay.sh"
-      load_maison_overlay_environment "$maison_root"
-    fi
-  fi
-}
-
-nix_overlay_path() {
-  local maison_root="${MISE_PROJECT_ROOT:-$PWD}" inventory_path
-  if [ -n "${MAISON_OVERLAY_PATH:-}" ]; then
-    printf '%s\n' "$MAISON_OVERLAY_PATH"
-    return
-  fi
-  inventory_path="${MAISON_INVENTORY:-}"
-  if [ -n "$inventory_path" ] && [ "$inventory_path" != "$maison_root/inventory.toml" ]; then
-    (cd "$(dirname "$inventory_path")" && pwd -P)
-    return
-  fi
-  # The public flake's path input must be overridden to the current checkout.
-  # Otherwise --no-update-lock-file rejects any source change since the path
-  # hash was recorded in flake.lock, which makes clean CI checkouts fail.
-  printf '%s\n' "$maison_root"
-}
-
-nix_overlay_args() {
-  local overlay_path
-  overlay_path="$(nix_overlay_path)"
-  [ -n "$overlay_path" ] || return 0
-  printf '%s\n' --override-input overlay "path:$overlay_path"
-}
-
 nix_command() {
-  load_nix_overlay_environment
-  local flags=() overlay_args=() flag
+  local flags=() flag
   while IFS= read -r flag; do flags+=("$flag"); done < <(nix_common_flags)
-  while IFS= read -r flag; do overlay_args+=("$flag"); done < <(nix_overlay_args)
   case "${1:-}" in
     build | eval | fmt | run)
       local subcommand="$1"
       shift
-      nix "${flags[@]}" "$subcommand" "${overlay_args[@]}" "$@"
+      nix "${flags[@]}" "$subcommand" "$@"
       ;;
-    *) nix "${flags[@]}" "$@" "${overlay_args[@]}" ;;
+    *) nix "${flags[@]}" "$@" ;;
   esac
 }
 
@@ -95,21 +58,17 @@ ensure_nh() {
 }
 
 run_nh() {
-  load_nix_overlay_environment
-  local nix_config="${NIX_CONFIG:-}" args=("$@") overlay_path
+  local nix_config="${NIX_CONFIG:-}" args=("$@") framework_root
+  framework_root="$(maison_install_root "${BASH_SOURCE[0]}")"
   nix_config="${nix_config}${nix_config:+
 }accept-flake-config = true"
-  overlay_path="$(nix_overlay_path)"
-  if [ -n "$overlay_path" ]; then
-    args+=(-- --override-input overlay "path:$overlay_path")
-  fi
 
   (
     export NIX_CONFIG="$nix_config"
     if command -v nh > /dev/null 2>&1; then
       nh "${args[@]}"
     else
-      nix_command run .#nh -- "${args[@]}"
+      nix_command run "$framework_root#nh" -- "${args[@]}"
     fi
   )
 }

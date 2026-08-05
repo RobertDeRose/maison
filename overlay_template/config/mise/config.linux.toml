@@ -1,6 +1,0 @@
-# Add private Linux-only packages and environment here.
-[settings]
-system_packages.managers = ["brew"]
-
-[env]
-# LANG = "C.UTF-8"

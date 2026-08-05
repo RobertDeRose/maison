@@ -66,9 +66,8 @@ updated at `${XDG_DATA_HOME:-$HOME/.local/share}/maison/overlay`, preserving the
 When no source is available:
 
 - An interactive terminal asks whether to set up a private overlay now, with yes as the default.
-- **Yes** installs the minimal Copier runner, renders `overlay_template/` into a new local overlay at
-  `${XDG_DATA_HOME:-$HOME/.local/share}/maison/overlay` by default, or at `MAISON_OVERLAY_HOME` when overridden,
-  seeds the inventory username from `id -un`, initializes its Git repository, and runs the template task that registers
+- **Yes** installs the minimal Copier runner, renders `overlay_template/` into a new local overlay selected by the
+  consumer repository, seeds the inventory username from `id -un`, initializes its Git repository, and runs the template task that registers
   the current host through Maison. Remote sources, including sources restored from saved state, use the same default
   clone path.
 - **No** installs Maison's verified mise runtime and `maison` CLI, prints the overlay setup documentation URL/path, and
@@ -288,9 +287,9 @@ None.
 ### Assumptions
 
 - The current hostname is the generated host name unless the bootstrap `--host` option overrides it.
-- `MAISON_OVERLAY_HOME` is an optional local destination override for Copier-created overlays; remote overlay clones use
-  the XDG data directory.
-- `MAISON_REQUIRE_OVERLAY=true` remains the automation/CI escape hatch for missing overlay input.
+- The later consumer-repository boundary supersedes Copier-created overlay destinations; `MAISON_CONSUMER_ROOT`
+  identifies the authoritative configuration root.
+- `MAISON_REQUIRE_CONSUMER=true` is the automation/CI escape hatch for missing consumer input.
 
 ### Design Changes During Planning
 

@@ -5,48 +5,35 @@
 1. **mise tool backend** for versioned, user-scoped developer tools with prebuilt releases.
 2. **mise built-in Homebrew formula** for ordinary native CLI packages and shared-library applications.
 3. **Homebrew cask or MAS through mise** for ordinary user-facing macOS applications.
-4. **Nix/nix-darwin** for system-wide fonts, filesystem integrations, system services, privileged activation, and Nix administration workflows.
+4. **Nix/nix-darwin** for system-wide fonts, filesystem integrations, system services, privileged activation, and Nix
+   administration workflows.
 
-A package does not belong in Nix merely because nixpkgs contains it. A binary must have one owner and may not be duplicated between `[tools]`, `[bootstrap.packages]`, and the Nix system closure.
+A package has one owner and may not be duplicated between `[tools]`, `[bootstrap.packages]`, and the Nix system closure.
 
-## Current Nix packages
+## Consumer package files
 
-Darwin's system closure contains `nh`, `deploy-rs`, `nixd`, system-wide fonts, and FUSE-T through the minimal Nix-managed native Homebrew exception. Linux system-manager contains `nh`, the minimal curl/Git/tar bootstrap prerequisites, and packages required by system services.
+Maison keeps neutral, schema-valid package stubs. The consumer repository owns package policy:
 
-## User package files
+- `config/mise/config.toml`: cross-platform policy;
+- `config/mise/config.macos.toml`: macOS policy;
+- `config/mise/config.macos-arm64.toml`: Apple Silicon policy; and
+- `config/mise/config.linux.toml`: Linux policy.
 
-Public Maison keeps empty, schema-valid package stubs and installs no user applications by default. Personal,
-organization, or site package policy belongs in a private overlay based on `overlay_template/config/mise/`.
-
-- `config/mise/config.toml`: neutral cross-platform policy stub.
-- `config/mise/config.macos.toml`: neutral macOS policy stub.
-- `config/mise/config.macos-arm64.toml`: neutral Apple Silicon policy stub.
-- `config/mise/config.linux.toml`: neutral Linux policy stub.
-
-Copy the examples into a private overlay before adding tools, formulae, casks, MAS applications, or preferences.
-Common declarations remain in `config/mise/config.toml`; `package --macos` selects the Apple Silicon
-`config/mise/config.macos-arm64.toml` file, and application commands use that platform-specific file directly.
-Inventory profiles (`base`, `dev`, `mac`, and `linux`) select Nix modules; they are not a mise profile selector.
+Common declarations remain in `config/mise/config.toml`; `package --macos` selects the Apple Silicon file. Inventory
+profiles (`base`, `dev`, `mac`, and `linux`) select Nix modules, not a mise profile selector.
 
 Intel macOS is unsupported; there is no placeholder configuration pretending to provide package parity.
 
 ## Contributor tools
 
-Repository validation, formatting, hooks, and documentation tools live in the checkout `mise.toml`. The flake formatter reads the locked `nixfmt-rs` artifact from `mise.lock`, making that lockfile the single formatter-version source for both hk and `nix fmt`. They are installed explicitly with:
+Repository validation, formatting, hooks, and documentation tools live in Maison's `mise.toml`. Install them explicitly:
 
 ```bash
 mise install
 ```
 
-Normal `maison user apply` runs from the global user config and does not install repository development tools on every managed host.
-
-## Version policy
-
-`latest` is intentional for fast-moving workstation tools and applications. Generated mise lockfiles record resolved versions where available, but strict offline resolution is not claimed. Nix system inputs remain pinned by `flake.lock` and are updated through `maison update`.
-
-## Source-build policy
-
-Prefer prebuilt release artifacts and Homebrew bottles for user software. Nix source builds are acceptable only for the small system closure or an explicitly justified system dependency.
+Normal `maison user apply` converges the consumer's user config and does not install Maison's contributor toolchain on
+every managed host.
 
 ## Mutations
 
@@ -59,14 +46,7 @@ maison app add <cask>
 maison app remove <cask>
 ```
 
-Covered add/remove operations require an active private Git overlay; they never fall back to public Maison for mutation.
-After taking the overlay lock, Maison refreshes it with a fast-forward-only update, preserves unrelated tracked and
-untracked work, leaves ignored files untouched, and refuses a dirty declaration or lock target. Add operations install
-or resolve against candidate configuration first and atomically replace the overlay declaration only after success.
-Remove operations atomically edit the declaration and deliberately leave installed data in place. Once the transaction
-journal completes, only the declaration and generated lock paths receive a focused commit with a subject such as
-`added(tool): \`github:owner/tool@version\`` or `removed(package): \`brew:git\``. A commit failure leaves the validated
-files in place for manual recovery and does not roll back external package/application effects. Full `maison sync` is
-not used as the authoring refresh path. Removing one version of a multi-version tool runs a targeted `mise lock --global
-<tool>` against candidate files so retained versions and their lock entries transition together. Full tool removal
-deletes that tool's generated lock block directly. Package-cache pruning remains a separate, explicit operation.
+Covered operations require a clean consumer Git checkout. They preserve unrelated work, leave ignored files untouched,
+refuse dirty declaration or lock targets, and create focused commits after the transaction journal completes. Commit
+failures leave validated files in place for manual recovery. Removing one version of a multi-version tool runs a targeted
+`mise lock --global <tool>` against candidate files; full tool removal deletes that tool's generated lock block directly.

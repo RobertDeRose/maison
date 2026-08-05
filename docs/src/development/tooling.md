@@ -1,8 +1,8 @@
 # Developer tooling
 
 This page applies to the public Maison framework repository. Maison uses dstack/Copier controls and Beads for project
-lifecycle work. A private overlay is plain Git and does not install or run this tooling; use `overlay_template/` as its
-starting layout.
+lifecycle work. Consumer repositories are plain Git configuration roots: they own their flake, lock, inventory, host
+configuration, mise policy, and dotfiles, but do not need to install Maison's contributor workflow.
 
 The repository uses mise to provide project tools and named tasks. Install mise, then run:
 
@@ -79,9 +79,9 @@ build cache targets, push or update the `automation/refresh-flake-lock` branch, 
 and run the reusable hk and CI workflows against that branch. It must leave the pull request open for ordinary review
 and branch protection; it must not run `gh pr merge`, use `--admin`, or enable auto-merge.
 
-The private overlay is selected locally with `--overlay` or `MAISON_OVERLAY_SOURCE`; the resulting XDG state and clone
-are untracked. Do not commit Terroir contents, overlay state, or Bitwarden material to Maison while running development
-checks.
+The consumer is selected locally with `--consumer` during bootstrap, `MAISON_CONSUMER_ROOT`, or the current consumer
+Git checkout. Consumer files and locks are ordinary Git state and are never copied into Maison. Do not commit consumer
+contents or Bitwarden material to Maison while running development checks.
 
 ## Hooks and recovery
 

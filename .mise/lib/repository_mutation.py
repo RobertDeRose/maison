@@ -73,13 +73,13 @@ def require_authoring_checkout(repo: Path, *, operation: str) -> None:
         raise MutationError(
             f"{operation}: {repo} is a deployed Maison snapshot "
             "(found .maison-revision without .git). "
-            "Edit source in a Git authoring checkout or private overlay "
+            "Edit source in a Git authoring checkout of the consumer "
             "repository, then deploy or apply the result again."
         )
     raise MutationError(
         f"{operation}: {repo} is not a Git authoring checkout. "
-        "Run this authoring command from a Git authoring checkout or "
-        "private overlay repository."
+        "Run this authoring command from a Git authoring checkout of "
+        "the consumer repository."
     )
 
 

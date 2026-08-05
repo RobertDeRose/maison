@@ -1,46 +1,22 @@
 # Migration contract
 
-Baseline bundle commit: `49e34f89715a5500e4aa15042dd65cc4483586e8`.
-
 This document records where behavior moved before Home Manager and bespoke deployment logic were removed.
 
-## Final repository boundary
+## Repository boundary
 
-The MAISON-017 transition completed after the public/private validation gate:
+Maison is the reusable public framework. A consumer repository is the execution, configuration, and lock root for one
+installation. The original source repository may be retained as a private archived historical source for recovery.
 
-- The Maison repository is the public framework and defaults to `main`.
-- A user-selected private overlay is the private configuration source and defaults to `main`.
-- The original source repository may be retained as a private archived historical source for recovery.
-
-The approved owner-only migration manifest and Bitwarden remain the recovery sources for excluded private material.
-
-| Previous behavior                                      | New owner / implementation                                                                                 | Validation                                                                            |
-|--------------------------------------------------------|------------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------|
-| Darwin build and switch                                | `nh darwin` through `system:plan` / `system:apply`                                                         | Build and switch the inventory host                                                   |
-| Linux system build                                     | `systemConfigs.<host>`                                                                                     | `system:plan --host <host>`                                                           |
-| Linux closure copy and activation                      | deploy-rs `profiles.system`                                                                                | Deploy checks plus staged remote test                                                 |
-| Linux generation profile                               | `/nix/var/nix/profiles/system-manager-profiles/system-manager`                                             | `system:history`                                                                      |
-| Darwin biometric sudo                                  | nix-darwin PAM module                                                                                      | Fresh sudo credential prompts with Watch/Touch ID                                     |
-| Login-window guest policy                              | nix-darwin                                                                                                 | Inspect resulting login-window preference                                             |
-| Caps Lock to Escape                                    | nix-darwin keyboard module                                                                                 | Verify after system activation                                                        |
-| Nix daemon/cache policy                                | Darwin/common Nix modules and Linux system-manager                                                         | `nix show-config`                                                                     |
-| Git configuration                                      | mise dotfiles under `~/.config/git`                                                                        | `git config --list --show-origin`                                                     |
-| Existing `~/.gitconfig` conflict                       | `scripts/user-prepare.sh` backup                                                                           | Backup under `~/.local/state/maison/backups/git`                                      |
-| Existing whole-file dotfile conflicts                  | Forced `user:apply` detects mise refusals, copies their contents, then replaces them                       | Timestamped backup under `~/.local/state/maison/backups/dotfiles`                     |
-| Live application bundles retained under Maison backups | `scripts/user-prepare.sh` archives them with `ditto`, unregisters the bundle, and prevents backup indexing | No `.app` directory remains under the backup root; a non-empty `.app.zip` is retained |
-| Zsh, Starship, fzf, direnv, eza, Yazi integration      | Native dotfiles plus mise/Homebrew packages                                                                | New login shell and completion checks                                                 |
-| Helix, Ghostty, Zed, htop                              | Native dotfiles                                                                                            | Start each application and inspect config path                                        |
-| Pi settings defaults and private extensions            | Public defaults merge in `user-finalize.sh`; private extensions live in Terroir                            | Existing package selections remain present                                            |
-| SSH client / Bitwarden agent                           | Tera SSH config and macOS environment                                                                      | `ssh -G <host>` and agent socket check                                                |
-| Finder workflows                                       | mise copy-mode dotfiles                                                                                    | Services visible after login/Finder refresh                                           |
-| CLI packages formerly in nixpkgs/Home Manager          | mise tools or built-in Homebrew packages                                                                   | `mise bootstrap status`                                                               |
-| User-facing formulae, casks, and MAS apps              | mise `config.macos-arm64.toml`                                                                             | Package status and application launch                                                 |
-| System-wide fonts                                      | nix-darwin `fonts.nix`                                                                                     | Font visible to login/session applications                                            |
-| FUSE-T filesystem integration                          | nix-darwin plus minimal nix-homebrew module                                                                | Mount and SSHFS integration test                                                      |
-| Home Manager generations                               | Removed                                                                                                    | No `homeConfigurations` or Home Manager input                                         |
-| Linux user activation after deploy                     | remote `mise run user:apply`; system closure retains curl/Git/tar prerequisites                            | Separate user convergence result                                                      |
-| Remote repository replacement                          | committed-only revision archive with root-owned same-filesystem transaction state                          | Failed user convergence restores the prior repository                                 |
-| Linux "rollback" by deactivation                       | Real profile rollback plus activation                                                                      | Generation A/B rollback test                                                          |
+| Previous behavior                  | New owner / implementation                                                    | Validation                                              |
+|------------------------------------|-------------------------------------------------------------------------------|---------------------------------------------------------|
+| Darwin build and switch            | `nh darwin` through `system:plan` / `system:apply` against the consumer flake | Build and switch the inventory host                     |
+| Linux system build                 | Consumer `systemConfigs.<host>`                                               | `system:plan --host <host>`                             |
+| Linux closure copy and activation  | deploy-rs `profiles.system` from the consumer flake                           | Deploy checks plus staged remote test                   |
+| Linux generation profile           | `/nix/var/nix/profiles/system-manager-profiles/system-manager`                | `system:history`                                        |
+| User-facing tools and packages     | Consumer `config/mise/` through mise                                          | `mise bootstrap status`                                 |
+| Linux user activation after deploy | Maison runtime convergence against the consumer checkout                      | Separate user convergence result                        |
+| Remote repository replacement      | Committed-only consumer archive with root-owned transaction state             | Failed convergence restores the prior consumer revision |
+| Home Manager generations           | Removed                                                                       | No `homeConfigurations` or Home Manager input           |
 
 ## Required staged verification
 
@@ -52,7 +28,7 @@ Before treating deploy-rs as the only deployment path:
 4. Intentionally disrupt SSH during D and confirm magic rollback restores connectivity.
 5. Roll back manually from B to A.
 6. Run `system:clean` and confirm active/retained profiles remain valid.
-7. Apply the user layer separately and verify a user-layer failure does not alter the active system profile.
+7. Apply the consumer user layer separately and verify a user-layer failure does not alter the active system profile.
 
 ## Removable backups
 

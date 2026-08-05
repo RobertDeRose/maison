@@ -1,24 +1,23 @@
 #!/usr/bin/env bash
 # [MISE] quiet=true
-# [MISE] description="Install/repair Nix, apply system configuration, and converge user state"
+# [MISE] description="Install/repair Nix, apply the consumer system, and converge user state"
 # [MISE] interactive=true
-#USAGE flag "--host <host>" help="Inventory host (defaults to current hostname)"
-#USAGE flag "--overlay <source>" help="Private overlay Git URL or path"
+#USAGE flag "--host <host>" help="Consumer inventory host (defaults to current hostname)"
+#USAGE flag "--consumer <path>" help="Consumer repository containing flake.nix, flake.lock, and inventory.toml"
 #USAGE flag "--user-only" help="Do not install or apply Nix"
 set -euo pipefail
-root="${MISE_PROJECT_ROOT:-$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)}"
-source "$root/.mise/lib/common.sh"
-source "$root/.mise/lib/platform.sh"
-source "$root/.mise/lib/bootstrap.sh"
-host="${usage_host:-$(current_hostname)}"
-overlay_source="${usage_overlay:-${MAISON_OVERLAY:-${MAISON_OVERLAY_SOURCE:-}}}"
-if [ -n "$overlay_source" ]; then
-  "$root/scripts/maison_overlay.py" --overlay "$overlay_source" prepare > /dev/null
-elif [ "${MAISON_REQUIRE_OVERLAY:-false}" = true ]; then
-  "$root/scripts/maison_overlay.py" --required prepare > /dev/null
+framework_root="${MAISON_HOME:-${MISE_PROJECT_ROOT:-$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)}}"
+source "$framework_root/.mise/lib/common.sh"
+if [ -n "${usage_consumer:-}" ]; then
+  export MAISON_CONSUMER_ROOT="$usage_consumer"
 fi
+root="$(maison_consumer_root "${BASH_SOURCE[0]}")"
+cd "$root"
+source "$framework_root/.mise/lib/platform.sh"
+source "$framework_root/.mise/lib/bootstrap.sh"
+host="${usage_host:-$(current_hostname)}"
 if [ "${usage_user_only:-false}" != true ]; then
   install_nix_or_lix_if_missing
-  mise run system:apply -- --host "$host"
+  mise -C "$framework_root" run system:apply -- --host "$host"
 fi
-mise run user:apply
+mise -C "$framework_root" run user:apply

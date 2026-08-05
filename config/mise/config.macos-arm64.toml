@@ -1,5 +1,5 @@
 # Maison intentionally keeps the public macOS application policy empty.
-# Add personal applications to a private overlay based on overlay_template.
+# Consumer repositories may add personal applications here.
 [settings]
 system_packages.managers = ["brew", "brew-cask", "mas"]
 

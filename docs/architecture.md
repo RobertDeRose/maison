@@ -2,9 +2,20 @@
 
 ## Principle
 
-Maison separates configuration by privilege boundary:
+Maison separates configuration by privilege and repository boundary:
 
 ```text
+Maison framework repository
+├── reusable Nix modules, validators, task machinery, and CLI
+├── neutral inventory/schema fixtures and documentation
+└── framework development and release lock
+
+Consumer repository
+├── flake.nix and flake.lock
+├── inventory.toml and hosts/
+├── config/mise/ and dotfiles/
+└── deployment and personal configuration state
+
 Nix/Lix system layer
 ├── nix-darwin on Apple Silicon macOS
 ├── system-manager on Linux
@@ -12,164 +23,152 @@ Nix/Lix system layer
 └── deploy-rs for remote Linux system profiles
 
 mise user layer
-├── tools and runtimes
+├── consumer tools and runtimes
 ├── ordinary Homebrew formulae, casks, and MAS apps
-├── dotfiles and Tera templates
+├── consumer dotfiles and Tera templates
 ├── current-user macOS defaults
 └── user services
 ```
 
-The supported systems are `aarch64-darwin`, `aarch64-linux`, and `x86_64-linux`. Intel macOS is rejected by bootstrap, inventory validation, mise lock platforms, Nix outputs, and CI.
+The consumer is the execution and lock root. Maison's checkout is never a personal deployment root and consumer commands
+do not update or write its files.
 
-## Public Maison and private overlays
+Supported systems are `aarch64-darwin`, `aarch64-linux`, and `x86_64-linux`. Intel macOS is rejected by bootstrap,
+inventory validation, mise lock platforms, Nix outputs, and CI.
 
-Maison is the public framework repository. It owns reusable code, validators, task machinery, Nix modules, and neutral
-starter examples. Each user or organization may create a private plain-Git overlay for real site state: inventory, host
-overrides, package declarations, dotfiles, preferences, and non-secret trusted configuration.
+## Framework and consumer repositories
 
-Secrets, passwords, tokens, SSH private keys, and signing private keys belong in Bitwarden, not in Maison or an overlay.
+Maison is provider-neutral. It owns reusable code, validators, task machinery, Nix modules, public schemas, neutral
+fixtures, and the CLI runtime. It does not own personal users, real hosts, deployment endpoints, package selections,
+dotfiles, or consumer locks.
 
-Overlay state is local and untracked:
+A consumer repository owns the files for one installation:
 
-```text
-${XDG_STATE_HOME:-$HOME/.local/state}/maison/overlay.toml
-${XDG_DATA_HOME:-$HOME/.local/share}/maison/overlay
-```
+- `flake.nix` composes Maison's public inputs and exports consumer host outputs;
+- `flake.lock` pins that consumer's inputs;
+- `inventory.toml` describes users, hosts, profiles, and deployment targets;
+- `hosts/` contains host-specific system overrides;
+- `config/mise/` and `dotfiles/` contain user policy; and
+- Git history is the source of deployment and authoring state.
 
-`--overlay` has run-local precedence over `MAISON_OVERLAY_SOURCE`, and both precede the saved state record. A private
-overlay mirrors Maison's layout for owned data: `inventory.toml`, `hosts/`, `config/mise/*.toml`, `dotfiles/`, and
-trusted key files. Overlay state is local and untracked; no checkout or state file is committed to Maison.
+Commands select the consumer in this order:
 
-Read-only convergence may use public neutral configuration when no overlay is active, but software authoring never
-falls back to those files. `tool:add`, `tool:remove`, `package:add`, `package:remove`, `app:add`, and `app:remove`
-require the active private overlay's Git checkout. `maison status` and `maison publish` also inspect or publish only
-that active overlay; they never accept an arbitrary overlay path through the public command surface.
+1. `MAISON_CONSUMER_ROOT`;
+2. compatibility aliases `MAISON_REPOSITORY` or `MAISON_REPO`; and
+3. the Git checkout containing the current working directory when it is not Maison.
+
+Packaged or explicit CLI invocations reject Maison itself as the consumer. Direct `mise` use from a Maison checkout is
+reserved for framework development and validation; authoring helpers still refuse to mutate that checkout.
+
+Secrets, passwords, tokens, SSH private keys, and signing private keys belong in Bitwarden, not in either repository.
 
 ## Nix system layer
 
-The flake exports `darwinConfigurations`, `systemConfigs`, and `deploy`.
+The framework exposes reusable modules and public helpers. A consumer composes them into its own
+`darwinConfigurations`, `systemConfigs`, and `deploy` outputs.
 
 ### macOS
 
-nix-darwin owns Nix/Lix daemon policy, primary-user registration, system shells, Apple Watch and Touch ID sudo, PAM, login-window policy, Caps Lock remapping, host identity, time zone, services, system-wide fonts, and OS-integrated installers such as FUSE-T.
-
-Ordinary applications and interactive CLI packages do not belong in `environment.systemPackages`.
+nix-darwin owns Nix/Lix daemon policy, primary-user registration, system shells, Apple Watch and Touch ID sudo, PAM,
+login-window policy, Caps Lock remapping, host identity, time zone, services, system-wide fonts, and OS-integrated
+installers such as FUSE-T. Ordinary applications and interactive CLI packages do not belong in
+`environment.systemPackages`.
 
 ### Linux
 
-system-manager owns hostname, locale, time zone, managed users, sudoers, SSH daemon includes, root-owned Nix configuration, authorized-key refresh, and system services. MAISON-015 supports systemd-backed Linux hosts only: activation verifies the active hostname, timezone and `/etc/localtime`, SSH configuration/reload, and Maison-managed service units. A dedicated `maison-deploy` account owns privileged deployment and repository-transaction entrypoints, and its sudoers policy is command-scoped rather than `NOPASSWD: ALL`. The system closure also retains the minimal curl, Git, and tar prerequisites required before the mise user layer exists.
+system-manager owns hostname, locale, time zone, managed users, sudoers, SSH daemon includes, root-owned Nix
+configuration, authorized-key refresh, and system services. Linux activation verifies systemd, hostname, timezone and
+`/etc/localtime`, SSH configuration/reload, and Maison-managed service units. A dedicated `maison-deploy` account owns
+privileged deployment and repository-transaction entrypoints with command-scoped sudo rather than `NOPASSWD: ALL`.
 
 `/nix/var/nix/profiles/system-manager-profiles/system-manager` is the canonical Linux system profile.
 
-Upstream system-manager Rust tests remain enabled. Maison no longer overrides `rustPlatform.buildRustPackage` to disable checks.
+Upstream system-manager Rust tests remain enabled. Maison does not override package checks to disable them.
 
-## nh
+## nh and deploy-rs
 
-Darwin planning and activation use:
+Darwin planning and activation use the consumer flake:
 
 ```bash
-nh darwin build  . -H <host>
-nh darwin switch . -H <host>
+nh darwin build  /path/to/consumer -H <host>
+nh darwin switch /path/to/consumer -H <host>
 ```
 
-Tasks fall back to `nix run .#nh` before the system profile has installed `nh`. Linux local activation remains a small adapter around the pinned system-manager CLI because `nh` does not currently expose a system-manager command.
+Tasks fall back to Maison's public `nh` app before the system profile installs `nh`. Linux local activation uses the
+pinned system-manager CLI because `nh` does not expose a system-manager command.
 
-## deploy-rs
-
-Each deploy-enabled Linux inventory host becomes `deploy.nodes.<host>`. Its system profile:
-
-- Uses the canonical system-manager profile path.
-- Runs through the deployment account with command-scoped privilege elevation.
-- Activates the exact closure selected by deploy-rs through `$PROFILE/bin/activate` for normal and boot activation.
-- Supports a side-effect-free dry activation check.
-- Enables `autoRollback` and `magicRollback` from inventory.
-
-The local deploy-rs adapter uses the same `pkgs.deploy-rs` package for the CLI, remote activation binary, and matching JSON schema. CI builds the schema and activation checks instead of merely evaluating their derivation paths.
+Each deploy-enabled Linux consumer host becomes `deploy.nodes.<host>`. Its profile uses the canonical system-manager
+closure, command-scoped deployment privilege, exact `$PROFILE/bin/activate` activation, and inventory-controlled
+`autoRollback` and `magicRollback`. The local deploy-rs adapter uses one `pkgs.deploy-rs` package for its CLI, remote
+activation binary, and matching schema.
 
 ## mise user layer
 
-The repository `mise.toml` owns repository development tools and task discovery. The installed global configuration owns
-the Maison runtime tool (`usage`) and any user tools supplied by a private overlay. Repository development tools are
-installed explicitly for this checkout by `maison check`, documentation tasks, and CI.
+Maison's `mise.toml` owns framework development tools and task discovery. The selected consumer's
+`config/mise/config.toml` is the global user layer. Maison's project configuration remains the project layer, so running
+consumer commands does not dirty the Maison checkout.
 
-Node is intentionally scoped at both levels: the global configuration keeps a user runtime for standalone Pi use, while
-repository `mise.toml` pins Node 24 for reproducible TypeScript validation. The repository declaration wins inside the
-checkout and does not converge or replace the global user runtime.
+During user convergence, Maison temporarily hides installed symlinks that point into the consumer configuration so mise
+can resolve relative dotfile sources from the consumer. Successful convergence retains the new consumer targets; dry-runs
+and failures restore the installed links.
 
-A private overlay may own:
+Consumer package policy may own:
 
-- Cross-platform tools and ordinary Homebrew formulae in `config/mise/config.toml`.
-- macOS-only tools and preferences in `config/mise/config.macos.toml`.
-- Apple Silicon casks and MAS applications in `config/mise/config.macos-arm64.toml`.
-- Linux-specific policy in `config/mise/config.linux.toml`.
-- Application configuration in native formats under `dotfiles/`; Tera is used only where host, user, or platform
-  interpolation is required.
-
-Public Maison keeps these policy files empty and schema-valid. During `user:plan`, `user:apply`, and `user:status`,
-Maison loads the active overlay's `config/mise/config.toml` as the global mise layer while the public repository's
-`mise.toml` remains the project layer. This preserves Maison's shared settings and tasks while allowing the overlay to
-provide personal user tools, packages, preferences, and dotfiles. Without an active overlay, the public `config/mise` files remain the
-fallback. Because mise resolves relative dotfile sources from the installed global configuration path, Maison temporarily
-moves an active overlay-backed `~/.config/mise/config.toml` aside while running user convergence. A successful apply
-keeps the newly converged target; dry-runs and failures restore the previous target.
+- cross-platform tools and Homebrew formulae in `config/mise/config.toml`;
+- macOS tools and preferences in `config/mise/config.macos.toml`;
+- Apple Silicon casks and MAS applications in `config/mise/config.macos-arm64.toml`;
+- Linux-specific policy in `config/mise/config.linux.toml`; and
+- native application configuration under `dotfiles/`.
 
 ## macOS defaults boundary
 
-Mise may write current-user preference domains such as Dock, Finder, trackpad, screenshots, and application preferences. It must not own `sudo defaults` domains, `/Library/Preferences`, login-window policy, authentication policy, PAM, or host-scoped `defaults -currentHost` values.
-
-## Single ownership
-
-Package declarations merge across mise's configuration hierarchy. A private overlay should declare common packages once
-in `config/mise/config.toml` and platform additions in the matching files. Public Maison declares no user packages or
-applications. A binary must not be declared simultaneously as a mise tool and a bootstrap package.
+Mise may write current-user preference domains such as Dock, Finder, trackpad, screenshots, and application preferences.
+It must not own `sudo defaults` domains, `/Library/Preferences`, login-window policy, authentication policy, PAM, or
+host-scoped `defaults -currentHost` values.
 
 ## Inventory interface
 
 Shell tasks do not parse TOML with awk. `schemas/inventory.toml` is the public schema contract for supported systems,
-profiles, feature keys, deploy keys, and defaults. `.mise/lib/inventory.py` uses Python's `tomllib` for validation and
-typed lookups, and Nix imports the same schema contract before constructing outputs. Shared valid and invalid fixtures
-under `tests/fixtures/inventory/` keep both validators aligned in CI. When an overlay inventory is present, Python tasks
-use that file and validate its sibling `hosts/` overrides; Nix receives the active overlay as its explicit `overlay`
-flake input and evaluates the corresponding inventory and host override tree without impure evaluation. In particular,
-remote repository paths must be normalized descendants of
-`/home/<managed-user>` and cannot be `/`, a home directory, or a path containing traversal segments.
+profiles, feature keys, deploy keys, and defaults. `.mise/lib/inventory.py` uses Python `tomllib` for typed lookups, and
+Nix imports the same schema contract before constructing outputs. Shared fixtures keep both validators aligned.
+
+The consumer inventory replaces Maison's neutral starter inventory; it is not merged with it. Host override directories
+are resolved relative to the consumer root and are allowed only when they match an inventory host.
 
 ## Transaction boundaries
 
-Local repository mutation commands require a Git authoring checkout for the target repository they write. A deployed
-snapshot has `.maison-revision` but no `.git` and is runtime source only; authoring commands fail there with guidance to
-edit the public source checkout or private overlay repository instead. `host:add` checks the active inventory repository,
-so a deployed public Maison snapshot may still author hosts in a private overlay clone when that overlay is a Git
-checkout.
+Local authoring commands require a Git checkout of the selected consumer. A deployed snapshot has `.maison-revision` but
+no `.git` and is runtime source only. `host:add`, tool/package/app mutations, `update`, `publish`, and sync operations
+fail rather than writing Maison or a deployed snapshot.
 
-Local repository mutation commands serialize checked-in or overlay repository writes through one target-repository lock.
-`tool:add`, `tool:remove`, `package:add`, `package:remove`, `app:add`, `app:remove`, `host:add`, and `update` acquire a
-fail-fast local `fcntl` lock before reading mutable repository state. Their untracked journals live under
-`${XDG_STATE_HOME:-$HOME/.local/state}/maison/repository-mutations/`, or under `MAISON_REPOSITORY_MUTATION_STATE_DIR`
-for tests, keyed by the canonical target repository path with owner-only permissions. The journal copies original and
-candidate files so startup recovery can restore incomplete local mutations before a new mutation reads state.
+Local mutations serialize checked-in consumer writes through one target-repository lock. Journals live under
+`${XDG_STATE_HOME:-$HOME/.local/state}/maison/repository-mutations/` or the test override
+`MAISON_REPOSITORY_MUTATION_STATE_DIR`, keyed by the canonical consumer path with owner-only permissions. A journal
+copies original and candidate files so startup recovery can restore an incomplete mutation before reading mutable state.
+
+Covered add/remove operations refresh the consumer fast-forward-only, preserve unrelated tracked and untracked work,
+ignore ignored files, and reject dirty declaration or lock targets. Once validation and the journal complete, only the
+operation's declaration and generated lock paths enter a focused commit:
+
+```text
+added(scope): `identifier`
+removed(scope): `identifier`
+```
+
+A commit failure is post-transaction: validated consumer files remain in place for manual recovery and external package or
+application effects are not rolled back.
+
+Remote deployment has an additional repository transaction around the consumer user phase:
 
 ```text
 maison apply
-  1. system:apply  (Nix generation semantics)
-  2. user:apply    (mise convergence semantics)
+  1. system:apply  (consumer Nix generation)
+  2. user:apply    (consumer mise convergence)
 ```
 
-A failed system activation stops before user convergence. A failed user convergence leaves the active system generation in place.
+A failed system activation stops before user convergence. A failed user convergence leaves the active system generation in
+place. Deployment archives only committed consumer content, stages it through a root-owned same-filesystem transaction,
+and restores the prior consumer revision before restricted recovery. Package/application side effects remain follow-up
+work and are recorded in the recovery report.
 
-Remote deployment has an additional repository transaction around the user phase. If remote user convergence fails,
-Maison verifies the restored repository revision before running restricted recovery as the managed user. Recovery repairs
-only reversible user state; package and application side effects remain outside rollback and are reported for follow-up. Transaction journals, locks, staging trees, and rollback trees are privileged state and live in a root-owned same-filesystem transaction root outside the managed user's writable home. The managed user may read and apply the staged repository, but must not be able to unlink, replace, or edit transaction control state. Deploy-rs independently protects the Linux system profile while only the `maison-deploy` account can launch privileged activation actions.
-
-The local repository mutation journal is separate from that privileged remote deployment namespace. Local authoring locks
-must not weaken the root-owned transaction root, same-filesystem constraints, or revision-bound remote rollback
-contracts.
-
-Covered private-overlay software mutations take the overlay lock, fetch and fast-forward it before reading declaration
-files, and restore tracked/untracked unrelated work without touching ignored files. A change in a declaration or lock
-path that the operation would write is a refusal condition. After candidate validation and journal completion, only the
-operation's declaration and generated lock paths enter a focused commit with the subject form
-`added(scope): \`identifier\`` or `removed(scope): \`identifier\``; unrelated staged/index work remains outside that
-commit. A Git commit failure
-is post-transaction: validated files remain for manual recovery and external package/application effects are not
-rolled back.
+The local mutation journal and the privileged remote deployment namespace are separate safety boundaries.

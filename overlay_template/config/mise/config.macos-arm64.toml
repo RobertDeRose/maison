@@ -1,7 +1,0 @@
-# Add private Apple Silicon casks and App Store applications here.
-[settings]
-system_packages.managers = ["brew", "brew-cask", "mas"]
-
-[bootstrap.packages]
-# "brew-cask:example-app" = "latest"
-# "mas:123456789" = "latest"

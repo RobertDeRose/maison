@@ -3,8 +3,9 @@
 # [MISE] description="Validate users, hosts, systems, profiles, deployment paths, and overrides"
 # [MISE] hide=true
 set -euo pipefail
-root="${MISE_PROJECT_ROOT:-$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)}"
-source "$root/.mise/lib/common.sh"
-source "$root/.mise/lib/inventory.sh"
+framework_root="${MAISON_HOME:-${MISE_PROJECT_ROOT:-$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)}}"
+source "$framework_root/.mise/lib/common.sh"
+root="$(maison_consumer_root "${BASH_SOURCE[0]}")"
+source "$framework_root/.mise/lib/inventory.sh"
 cd "$root"
 inventory_cli "$root" validate

@@ -55,4 +55,4 @@ description = "Enable GitHub Pages deployment"
 quiet = true
 run = "python3 scripts/enable-docs-deployment.py"
 
-# Maison does not define user dotfiles here. A private overlay owns optional user configuration.
+# Maison does not define personal user policy here. The consumer owns user configuration.

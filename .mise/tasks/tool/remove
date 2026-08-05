@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
 # [MISE] quiet=true
-# [MISE] description="Atomically remove a global mise tool declaration and its lock entries"
+# [MISE] description="Remove a global mise tool, then atomically commit config and lock changes"
 #USAGE arg "<tool>" help="Tool name, optionally name@version"
 set -euo pipefail
-root="${MISE_PROJECT_ROOT:-$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)}"
-source "$root/.mise/lib/transaction.sh"
-source "$root/.mise/lib/overlay.sh"
-source "$root/.mise/lib/overlay_git.sh"
-load_maison_overlay_environment "$root"
-maison_overlay_require_active "$root" tool:remove
-config_root="$MAISON_PRIVATE_OVERLAY_PATH"
+framework_root="${MAISON_HOME:-${MISE_PROJECT_ROOT:-$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)}}"
+source "$framework_root/.mise/lib/common.sh"
+source "$framework_root/.mise/lib/transaction.sh"
+source "$framework_root/.mise/lib/repository_git.sh"
+root="$(maison_consumer_root "${BASH_SOURCE[0]}")"
+repository_require_authoring "$root" tool:remove
+config_root="$root"
 export MAISON_USER_CONFIG_ROOT="$config_root"
 export MISE_GLOBAL_CONFIG_FILE="$config_root/config/mise/config.toml"
 config="$config_root/config/mise/config.toml"
@@ -26,8 +26,8 @@ fi
   exit 2
 }
 transaction_require_lock "$config_root" "${BASH_SOURCE[0]}" "$@"
-maison_overlay_refresh "$root" "$config_root" tool:remove
-maison_overlay_require_clean "$root" "$config_root" tool:remove "$config" "$lock"
+repository_refresh "$framework_root" "$config_root" tool:remove
+repository_require_clean "$framework_root" "$config_root" tool:remove "$config" "$lock"
 transaction_dir="$(transaction_directory)"
 original_config="$transaction_dir/config.original.toml"
 original_lock="$transaction_dir/mise.original.lock"
@@ -35,14 +35,8 @@ candidate_config="$transaction_dir/config.toml"
 candidate_lock="$transaction_dir/mise.lock"
 cp -p "$config" "$original_config"
 cp -p "$config" "$candidate_config"
-lock_existed=false
-if [ -e "$lock" ]; then
-  cp -p "$lock" "$original_lock"
-  cp -p "$lock" "$candidate_lock"
-  lock_existed=true
-else
-  : >"$candidate_lock"
-fi
+cp -p "$lock" "$original_lock"
+cp -p "$lock" "$candidate_lock"
 config_attempted=false
 lock_attempted=false
 success=false
@@ -56,11 +50,7 @@ cleanup() {
       transaction_restore_file "$original_config" "$config" || rollback_status=$?
     fi
     if [ "$lock_attempted" = true ]; then
-      if [ "$lock_existed" = true ]; then
-        transaction_restore_file "$original_lock" "$lock" || rollback_status=$?
-      else
-        rm -f "$lock" || rollback_status=$?
-      fi
+      transaction_restore_file "$original_lock" "$lock" || rollback_status=$?
     fi
     if [ "${MAISON_REPOSITORY_MUTATION_JOURNAL:-}" ]; then
       if [ "$rollback_status" -eq 0 ]; then
@@ -78,34 +68,28 @@ cleanup() {
 trap cleanup EXIT
 transaction_set_signal_traps
 
-python3 "$root/.mise/lib/config_edit.py" tool --file "$candidate_config" --name "$tool" --remove
-if python3 "$root/.mise/lib/config_edit.py" has-tool --file "$candidate_config" --name "$tool"; then
+python3 "$framework_root/.mise/lib/config_edit.py" tool --file "$candidate_config" --name "$tool" --remove
+if python3 "$framework_root/.mise/lib/config_edit.py" has-tool --file "$candidate_config" --name "$tool"; then
   tool_name="$tool"
   suffix="${tool##*@}"
   if [[ "$tool" == *@* && "$suffix" != */* ]]; then
     tool_name="${tool%@*}"
   fi
-  # A version-specific removal can leave other selectors for the same tool.
-  # Ask mise to resolve only that tool against the candidate config so stale
-  # resolved versions are pruned without advancing fuzzy selectors.
   MISE_AUTO_ENV=false MISE_GLOBAL_CONFIG_FILE="$candidate_config" mise lock --global "$tool_name"
 else
-  python3 "$root/.mise/lib/config_edit.py" lock-remove \
-    --file "$candidate_lock" \
-    --config "$candidate_config" \
-    --name "$tool"
+  python3 "$framework_root/.mise/lib/config_edit.py" lock-remove \
+    --file "$candidate_lock" --config "$candidate_config" --name "$tool"
 fi
-python3 "$root/.mise/lib/config_edit.py" validate "$candidate_config" "$candidate_lock"
+python3 "$framework_root/.mise/lib/config_edit.py" validate "$candidate_config" "$candidate_lock"
 transaction_journal_begin "$config_root" tool:remove "$config" "$lock"
 transaction_journal_mark validated
-
 lock_attempted=true
 atomic_replace "$candidate_lock" "$lock"
 config_attempted=true
 atomic_replace "$candidate_config" "$config"
 success=true
 transaction_journal_complete
-if ! maison_overlay_commit "$root" "$config_root" removed tool "$tool" "$config" "$lock"; then
+if ! repository_commit "$framework_root" "$config_root" removed tool "$tool" "$config" "$lock"; then
   exit 1
 fi
 printf 'Removed %s from %s and its generated lock entries. Installed versions were intentionally left in the mise cache.\n' \

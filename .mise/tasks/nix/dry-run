@@ -3,4 +3,4 @@
 # [MISE] description="Compatibility alias for system:plan"
 # [MISE] hide=true
 set -euo pipefail
-exec mise run "system:plan" -- "$@"
+exec mise -C "${MAISON_HOME:-${MISE_PROJECT_ROOT:-$PWD}}" run "system:plan" -- "$@"

@@ -1,0 +1,47 @@
+# Consumer repository reference
+
+A consumer repository is the execution, configuration, and lock root for Maison. It owns the files that describe one
+installation; Maison supplies reusable orchestration and framework code.
+
+## Required files
+
+| Path             | Owner    | Purpose                                        |
+|------------------|----------|------------------------------------------------|
+| `flake.nix`      | Consumer | Host outputs and the Maison flake input        |
+| `flake.lock`     | Consumer | Pinned inputs for that consumer                |
+| `inventory.toml` | Consumer | Users, hosts, profiles, and deployment targets |
+
+A consumer may also own `hosts/`, `config/mise/`, `dotfiles/`, and any host-specific Nix modules. The inventory and
+configuration paths are interpreted relative to the consumer root.
+
+## Root selection
+
+Commands use the first available value:
+
+1. `MAISON_CONSUMER_ROOT`;
+2. `MAISON_REPOSITORY` or `MAISON_REPO`;
+3. the Git checkout containing the current working directory, when it is not the Maison installation.
+
+The selected path must contain regular files named `flake.nix`, `flake.lock`, and `inventory.toml`, and must be a separate
+checkout rather than Maison or a path nested inside it. Packaged or explicitly configured invocations reject Maison's own
+checkout as the consumer. Use an absolute path in automation:
+
+```bash
+MAISON_HOME="$HOME/.maison" \
+MAISON_CONSUMER_ROOT="$HOME/src/terroir" \
+maison plan --host laptop
+```
+
+## Flake composition
+
+Consumers pin Maison and compose their own outputs. Maison's public `lib`, modules, schema, and fixtures are reusable
+inputs; Maison does not supply personal identity, topology, deployment endpoints, or a consumer lock.
+
+The framework CLI targets consumer installables such as `darwinConfigurations.<host>` and
+`systemConfigs.<host>`. A consumer may expose additional aliases, but it must keep those outputs in its own flake.
+
+## Mutation boundaries
+
+`plan` is read-only with respect to the consumer repository. `apply`, `update`, host authoring, software authoring,
+publish, deployment, and recovery operate on the selected consumer. `maison update` replaces only the consumer's
+`flake.lock`; Maison's lock is never an implicit fallback.

@@ -4,13 +4,13 @@
 #USAGE arg "<tool>" help="Backend-qualified tool name"
 #USAGE arg "[version]" default="latest" help="Version"
 set -euo pipefail
-root="${MISE_PROJECT_ROOT:-$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)}"
-source "$root/.mise/lib/transaction.sh"
-source "$root/.mise/lib/overlay.sh"
-source "$root/.mise/lib/overlay_git.sh"
-load_maison_overlay_environment "$root"
-maison_overlay_require_active "$root" tool:add
-config_root="$MAISON_PRIVATE_OVERLAY_PATH"
+framework_root="${MAISON_HOME:-${MISE_PROJECT_ROOT:-$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)}}"
+source "$framework_root/.mise/lib/common.sh"
+source "$framework_root/.mise/lib/transaction.sh"
+source "$framework_root/.mise/lib/repository_git.sh"
+root="$(maison_consumer_root "${BASH_SOURCE[0]}")"
+repository_require_authoring "$root" tool:add
+config_root="$root"
 export MAISON_USER_CONFIG_ROOT="$config_root"
 export MISE_GLOBAL_CONFIG_FILE="$config_root/config/mise/config.toml"
 version="${usage_version:-latest}"
@@ -19,8 +19,8 @@ lock="$config_root/config/mise/mise.lock"
 tool="${usage_tool:?mise did not provide the required tool argument}"
 transaction_require_authoring_checkout "$config_root" tool:add
 transaction_require_lock "$config_root" "${BASH_SOURCE[0]}" "$@"
-maison_overlay_refresh "$root" "$config_root" tool:add
-maison_overlay_require_clean "$root" "$config_root" tool:add "$config" "$lock"
+repository_refresh "$framework_root" "$config_root" tool:add
+repository_require_clean "$framework_root" "$config_root" tool:add "$config" "$lock"
 transaction_dir="$(transaction_directory)"
 original_config="$transaction_dir/config.original.toml"
 original_lock="$transaction_dir/mise.original.lock"
@@ -71,7 +71,7 @@ cleanup() {
 trap cleanup EXIT
 transaction_set_signal_traps
 
-python3 "$root/.mise/lib/config_edit.py" tool \
+python3 "$framework_root/.mise/lib/config_edit.py" tool \
   --file "$candidate_config" \
   --name "$tool" \
   --version "$version"
@@ -90,22 +90,20 @@ set -e
 printf '%s\n' "$install_output"
 if [ "$install_status" -ne 0 ] ||
   grep -Eq 'mise ERROR|Failed to resolve tool version list' <<<"$install_output"; then
-  printf 'tool:add: installation failed; repository config and lock were not changed\n' >&2
+  printf 'tool:add: installation failed; consumer config and lock were not changed\n' >&2
   exit 1
 fi
 
-python3 "$root/.mise/lib/config_edit.py" validate "$candidate_config" "$candidate_lock"
+python3 "$framework_root/.mise/lib/config_edit.py" validate "$candidate_config" "$candidate_lock"
 transaction_journal_begin "$config_root" tool:add "$config" "$lock"
 transaction_journal_mark validated
-# Commit the generated lock first and the declaration second. If either rename
-# fails, the EXIT trap restores both repository files to their original state.
 lock_attempted=true
 atomic_replace "$candidate_lock" "$lock"
 config_attempted=true
 atomic_replace "$candidate_config" "$config"
 success=true
 transaction_journal_complete
-if ! maison_overlay_commit "$root" "$config_root" added tool "$install_spec" "$config" "$lock"; then
+if ! repository_commit "$framework_root" "$config_root" added tool "$install_spec" "$config" "$lock"; then
   exit 1
 fi
 printf 'Installed and added %s to %s.\n' "$install_spec" "${config#"$config_root"/}"

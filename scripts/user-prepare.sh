@@ -3,6 +3,7 @@
 set -euo pipefail
 
 root="${MAISON_USER_PREPARE_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)}"
+framework_root="${MAISON_HOME:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)}"
 backup_root="$HOME/.local/state/maison/backups"
 timestamp="$(date -u +%Y%m%dT%H%M%SZ)"
 force_dotfiles=false
@@ -176,7 +177,7 @@ backup_conflicting_dotfiles() {
   for target in "${targets[@]}"; do
     helper_args+=(--target "$target")
   done
-  python3 "$root/.mise/lib/dotfile_backups.py" "${helper_args[@]}"
+  python3 "$framework_root/.mise/lib/dotfile_backups.py" "${helper_args[@]}"
   for target in "${targets[@]}"; do
     relative="${target#"$HOME"/}"
     backup="$backup_dir/$relative"

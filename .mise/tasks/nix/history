@@ -3,4 +3,4 @@
 # [MISE] description="Compatibility alias for system:history"
 # [MISE] hide=true
 set -euo pipefail
-exec mise run "system:history" -- "$@"
+exec mise -C "${MAISON_HOME:-${MISE_PROJECT_ROOT:-$PWD}}" run "system:history" -- "$@"

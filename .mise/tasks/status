@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # [MISE] quiet=true
-# [MISE] description="Show the active private overlay and remote status"
+# [MISE] description="Show the consumer repository and remote status"
 set -euo pipefail
-
-root="${MISE_PROJECT_ROOT:-$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)}"
-exec python3 "$root/scripts/maison_overlay_git.py" status --root "$root" "$@"
+framework_root="${MAISON_HOME:-${MISE_PROJECT_ROOT:-$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)}}"
+source "$framework_root/.mise/lib/common.sh"
+root="$(maison_consumer_root "${BASH_SOURCE[0]}")"
+exec python3 "$framework_root/scripts/maison_repository_git.py" status --repo "$root" "$@"

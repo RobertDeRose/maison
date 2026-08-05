@@ -1,14 +1,13 @@
 #!/usr/bin/env bash
 # [MISE] quiet=true
-# [MISE] description="List configured hosts and their profiles"
-
+# [MISE] description="List hosts configured by the consumer repository"
 set -euo pipefail
-TASK_FILE="${BASH_SOURCE[0]}"
-REPO_ROOT="${MISE_PROJECT_ROOT:-$(git -C "$(dirname "$TASK_FILE")" rev-parse --show-toplevel)}"
-cd "$REPO_ROOT"
-source "$REPO_ROOT/.mise/lib/inventory.sh"
+framework_root="${MAISON_HOME:-${MISE_PROJECT_ROOT:-$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)}}"
+source "$framework_root/.mise/lib/common.sh"
+root="$(maison_consumer_root "${BASH_SOURCE[0]}")"
+source "$framework_root/.mise/lib/inventory.sh"
 
 printf '%-24s %-18s %-16s %s\n' HOST SYSTEM USER PROFILES
-inventory_host_rows "$REPO_ROOT" | while IFS=$'\t' read -r host system user profiles; do
+inventory_host_rows "$root" | while IFS=$'\t' read -r host system user profiles; do
   printf '%-24s %-18s %-16s %s\n' "$host" "$system" "$user" "$profiles"
 done

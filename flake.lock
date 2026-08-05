@@ -210,19 +210,6 @@
         "type": "github"
       }
     },
-    "overlay": {
-      "flake": false,
-      "locked": {
-        "lastModified": 0,
-        "narHash": "sha256-XdPvpCOtZKheECqd4uhwWtu90wqr6ORl/LJg6iikh2U=",
-        "path": ".",
-        "type": "path"
-      },
-      "original": {
-        "path": ".",
-        "type": "path"
-      }
-    },
     "pre-commit-hooks-nix": {
       "inputs": {
         "flake-compat": [
@@ -258,7 +245,6 @@
         "nix-hex-box": "nix-hex-box",
         "nix-homebrew": "nix-homebrew",
         "nixpkgs": "nixpkgs",
-        "overlay": "overlay",
         "system-manager": "system-manager"
       }
     },

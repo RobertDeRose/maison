@@ -139,5 +139,5 @@ ensure_github_auth() {
     die "GitHub authentication is unavailable in CI; provide GITHUB_TOKEN"
   fi
   log_info "Configuring GitHub authentication"
-  mise run --skip-tools github:auth
+  mise -C "${MAISON_HOME:-${MISE_PROJECT_ROOT:-$PWD}}" run --skip-tools github:auth
 }

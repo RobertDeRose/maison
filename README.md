@@ -1,19 +1,20 @@
 # Maison
 
-Maison is a reusable two-layer macOS and Linux configuration framework:
+Maison is a reusable macOS and Linux configuration framework:
 
 - **Nix/Lix owns operating-system state.** nix-darwin configures Apple Silicon macOS; system-manager configures supported non-NixOS Linux.
-- **mise owns optional user state.** A private overlay can provide tools, packages, applications, preferences, and dotfiles.
+- **mise owns user state.** The consumer repository supplies tools, packages, applications, preferences, and dotfiles.
 
 Home Manager is intentionally absent. `nh` provides the local nix-darwin workflow, while `deploy-rs` handles remote
 system-manager profiles and connection-aware system rollback.
 
-Maison is intentionally generic. It contains framework code, neutral examples, tests, and bootstrap tooling—not a
-maintainer's personal application list or dotfiles.
+Maison is provider-neutral. It contains framework code, neutral examples, tests, and bootstrap tooling—not a
+maintainer's personal application list, deployment target, or dotfiles.
 
 ## Public flake
 
-Consumers pin Maison as a flake input; they do not clone or mutate a Maison checkout to use its framework outputs:
+Consumers pin Maison as a flake input and keep their own flake, lock file, inventory, host topology, configuration, and
+deployment state:
 
 ```bash
 nix run github:RobertDeRose/maison#maison -- --help
@@ -21,137 +22,74 @@ nix flake check --no-update-lock-file
 ```
 
 The public flake exports the CLI package and app, reusable nix-darwin and system-manager modules, the orchestration
-library, the inventory schema, and neutral validation fixtures. Consumer repositories own their inventory, host topology,
-configuration, deployment state, and lock file. See the [public flake reference](docs/src/reference/flake.md) for the
-output contract.
+library, the inventory schema, and neutral validation fixtures. See the [public flake reference](docs/src/reference/flake.md)
+and [consumer reference](docs/src/reference/consumer.md).
 
 ## Quickstart
 
-Choose one of these installation paths.
-
-### 1. Install with curl and create an overlay during setup
-
-This downloads the reviewed bootstrap script and its separate `SHA256SUMS` release asset to temporary files, verifies
-the digest, and executes the script only after verification. Use a published versioned release; never substitute the
-mutable `main` ref. Run it without an overlay, answer **yes** when prompted, and complete the Copier questions:
+Create or clone a consumer repository first. For example, Terroir can own the personal inventory and configuration while
+Maison remains the reusable framework:
 
 ```bash
-set -euo pipefail
+git clone git@github.com:RobertDeRose/terroir.git "$HOME/src/terroir"
+```
+
+Install Maison from a reviewed release and select the consumer explicitly:
+
+```bash
 MAISON_BOOTSTRAP_VERSION="v0.1.1"
-bootstrap_dir="$(mktemp -d)"
-trap 'rm -rf "$bootstrap_dir"' EXIT
-curl -fsSL \
-  "https://github.com/RobertDeRose/maison/releases/download/${MAISON_BOOTSTRAP_VERSION}/bootstrap.sh" \
-  -o "$bootstrap_dir/bootstrap.sh"
-curl -fsSL \
-  "https://github.com/RobertDeRose/maison/releases/download/${MAISON_BOOTSTRAP_VERSION}/SHA256SUMS" \
-  -o "$bootstrap_dir/SHA256SUMS"
-if command -v shasum >/dev/null 2>&1; then
-  (cd "$bootstrap_dir" && grep -E '^[0-9a-f]{64}  bootstrap\.sh$' SHA256SUMS | shasum -a 256 -c -)
-else
-  (cd "$bootstrap_dir" && grep -E '^[0-9a-f]{64}  bootstrap\.sh$' SHA256SUMS | sha256sum -c -)
-fi
-bash "$bootstrap_dir/bootstrap.sh" --ref "$MAISON_BOOTSTRAP_VERSION"
+bash bootstrap.sh --consumer "$HOME/src/terroir" --ref "$MAISON_BOOTSTRAP_VERSION"
 ```
 
-Maison clones itself to `~/.maison` by default. New Copier overlays and remote overlays use
-`${XDG_DATA_HOME:-$HOME/.local/share}/maison/overlay` by default; set `MAISON_OVERLAY_HOME` to override the Copier
-destination. Bootstrap registers the current host.
+The bootstrap script installs Maison under `~/.maison` when needed, links the `maison` command, verifies pinned
+platform artifacts, and hands control to the consumer repository. It never uses the Maison checkout as the personal
+execution or deployment root.
 
-### 2. Install with curl and use an existing overlay
-
-Set `MAISON_OVERLAY` to a local checkout or a remote Git repository. Bootstrap uses it directly when local and clones
-remote sources into Maison's overlay data directory:
+For a local Maison checkout:
 
 ```bash
-set -euo pipefail
-MAISON_BOOTSTRAP_VERSION="v0.1.1"
-bootstrap_dir="$(mktemp -d)"
-trap 'rm -rf "$bootstrap_dir"' EXIT
-curl -fsSL \
-  "https://github.com/RobertDeRose/maison/releases/download/${MAISON_BOOTSTRAP_VERSION}/bootstrap.sh" \
-  -o "$bootstrap_dir/bootstrap.sh"
-curl -fsSL \
-  "https://github.com/RobertDeRose/maison/releases/download/${MAISON_BOOTSTRAP_VERSION}/SHA256SUMS" \
-  -o "$bootstrap_dir/SHA256SUMS"
-if command -v shasum >/dev/null 2>&1; then
-  (cd "$bootstrap_dir" && grep -E '^[0-9a-f]{64}  bootstrap\.sh$' SHA256SUMS | shasum -a 256 -c -)
-else
-  (cd "$bootstrap_dir" && grep -E '^[0-9a-f]{64}  bootstrap\.sh$' SHA256SUMS | sha256sum -c -)
-fi
-bash "$bootstrap_dir/bootstrap.sh" --ref "$MAISON_BOOTSTRAP_VERSION" \
-  --overlay "git@github.com:OWNER/my-maison-overlay.git"
+MAISON_HOME="$PWD" MAISON_CONSUMER_ROOT="$HOME/src/terroir" ./bin/maison plan
 ```
 
-The `--overlay <git-url-or-path>` option is equivalent and takes precedence over `MAISON_OVERLAY`.
+## Consumer repository
 
-### 3. Clone Maison and run Copier manually
+A consumer repository must contain regular, committed files named `flake.nix`, `flake.lock`, and `inventory.toml`.
+It normally also owns `hosts/`, `config/mise/`, `dotfiles/`, and any host-specific Nix modules. Maison commands resolve
+the consumer in this order:
 
-Use this when you want to inspect or customize the overlay before bootstrap:
+1. `MAISON_CONSUMER_ROOT`;
+2. `MAISON_REPOSITORY` or `MAISON_REPO` as compatibility aliases;
+3. the Git checkout containing the current working directory, when it is not the Maison installation.
+
+Maison's own checkout is rejected as a consumer for packaged or explicit CLI invocations. Set the canonical environment
+variable in scripts and CI:
 
 ```bash
-git clone https://github.com/RobertDeRose/maison.git
-cd maison
-mise install uv
-copier_env="$(mktemp -d)"
-trap 'rm -rf "$copier_env"' EXIT
-mise exec --locked python -- python -m venv "$copier_env"
-mise exec --locked uv pip install \
-  --python "$copier_env/bin/python" --require-hashes --no-cache \
-  -r bootstrap/copier-requirements.txt
-MAISON_HOME="$PWD" MAISON_HOST="$(hostname -s)" \
-  "$copier_env/bin/copier" copy --trust \
-    --data "username=$(id -un)" overlay_template "$HOME/src/my-maison-overlay"
-
-./bootstrap.sh --host "$(hostname -s)" --overlay "$HOME/src/my-maison-overlay"
+export MAISON_HOME="$HOME/.maison"
+export MAISON_CONSUMER_ROOT="$HOME/src/terroir"
+maison plan
 ```
 
-Copier asks for the remaining inventory identity values, initializes the destination as a Git repository, and runs
-its first-copy host task. Commit and publish the private overlay according to your own repository workflow.
-
-## Supported systems
-
-- `aarch64-darwin`
-- `aarch64-linux`
-- `x86_64-linux`
-
-Intel macOS is deliberately unsupported rather than partially configured.
-
-## Private overlay
-
-A private overlay mirrors Maison-owned paths such as `inventory.toml`, `hosts/`, `config/mise/`, and `dotfiles/`.
-The `overlay_template/` Copier template supplies that layout and registers the current host through Maison's
-validated `host:add` task. The overlay owns real users, hosts, deploy targets, tools, applications, preferences, and
-dotfiles without making them part of the public framework.
-
-Overlay discovery uses this precedence:
-
-1. `--overlay <git-url-or-path>` for the current bootstrap run.
-2. `MAISON_OVERLAY=<git-url-or-path>`.
-3. `MAISON_OVERLAY_SOURCE=<git-url-or-path>` as a legacy compatibility fallback.
-4. `${XDG_STATE_HOME:-$HOME/.local/state}/maison/overlay.toml`.
-
-An existing local Git repository is used directly. A remote Git URL is cloned or updated at
-`${XDG_DATA_HOME:-$HOME/.local/share}/maison/overlay`. Overlay state is local, owner-only, and never committed.
-Without an overlay, first-run bootstrap does not install Nix or activate neutral starter data.
+The consumer's flake should import Maison's public modules and compose its own host outputs. Maison's `flake.lock` is
+only for Maison development, validation, and release; consumer commands never update it.
 
 Keep passwords, tokens, SSH private keys, signing private keys, and other secrets in Bitwarden or an equivalent secret
 manager. A private Git repository is not a substitute for secret storage.
 
 ## Bootstrap behavior
 
-From an existing Maison checkout, `bootstrap.sh` uses that checkout and does not create a second copy under `~/.maison`.
-When run outside a checkout, it clones Maison to `~/.maison` by default; set `MAISON_HOME` to override that location.
+`bootstrap.sh` accepts `--consumer PATH` or `MAISON_CONSUMER_ROOT`. The selected repository must already contain the
+consumer flake, lock, and inventory. Running without a consumer installs or repairs only the Maison CLI and prints the
+next step; non-interactive runs fail clearly instead of activating neutral or Maison-owned state.
 
-Bootstrap first installs verified pinned mise, links the `maison` CLI, and trusts the Maison project configuration. It
-then resolves `--overlay`, `MAISON_OVERLAY`, legacy `MAISON_OVERLAY_SOURCE`, or saved state. If none is available, an
-interactive run offers Copier setup; declining (or a non-interactive run without `MAISON_REQUIRE_OVERLAY=true`) exits
-without installing Nix or activating system/user state. Once an overlay exists, bootstrap stores or refreshes its state,
-installs verified Nix/Lix artifacts when missing, and runs the Maison bootstrap task. Use `--user-only` on the mise task
-when system activation should be skipped. Do not use pipe-to-shell bootstrap examples; verify downloaded bootstrap
-artifacts against `bootstrap/artifacts.toml` before execution.
+Bootstrap first installs verified pinned mise, trusts only the Maison project configuration, installs verified Nix/Lix
+artifacts when needed, and runs the bootstrap task with the consumer root. Use `--user-only` on the mise task when system
+activation should be skipped. Do not use pipe-to-shell bootstrap examples; verify downloaded bootstrap artifacts against
+`bootstrap/artifacts.toml` before execution.
 
 ## Common commands
+
+Run commands from the consumer checkout or set `MAISON_CONSUMER_ROOT`:
 
 ```bash
 maison doctor
@@ -159,6 +97,7 @@ maison plan
 maison apply
 maison status
 maison publish
+maison sync
 maison update
 
 maison system plan
@@ -175,26 +114,17 @@ maison user update
 maison deploy example-linux
 ```
 
-The same operations are available as mise tasks, for example `mise run system:plan`.
+The same operations are available as Maison mise tasks, for example `mise -C ~/.maison run system:plan`. Authoring
+commands write only consumer files. They require a Git checkout, reject pre-existing changes in mutation targets, use
+fast-forward-only refreshes where applicable, and create focused commits only after successful transactions.
 
-`maison status` and `maison publish` inspect and publish only the active private overlay. Status fetches when possible
-and reports clean/dirty, ahead/behind/diverged, no-upstream, and last-known/offline states without claiming a stale
-checkout is synchronized. Publish uses the configured upstream, refuses unsafe history before stashing, preserves
-tracked and untracked work while leaving ignored files untouched, and restores the stash after pushing. It does not
-create commits for arbitrary edits.
-
-Software add/remove commands also require the active private overlay. They refresh it fast-forward-only before editing,
-reject dirty declaration or lock targets, preserve unrelated work, and create focused commits only after successful
-transactions. Commit failures leave validated files in place for manual recovery; public Maison is never the mutation
-fallback.
-
-`maison apply` is deliberately system-first: it activates the Nix system layer and then converges the optional private
-user layer. A user-layer failure does not roll back the active Nix generation.
+`maison apply` is deliberately system-first: it activates the consumer's Nix system layer and then converges its user
+layer. A user-layer failure does not roll back the active Nix generation.
 
 ## Deployment and recovery
 
-`maison deploy <host>` requires a clean working tree and transfers committed Maison content only. With a private overlay
-active, deployment targeting and Nix evaluation use the overlay inventory while Maison remains the reusable framework.
+`maison deploy <host>` requires a clean consumer working tree and transfers committed consumer content only. Nix
+planning and deployment target the consumer flake; the Maison checkout and lock remain untouched.
 
 Repository replacement uses a root-owned transaction boundary and revision-bound rollback. Restricted recovery repairs
 only reversible user state; package and application side effects are not rolled back. See the [architecture](docs/architecture.md),
@@ -202,36 +132,33 @@ only reversible user state; package and application side effects are not rolled 
 
 ## Ownership boundary
 
-| Nix/Lix                                  | mise                                   |
-|------------------------------------------|----------------------------------------|
-| Nix daemon, caches, GC, and store policy | Optional user tools and runtimes       |
-| PAM, sudoers, and privileged policy      | Optional Homebrew formulae and casks   |
-| Hostname, timezone, locale, users        | Optional Mac App Store applications    |
-| Root-owned files and SSH daemon policy   | Optional user dotfiles and preferences |
-| System launchd/systemd services          | User services                          |
-| System-wide fonts and OS integrations    | Non-privileged configuration           |
+| Nix/Lix                                  | mise                          |
+|------------------------------------------|-------------------------------|
+| Nix daemon, caches, GC, and store policy | User tools and runtimes       |
+| PAM, sudoers, and privileged policy      | Homebrew formulae and casks   |
+| Hostname, timezone, locale, users        | Mac App Store applications    |
+| Root-owned files and SSH daemon policy   | User dotfiles and preferences |
+| System launchd/systemd services          | User services                 |
+| System-wide fonts and OS integrations    | Non-privileged configuration  |
 
-A file, package, service, or preference must have exactly one owner.
+A file, package, service, or preference must have exactly one owner. Consumer-owned state is never silently copied into
+or written to Maison.
 
 ## Repository layout
 
 ```text
-flake.nix                         system inputs
-inventory.toml                    neutral starter inventory and schema example
-hosts/example-darwin/             neutral example host override
-overlay_template/                 Copier template for private overlays
-nix/                              OS-level modules and deployment definitions
+flake.nix                         Maison development/release inputs
+inventory.toml                    neutral Maison validation inventory
+nix/                              reusable OS modules and orchestration helpers
 .mise/tasks/                      Maison framework workflows
 scripts/                          bootstrap, validation, and deployment transactions
-mise.toml                         repository development tools and task discovery
-mise.lock                         locked repository development tool artifacts
-dotfiles/pi/settings.defaults.json  public Pi settings defaults; personal extensions stay in Terroir
+mise.toml                         Maison development tools and task discovery
+mise.lock                         Maison development tool lock
+schemas/                          public inventory schema
 ```
 
-The root `mise.toml` contains only tools required to develop and validate Maison. User applications, packages,
-preferences, and dotfiles belong in the private overlay. `config/mise/` contains empty public policy stubs so a checkout
-without an overlay remains valid; use the `overlay_template` Copier template for private policy. Personal Pi extensions
-and their validation workspace are maintained privately in Terroir.
+Consumer repositories own their `flake.nix`, `flake.lock`, inventory, host overrides, mise policy, dotfiles, deployment
+state, and personal configuration.
 
 ## Development
 

@@ -5,7 +5,7 @@ transaction_directory() {
 }
 
 transaction_helper() {
-  local root="${MISE_PROJECT_ROOT:-$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)}"
+  local root="${MAISON_HOME:-${MISE_PROJECT_ROOT:-$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)}}"
   printf '%s/.mise/lib/repository_mutation.py\n' "$root"
 }
 

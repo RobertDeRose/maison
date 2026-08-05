@@ -1,5 +1,5 @@
 # Maison keeps the public Linux user policy neutral.
-# Add personal packages and environment settings to a private overlay based on overlay_template.
+# Consumer repositories may add personal packages and environment settings here.
 [settings]
 system_packages.managers = ["brew"]
 

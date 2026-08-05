@@ -175,11 +175,11 @@ def aggregate_user_arguments(*, force_dotfiles: bool) -> tuple[str, ...]:
 
 
 def _configuration_root(root: Path) -> Path:
-    configured = os.environ.get("MAISON_OVERLAY_PATH")
+    configured = os.environ.get("MAISON_USER_CONFIG_ROOT")
     if configured:
-        overlay = Path(configured).expanduser().resolve()
-        if (overlay / "config/mise/config.toml").is_file():
-            return overlay
+        configuration_root = Path(configured).expanduser().resolve()
+        if configuration_root == root or (configuration_root / "config/mise/config.toml").is_file():
+            return configuration_root
     return root
 
 
@@ -211,8 +211,11 @@ def build_command_plan(
         "MISE_GLOBAL_CONFIG_FILE": str(_configuration_path(root)),
         "MAISON_USER_CONFIG_ROOT": str(configuration_root),
     }
-    prepare_script = root / "scripts/user-prepare.sh"
+    framework_root = Path(os.environ.get("MAISON_HOME", root)).expanduser().resolve()
+    prepare_script = framework_root / "scripts/user-prepare.sh"
     prepare_environment = dict(mise_environment)
+    if framework_root != root:
+        prepare_environment["MAISON_USER_PREPARE_ROOT"] = str(root)
     if recovery:
         if override := os.environ.get("MAISON_RECOVERY_PREPARE_SCRIPT"):
             prepare_script = Path(override)
@@ -238,7 +241,7 @@ def build_command_plan(
     lockfiles = Command(
         name="lockfiles",
         argv=(
-            str(root / "scripts/user-link-mise-lock.sh"),
+            str(framework_root / "scripts/user-link-mise-lock.sh"),
             *(("--dry-run",) if dry_run else ()),
         ),
         cwd=root,
@@ -278,7 +281,7 @@ def build_command_plan(
                 argv=(
                     ("mise", "bootstrap", "packages", "apply", "--dry-run")
                     if dry_run
-                    else (str(root / "scripts/user-apply-packages.sh"),)
+                    else (str(framework_root / "scripts/user-apply-packages.sh"),)
                 ),
                 cwd=home,
                 env=mise_environment,
@@ -293,8 +296,8 @@ def build_command_plan(
         apply_only = (
             Command(
                 name="trust",
-                argv=("mise", "trust", str(root / "mise.toml")),
-                cwd=root,
+                argv=("mise", "trust", str(framework_root / "mise.toml")),
+                cwd=framework_root,
                 env={},
                 dry_run=False,
                 semantic_action="trust-repository-config",
@@ -303,7 +306,7 @@ def build_command_plan(
             ),
             Command(
                 name="finalize",
-                argv=(str(root / "scripts/user-finalize.sh"),),
+                argv=(str(framework_root / "scripts/user-finalize.sh"),),
                 cwd=root,
                 env={},
                 dry_run=False,
@@ -332,23 +335,23 @@ class _ComparisonCache:
         self.file_comparisons = {}
 
 
-def _hide_installed_overlay_config(plan: CommandPlan) -> ConfigGuard | None:
+def _hide_installed_consumer_config(plan: CommandPlan) -> ConfigGuard | None:
     mise_command = plan.command("mise")
     config_root = mise_command.env.get("MAISON_USER_CONFIG_ROOT")
     if not config_root:
         return None
-    overlay = Path(config_root).resolve()
+    configuration_root = Path(config_root).resolve()
     try:
         project_root = plan.command("prepare").cwd
     except KeyError:
         project_root = mise_command.cwd
-    if overlay == project_root.resolve():
+    if configuration_root == project_root.resolve():
         return None
 
     installed_root = mise_command.cwd / ".config/mise"
     guards: list[tuple[Path, Path]] = []
     try:
-        for active_config in sorted((overlay / "config/mise").glob("config*.toml")):
+        for active_config in sorted((configuration_root / "config/mise").glob("config*.toml")):
             installed = installed_root / active_config.name
             if not _path_exists(installed):
                 continue
@@ -356,16 +359,16 @@ def _hide_installed_overlay_config(plan: CommandPlan) -> ConfigGuard | None:
                 continue
             backup = installed.parent / f".{installed.name}.maison-backup-{os.getpid()}"
             if _path_exists(backup):
-                raise RuntimeError(f"temporary overlay config backup already exists: {backup}")
+                raise RuntimeError(f"temporary consumer config backup already exists: {backup}")
             os.replace(installed, backup)
             guards.append((installed, backup))
     except BaseException:
-        _restore_installed_overlay_config(tuple(guards), retain_new_config=False)
+        _restore_installed_consumer_config(tuple(guards), retain_new_config=False)
         raise
     return tuple(guards) or None
 
 
-def _restore_installed_overlay_config(
+def _restore_installed_consumer_config(
     guard: ConfigGuard | None,
     *,
     retain_new_config: bool,
@@ -525,7 +528,7 @@ def run_command_plan(plan: CommandPlan, *, event_file: Path | None = None) -> No
         _print_command_plan(plan)
         return
 
-    guard = _hide_installed_overlay_config(plan)
+    guard = _hide_installed_consumer_config(plan)
     succeeded = False
     try:
         for command in _commands_for_execution(plan):
@@ -550,7 +553,7 @@ def run_command_plan(plan: CommandPlan, *, event_file: Path | None = None) -> No
             _record_event(event_file, mode=plan.mode, phase=command.name, status="completed")
         succeeded = True
     finally:
-        _restore_installed_overlay_config(
+        _restore_installed_consumer_config(
             guard,
             retain_new_config=succeeded and plan.mode in {"apply", "recovery"},
         )

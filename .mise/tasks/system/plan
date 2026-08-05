@@ -3,12 +3,13 @@
 # [MISE] description="Build the selected Nix system configuration without activation"
 #USAGE flag "--host <host>" help="Inventory host (defaults to the current hostname)"
 set -euo pipefail
-root="${MISE_PROJECT_ROOT:-$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)}"
+framework_root="${MAISON_HOME:-${MISE_PROJECT_ROOT:-$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)}}"
+source "$framework_root/.mise/lib/common.sh"
+root="$(maison_consumer_root "${BASH_SOURCE[0]}")"
 cd "$root"
-source "$root/.mise/lib/common.sh"
-source "$root/.mise/lib/platform.sh"
-source "$root/.mise/lib/inventory.sh"
-source "$root/.mise/lib/nix.sh"
+source "$framework_root/.mise/lib/platform.sh"
+source "$framework_root/.mise/lib/inventory.sh"
+source "$framework_root/.mise/lib/nix.sh"
 host="${usage_host:-$(current_hostname)}"
 require_inventory_host "$root" "$host"
 load_nix_environment

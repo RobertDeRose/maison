@@ -13,11 +13,11 @@ from unittest.mock import patch
 from tests.support.topology import *
 
 ROOT = Path(__file__).resolve().parents[1]
-MODULE_PATH = ROOT / "scripts/maison_overlay_git.py"
+MODULE_PATH = ROOT / "scripts/maison_repository_git.py"
 
 
 def load_module():
-    spec = importlib.util.spec_from_file_location("maison_overlay_git", MODULE_PATH)
+    spec = importlib.util.spec_from_file_location("maison_repository_git", MODULE_PATH)
     assert spec and spec.loader
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module
@@ -25,10 +25,10 @@ def load_module():
     return module
 
 
-class OverlayGitBehaviorTest(unittest.TestCase):
+class RepositoryGitBehaviorTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
-        cls.overlay_git = load_module()
+        cls.repository_git = load_module()
 
     def setUp(self) -> None:
         self.previous_git_config = {key: os.environ.get(key) for key in ("GIT_CONFIG_GLOBAL", "GIT_CONFIG_NOSYSTEM")}
@@ -97,7 +97,7 @@ class OverlayGitBehaviorTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             overlay, _ = self.make_remote_overlay(Path(directory))
 
-            status = self.overlay_git.inspect_repository(overlay)
+            status = self.repository_git.inspect_repository(overlay)
 
             self.assertEqual(status.worktree, "clean")
             self.assertEqual(status.relationship, "in-sync")
@@ -105,18 +105,18 @@ class OverlayGitBehaviorTest(unittest.TestCase):
             self.assertEqual(status.upstream, "origin/main")
 
     def test_status_fetch_converts_timeout_to_last_known_error(self) -> None:
-        upstream = self.overlay_git.Upstream(
+        upstream = self.repository_git.Upstream(
             name="origin/main",
             remote="origin",
             branch="main",
             ref="origin/main",
         )
-        timeout = self.overlay_git.OverlayGitTimeout("fetch timed out")
-        with patch.object(self.overlay_git, "_git", side_effect=timeout) as git:
-            result = self.overlay_git.fetch_upstream(
+        timeout = self.repository_git.RepositoryGitTimeout("fetch timed out")
+        with patch.object(self.repository_git, "_git", side_effect=timeout) as git:
+            result = self.repository_git.fetch_upstream(
                 Path("/tmp/overlay"),
                 upstream,
-                timeout=self.overlay_git.FETCH_TIMEOUT_SECONDS,
+                timeout=self.repository_git.FETCH_TIMEOUT_SECONDS,
             )
 
         self.assertFalse(result.succeeded)
@@ -125,7 +125,7 @@ class OverlayGitBehaviorTest(unittest.TestCase):
             Path("/tmp/overlay"),
             ["fetch", "--prune", "--quiet", "origin"],
             check=False,
-            timeout=self.overlay_git.FETCH_TIMEOUT_SECONDS,
+            timeout=self.repository_git.FETCH_TIMEOUT_SECONDS,
         )
 
     @unittest.skipUnless(os.name == "posix", "Git process-group cleanup requires POSIX")
@@ -146,8 +146,8 @@ class OverlayGitBehaviorTest(unittest.TestCase):
                     "CHILD_PID": str(child_pid),
                 }
             )
-            with self.assertRaises(self.overlay_git.OverlayGitTimeout):
-                self.overlay_git._git(root, ["fetch"], env=env, check=False, timeout=1.0)
+            with self.assertRaises(self.repository_git.RepositoryGitTimeout):
+                self.repository_git._git(root, ["fetch"], env=env, check=False, timeout=1.0)
 
             child = int(child_pid.read_text())
             deadline = time.monotonic() + 1.0
@@ -166,7 +166,7 @@ class OverlayGitBehaviorTest(unittest.TestCase):
             root = Path(directory)
             overlay, remote = self.make_remote_overlay(root, remote_name="team/origin")
 
-            status = self.overlay_git.inspect_repository(overlay)
+            status = self.repository_git.inspect_repository(overlay)
 
             self.assertEqual(status.upstream, "team/origin/main")
             self.assertEqual(status.relationship, "in-sync")
@@ -176,14 +176,14 @@ class OverlayGitBehaviorTest(unittest.TestCase):
             remote_head = git_commit_all(other, "remote")
             self.git(other, "push", "-q")
 
-            refresh = self.overlay_git.refresh_repository(overlay)
+            refresh = self.repository_git.refresh_repository(overlay)
 
             self.assertTrue(refresh.updated)
             self.assertEqual(self.git(overlay, "rev-parse", "HEAD").stdout.strip(), remote_head)
 
             (overlay / "local.txt").write_text("local\n")
             local_head = git_commit_all(overlay, "local")
-            publish = self.overlay_git.publish_repository(overlay)
+            publish = self.repository_git.publish_repository(overlay)
 
             self.assertTrue(publish.pushed)
             self.assertEqual(
@@ -201,7 +201,7 @@ class OverlayGitBehaviorTest(unittest.TestCase):
             (overlay / "untracked.txt").write_text("untracked\n")
             (overlay / "ignored.txt").write_text("ignored\n")
 
-            status = self.overlay_git.inspect_repository(overlay)
+            status = self.repository_git.inspect_repository(overlay)
 
             self.assertEqual(status.worktree, "dirty")
             self.assertTrue(status.tracked_changes)
@@ -214,7 +214,7 @@ class OverlayGitBehaviorTest(unittest.TestCase):
             overlay, _ = self.make_remote_overlay(root / "ahead")
             (overlay / "local.txt").write_text("local\n")
             git_commit_all(overlay, "local")
-            self.assertEqual(self.overlay_git.inspect_repository(overlay).relationship, "ahead")
+            self.assertEqual(self.repository_git.inspect_repository(overlay).relationship, "ahead")
 
             behind_overlay, behind_remote = self.make_remote_overlay(root / "behind")
             other = self.clone_remote(behind_remote, root / "behind-other")
@@ -222,7 +222,7 @@ class OverlayGitBehaviorTest(unittest.TestCase):
             git_commit_all(other, "remote")
             self.git(other, "push", "-q")
             self.assertEqual(
-                self.overlay_git.inspect_repository(behind_overlay).relationship,
+                self.repository_git.inspect_repository(behind_overlay).relationship,
                 "behind",
             )
 
@@ -234,7 +234,7 @@ class OverlayGitBehaviorTest(unittest.TestCase):
             git_commit_all(other, "remote")
             self.git(other, "push", "-q")
             self.assertEqual(
-                self.overlay_git.inspect_repository(diverged_overlay).relationship,
+                self.repository_git.inspect_repository(diverged_overlay).relationship,
                 "diverged",
             )
 
@@ -249,8 +249,8 @@ class OverlayGitBehaviorTest(unittest.TestCase):
                 str(Path(directory) / "offline.git"),
             )
 
-            status = self.overlay_git.inspect_repository(overlay)
-            rendered = self.overlay_git.format_status(status)
+            status = self.repository_git.inspect_repository(overlay)
+            rendered = self.repository_git.format_status(status)
 
             self.assertEqual(status.comparison, "last-known")
             self.assertIsNotNone(status.fetch_error)
@@ -265,7 +265,7 @@ class OverlayGitBehaviorTest(unittest.TestCase):
             (overlay / "state.txt").write_text("base\n")
             git_commit_all(overlay)
 
-            status = self.overlay_git.inspect_repository(overlay)
+            status = self.repository_git.inspect_repository(overlay)
 
             self.assertEqual(status.relationship, "no-upstream")
             self.assertEqual(status.comparison, "not-configured")
@@ -285,7 +285,7 @@ class OverlayGitBehaviorTest(unittest.TestCase):
             (overlay / "ignored.txt").write_text("do not stash\n")
             expected_head = self.git(overlay, "rev-parse", "HEAD").stdout.strip()
 
-            result = self.overlay_git.publish_repository(overlay)
+            result = self.repository_git.publish_repository(overlay)
 
             self.assertTrue(result.pushed)
             self.assertEqual(self.git(overlay, "rev-parse", "HEAD").stdout.strip(), expected_head)
@@ -308,8 +308,8 @@ class OverlayGitBehaviorTest(unittest.TestCase):
             self.git(other, "push", "-q")
             (overlay / "state.txt").write_text("keep local work\n")
 
-            with self.assertRaises(self.overlay_git.OverlayGitError):
-                self.overlay_git.publish_repository(overlay)
+            with self.assertRaises(self.repository_git.RepositoryGitError):
+                self.repository_git.publish_repository(overlay)
 
             self.assertEqual((overlay / "state.txt").read_text(), "keep local work\n")
             self.assertEqual(self.git(overlay, "stash", "list").stdout, "")
@@ -325,8 +325,8 @@ class OverlayGitBehaviorTest(unittest.TestCase):
             (overlay / "state.txt").write_text("dirty\n")
             (overlay / "untracked.txt").write_text("untracked\n")
 
-            with self.assertRaises(self.overlay_git.OverlayGitError):
-                self.overlay_git.publish_repository(overlay)
+            with self.assertRaises(self.repository_git.RepositoryGitError):
+                self.repository_git.publish_repository(overlay)
 
             self.assertEqual((overlay / "state.txt").read_text(), "dirty\n")
             self.assertEqual((overlay / "untracked.txt").read_text(), "untracked\n")
@@ -339,9 +339,9 @@ class OverlayGitBehaviorTest(unittest.TestCase):
             self.git(overlay, "add", "--", "state.txt")
             (overlay / "untracked.txt").write_text("untracked\n")
 
-            stash = self.overlay_git.create_stash(overlay)
+            stash = self.repository_git.create_stash(overlay)
             self.assertIsNotNone(stash)
-            self.overlay_git.restore_stash(overlay, stash)
+            self.repository_git.restore_stash(overlay, stash)
 
             self.assertEqual((overlay / "state.txt").read_text(), "staged\n")
             status = self.git(overlay, "status", "--porcelain=v1").stdout
@@ -352,12 +352,12 @@ class OverlayGitBehaviorTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             overlay, _ = self.make_remote_overlay(Path(directory))
             (overlay / "state.txt").write_text("local\n")
-            stash = self.overlay_git.create_stash(overlay)
+            stash = self.repository_git.create_stash(overlay)
             self.assertIsNotNone(stash)
             (overlay / "state.txt").write_text("conflicting\n")
 
-            with self.assertRaises(self.overlay_git.OverlayGitError):
-                self.overlay_git.restore_stash(overlay, stash)
+            with self.assertRaises(self.repository_git.RepositoryGitError):
+                self.repository_git.restore_stash(overlay, stash)
 
             self.assertNotEqual(self.git(overlay, "stash", "list").stdout, "")
 
@@ -373,8 +373,8 @@ class OverlayGitBehaviorTest(unittest.TestCase):
             )
             (overlay / "state.txt").write_text("keep local work\n")
 
-            with self.assertRaises(self.overlay_git.OverlayGitError):
-                self.overlay_git.publish_repository(overlay)
+            with self.assertRaises(self.repository_git.RepositoryGitError):
+                self.repository_git.publish_repository(overlay)
 
             self.assertEqual((overlay / "state.txt").read_text(), "keep local work\n")
             self.assertEqual(self.git(overlay, "stash", "list").stdout, "")
@@ -390,7 +390,7 @@ class OverlayGitBehaviorTest(unittest.TestCase):
             (overlay / "state.txt").write_text("local work\n")
             (overlay / "untracked.txt").write_text("untracked\n")
 
-            result = self.overlay_git.refresh_repository(overlay)
+            result = self.repository_git.refresh_repository(overlay)
 
             self.assertTrue(result.updated)
             self.assertEqual(self.git(overlay, "rev-parse", "HEAD").stdout.strip(), remote_head)
@@ -409,29 +409,17 @@ class OverlayGitBehaviorTest(unittest.TestCase):
             )
             (overlay / "state.txt").write_text("keep local work\n")
 
-            with self.assertRaises(self.overlay_git.OverlayGitError):
-                self.overlay_git.refresh_repository(overlay)
+            with self.assertRaises(self.repository_git.RepositoryGitError):
+                self.repository_git.refresh_repository(overlay)
 
             self.assertEqual((overlay / "state.txt").read_text(), "keep local work\n")
             self.assertEqual(self.git(overlay, "stash", "list").stdout, "")
 
-    def test_active_repository_rejects_public_maison_as_overlay(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory) / "maison"
-            root.mkdir()
-            git_init(root)
-            (root / "state.txt").write_text("base\n")
-            git_commit_all(root)
-            previous = os.environ.get("MAISON_OVERLAY_PATH")
-            os.environ["MAISON_OVERLAY_PATH"] = str(root)
-            try:
-                with self.assertRaises(self.overlay_git.OverlayGitError):
-                    self.overlay_git.active_repository(root=root)
-            finally:
-                if previous is None:
-                    os.environ.pop("MAISON_OVERLAY_PATH", None)
-                else:
-                    os.environ["MAISON_OVERLAY_PATH"] = previous
+    def test_consumer_repository_requires_an_explicit_path(self) -> None:
+        with self.assertRaises(self.repository_git.RepositoryGitError):
+            self.repository_git._repository_argument(
+                type("Arguments", (), {"repo": None})()
+            )
 
     def test_commit_paths_preserves_unrelated_index_and_worktree_changes(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -448,7 +436,7 @@ class OverlayGitBehaviorTest(unittest.TestCase):
             self.git(overlay, "add", "--", "unrelated.txt")
             (overlay / "untracked.txt").write_text("untracked\n")
 
-            commit = self.overlay_git.commit_paths(
+            commit = self.repository_git.commit_paths(
                 overlay,
                 operation="added",
                 scope="tool",

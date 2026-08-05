@@ -3,4 +3,4 @@
 # [MISE] description="Compatibility alias for system:deploy"
 # [MISE] hide=true
 set -euo pipefail
-exec mise run "system:deploy" -- "$@"
+exec mise -C "${MAISON_HOME:-${MISE_PROJECT_ROOT:-$PWD}}" run "system:deploy" -- "$@"

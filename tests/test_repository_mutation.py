@@ -216,7 +216,7 @@ class AuthoringCheckoutGuardTest(unittest.TestCase):
             self.assertNotEqual(result.returncode, 0)
             self.assertIn("deployed Maison snapshot", result.stderr)
             self.assertIn("Git authoring checkout", result.stderr)
-            self.assertIn("private overlay repository", result.stderr)
+            self.assertIn("consumer repository", result.stderr)
             self.assertIn("tool:add", result.stderr)
 
 

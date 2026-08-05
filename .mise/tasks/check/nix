@@ -2,7 +2,7 @@
 # [MISE] quiet=true
 # [MISE] description="Validate and format-check every supported Nix output without warnings"
 set -euo pipefail
-root="${MISE_PROJECT_ROOT:-$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)}"
+root="${MAISON_HOME:-${MISE_PROJECT_ROOT:-$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)}}"
 cd "$root"
 source "$root/.mise/lib/common.sh"
 source "$root/.mise/lib/nix.sh"
@@ -28,8 +28,6 @@ run_nix_checked() {
   if [ "$status" -eq 0 ]; then
     # A successful Nix command may report transient binary-cache retries as
     # warnings. Those are transport diagnostics, not configuration warnings.
-    # Overlay input overrides intentionally produce a lock-file-difference warning;
-    # the override is per invocation and must not rewrite the repository lock.
     grep -E '(^|[[:space:]])warning:' "$stderr_file" \
       | grep -Ev 'warning: error: unable to download .*retrying|warning: not writing modified lock file of flake' \
       >"$warning_file" || true
@@ -48,18 +46,13 @@ run_nix_checked() {
 
 run_nix_checked flake metadata --no-update-lock-file >/dev/null
 
-# The expression path bypasses flake installable overrides, so carry the active
-# overlay into the expression explicitly while retaining nix_command's normal
-# input override handling for the other commands below.
-load_nix_overlay_environment
-MAISON_CHECK_OVERLAY_PATH="$(nix_overlay_path)"
-export MAISON_CHECK_OVERLAY_PATH
 BATCH_NIX_EVAL="$(cat <<'NIX'
 let
   source = builtins.getFlake (toString ./.);
-  overlay = builtins.path { path = builtins.getEnv "MAISON_CHECK_OVERLAY_PATH"; };
-  inputs = source.inputs // { inherit overlay; self = source; };
-  inventoryFile = "${overlay}/inventory.toml";
+  # builtins.getFlake exposes locked inputs separately from the complete flake
+  # output argument set; flake-parts needs the latter's self input as well.
+  inputs = source.inputs // { self = source; };
+  inventoryFile = "${toString ./inventory.toml}";
   inventory = builtins.fromTOML (builtins.readFile inventoryFile);
   outputs = import ./nix/outputs.nix { inherit inputs inventoryFile inventory; };
   packages = builtins.mapAttrs (_: packages: builtins.mapAttrs (_: package: package.drvPath) packages) outputs.packages;

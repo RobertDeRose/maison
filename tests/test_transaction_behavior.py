@@ -7,17 +7,22 @@ class TransactionBehaviorTest(unittest.TestCase):
     def make_config_repo(self, temp: Path) -> Path:
         repo = temp / "repo"
         (repo / "config/mise").mkdir(parents=True)
+        (repo / ".mise/tasks").mkdir(parents=True)
+        (repo / "mise.toml").write_text("[settings]\n")
+        (repo / "flake.nix").write_text("{ outputs = _: {}; }\n")
+        (repo / "flake.lock").write_text('{"nodes": {}}\n')
+        (repo / "inventory.toml").write_text("schema = 1\n")
         (repo / ".git").mkdir()
         copy_files(
             repo,
             ".mise/lib/config_edit.py",
+            ".mise/lib/common.sh",
             ".mise/vendor/tomlkit-0.13.3-py3-none-any.whl",
             ".mise/lib/repository_mutation.py",
             ".mise/lib/transaction.sh",
-            ".mise/lib/overlay.sh",
-            ".mise/lib/overlay_git.sh",
-            "scripts/maison_overlay.py",
-            "scripts/maison_overlay_git.py",
+            ".mise/lib/consumer.sh",
+            ".mise/lib/repository_git.sh",
+            "scripts/maison_repository_git.py",
             "scripts/user-apply-packages.sh",
         )
         return repo
@@ -25,6 +30,9 @@ class TransactionBehaviorTest(unittest.TestCase):
     def make_overlay_repository(self, directory: Path, files: dict[str, str]) -> Path:
         overlay = directory / "overlay"
         overlay.mkdir(parents=True)
+        (overlay / "flake.nix").write_text("{ outputs = _: {}; }\n")
+        (overlay / "flake.lock").write_text('{"nodes": {}}\n')
+        (overlay / "inventory.toml").write_text("schema = 1\n")
         for name, content in files.items():
             path = overlay / name
             path.parent.mkdir(parents=True, exist_ok=True)
@@ -63,7 +71,7 @@ class TransactionBehaviorTest(unittest.TestCase):
 
     def overlay_environment(self, overlay: Path, state: Path) -> dict[str, str]:
         return {
-            "MAISON_OVERLAY_PATH": str(overlay),
+            "MAISON_CONSUMER_ROOT": str(overlay),
             "MAISON_REPOSITORY_MUTATION_STATE_DIR": str(state),
         }
 
@@ -94,6 +102,7 @@ class TransactionBehaviorTest(unittest.TestCase):
                 ".mise/vendor/tomlkit-0.13.3-py3-none-any.whl",
                 ".mise/lib/repository_mutation.py",
                 ".mise/lib/transaction.sh",
+                ".mise/lib/repository_git.sh",
                 "inventory.toml",
             )
             original = (repo / "inventory.toml").read_text()
@@ -374,7 +383,7 @@ class TransactionBehaviorTest(unittest.TestCase):
                     env = os.environ.copy()
                     env.update(extra_env)
                     env["MISE_PROJECT_ROOT"] = str(repo)
-                    env.pop("MAISON_OVERLAY_PATH", None)
+                    env.pop("MAISON_CONSUMER_ROOT", None)
                     result = run(
                         [str(repo / task_name)],
                         cwd=repo,
@@ -622,7 +631,7 @@ class TransactionBehaviorTest(unittest.TestCase):
             self.assertNotEqual(result.returncode, 0)
             self.assertEqual(config.read_text(), original_config)
             self.assertEqual(lock.read_text(), original_lock)
-            self.assertIn("repository config and lock were not changed", result.stderr)
+            self.assertIn("consumer config and lock were not changed", result.stderr)
 
     def test_tool_add_restores_lock_when_config_commit_fails(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

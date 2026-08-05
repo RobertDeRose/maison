@@ -4,6 +4,7 @@
 # [MISE] interactive=true
 #USAGE flag "-y --yes" help="Skip confirmation"
 set -euo pipefail
+framework_root="${MAISON_HOME:-${MISE_PROJECT_ROOT:-$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)}}"
 args=()
 [ "${usage_yes:-false}" != true ] || args+=(--yes)
-exec mise run system:rollback -- "${args[@]}"
+exec mise -C "$framework_root" run system:rollback -- "${args[@]}"

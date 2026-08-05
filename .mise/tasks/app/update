@@ -7,9 +7,11 @@ set -euo pipefail
   printf 'Application updates are only supported on macOS.\n'
   exit 0
 }
-root="${MISE_PROJECT_ROOT:-$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)}"
-source "$root/.mise/lib/overlay.sh"
-load_maison_overlay_environment "$root"
+framework_root="${MAISON_HOME:-${MISE_PROJECT_ROOT:-$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)}}"
+source "$framework_root/.mise/lib/common.sh"
+root="$(maison_consumer_root "${BASH_SOURCE[0]}")"
+source "$framework_root/.mise/lib/consumer.sh"
+load_maison_consumer_environment "$root"
 config_root="${MAISON_USER_CONFIG_ROOT:-$root}"
 config="$config_root/config/mise/config.toml"
 (

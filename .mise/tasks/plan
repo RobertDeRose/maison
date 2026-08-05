@@ -4,11 +4,12 @@
 #USAGE flag "--host <host>" help="Inventory host"
 #USAGE flag "--force-dotfiles" help="Preview replacement of conflicting user dotfiles"
 set -euo pipefail
+framework_root="${MAISON_HOME:-${MISE_PROJECT_ROOT:-$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)}}"
 printf '\n==> System preview (no activation)\n'
 args=()
 [ -z "${usage_host:-}" ] || args+=(--host "$usage_host")
-mise run system:plan -- "${args[@]}"
+mise -C "$framework_root" run system:plan -- "${args[@]}"
 printf '\n==> User preview (read-only)\n'
 args=()
 [ "${usage_force_dotfiles:-false}" != true ] || args+=(--force-dotfiles)
-mise run user:plan -- "${args[@]}"
+mise -C "$framework_root" run user:plan -- "${args[@]}"

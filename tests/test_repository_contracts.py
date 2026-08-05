@@ -83,7 +83,6 @@ class DataFilesTest(unittest.TestCase):
                 "nix-hex-box",
                 "nix-homebrew",
                 "nixpkgs",
-                "overlay",
                 "system-manager",
             },
         )
@@ -91,9 +90,8 @@ class DataFilesTest(unittest.TestCase):
         self.assertNotIn("home-manager", serialized)
         self.assertNotIn('"deploy-rs"', serialized)
 
-    def test_flake_lock_keeps_overlay_portable_and_builder_fix_pinned(self) -> None:
+    def test_flake_lock_keeps_builder_fix_pinned(self) -> None:
         lock = json.loads(read("flake.lock"))["nodes"]
-        self.assertEqual(lock["overlay"]["locked"]["path"], ".")
         nix_hex_box = lock["nix-hex-box"]["locked"]
         self.assertNotEqual(
             nix_hex_box["rev"],
@@ -196,14 +194,8 @@ class RepositoryContractTest(unittest.TestCase):
             "mise exec --locked python -- mise run --skip-tools bootstrap --",
             bootstrap,
         )
-        self.assertIn(
-            'saved="$(mise exec --locked python -- python "$repo_root/scripts/maison_overlay.py" resolve',
-            bootstrap,
-        )
-        self.assertNotIn(
-            'saved="$(python3 "$repo_root/scripts/maison_overlay.py" resolve',
-            bootstrap,
-        )
+        self.assertIn("MAISON_CONSUMER_ROOT", bootstrap)
+        self.assertNotIn("scripts/maison_overlay.py", bootstrap)
         self.assertIn(
             'exec "$mise_bin" exec --locked python -- "$mise_bin" run --skip-tools "$requested_task" --help',
             cli,
@@ -213,17 +205,22 @@ class RepositoryContractTest(unittest.TestCase):
             cli,
         )
 
-    def test_sync_pulls_maison_and_overlay_before_apply(self) -> None:
+    def test_sync_pulls_consumer_before_apply(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             temp = Path(directory)
-            overlay = temp / "overlay"
-            overlay.mkdir()
+            consumer = temp / "consumer"
+            consumer.mkdir()
+            (consumer / "flake.nix").write_text("{ outputs = _: {}; }\n")
+            (consumer / "flake.lock").write_text('{"nodes": {}}\n')
+            (consumer / "inventory.toml").write_text("schema = 1\n")
             fake_bin = temp / "bin"
             fake_bin.mkdir()
             log = temp / "sync.log"
             executable(
                 fake_bin / "git",
-                '#!/bin/sh\nprintf \'git %s\\n\' "$*" >>"$SYNC_LOG"\nstatus=0\n[ "${3:-}" != pull ] || status="${SYNC_GIT_STATUS:-0}"\nexit "$status"\n',
+                '#!/bin/sh\nprintf \'git %s\\n\' "$*" >>"$SYNC_LOG"\n'
+                'status=0\n[ "${3:-}" != pull ] || status="${SYNC_GIT_STATUS:-0}"\n'
+                'exit "$status"\n',
             )
             executable(
                 fake_bin / "mise",
@@ -232,8 +229,9 @@ class RepositoryContractTest(unittest.TestCase):
             env = os.environ.copy()
             env.update(
                 {
+                    "MAISON_HOME": str(ROOT),
+                    "MAISON_CONSUMER_ROOT": str(consumer),
                     "MISE_PROJECT_ROOT": str(ROOT),
-                    "MAISON_OVERLAY_PATH": str(overlay),
                     "PATH": f"{fake_bin}{os.pathsep}{env['PATH']}",
                     "SYNC_LOG": str(log),
                 }
@@ -249,23 +247,28 @@ class RepositoryContractTest(unittest.TestCase):
             self.assertEqual(
                 [line for line in log.read_text().splitlines() if "pull" in line or line.startswith("mise ")],
                 [
-                    f"git -C {ROOT} pull --ff-only --autostash",
-                    f"git -C {overlay} pull --ff-only --autostash",
-                    "mise run apply --",
+                    f"git -C {consumer.resolve()} pull --ff-only --autostash",
+                    f"mise -C {ROOT} run apply --",
                 ],
             )
+            self.assertNotIn(f"git -C {ROOT} pull", log.read_text())
 
-    def test_sync_does_not_apply_when_a_pull_fails(self) -> None:
+    def test_sync_does_not_apply_when_consumer_pull_fails(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             temp = Path(directory)
-            overlay = temp / "overlay"
-            overlay.mkdir()
+            consumer = temp / "consumer"
+            consumer.mkdir()
+            (consumer / "flake.nix").write_text("{ outputs = _: {}; }\n")
+            (consumer / "flake.lock").write_text('{"nodes": {}}\n')
+            (consumer / "inventory.toml").write_text("schema = 1\n")
             fake_bin = temp / "bin"
             fake_bin.mkdir()
             log = temp / "sync.log"
             executable(
                 fake_bin / "git",
-                '#!/bin/sh\nprintf \'git %s\\n\' "$*" >>"$SYNC_LOG"\nstatus=0\n[ "${3:-}" != pull ] || status="${SYNC_GIT_STATUS:-0}"\nexit "$status"\n',
+                '#!/bin/sh\nprintf \'git %s\\n\' "$*" >>"$SYNC_LOG"\n'
+                'status=0\n[ "${3:-}" != pull ] || status="${SYNC_GIT_STATUS:-0}"\n'
+                'exit "$status"\n',
             )
             executable(
                 fake_bin / "mise",
@@ -274,8 +277,9 @@ class RepositoryContractTest(unittest.TestCase):
             env = os.environ.copy()
             env.update(
                 {
+                    "MAISON_HOME": str(ROOT),
+                    "MAISON_CONSUMER_ROOT": str(consumer),
                     "MISE_PROJECT_ROOT": str(ROOT),
-                    "MAISON_OVERLAY_PATH": str(overlay),
                     "PATH": f"{fake_bin}{os.pathsep}{env['PATH']}",
                     "SYNC_LOG": str(log),
                     "SYNC_GIT_STATUS": "7",
@@ -290,6 +294,7 @@ class RepositoryContractTest(unittest.TestCase):
             )
             self.assertNotEqual(result.returncode, 0)
             self.assertNotIn("mise", log.read_text())
+            self.assertNotIn(f"git -C {ROOT} pull", log.read_text())
 
     def test_inventory_flake_app_is_built_on_every_supported_system(self) -> None:
         outputs = read("nix/outputs.nix")
@@ -332,21 +337,13 @@ class RepositoryContractTest(unittest.TestCase):
         self.assertIn('git -C "$repo_root" checkout --detach "$ref"', bootstrap)
         self.assertIn('git clone --branch "$ref" --single-branch "$repo_url" "$repo_root"', bootstrap)
 
-    def test_bootstrap_uses_template_and_current_user_for_copier(self) -> None:
+    def test_bootstrap_selects_an_explicit_consumer(self) -> None:
         bootstrap = read("bootstrap.sh")
-        self.assertIn('copier_user="$(id -un)"', bootstrap)
-        self.assertIn('--data "username=$copier_user"', bootstrap)
-        self.assertIn(
-            "MAISON_OVERLAY_HOME     Copier destination; defaults to "
-            "${XDG_DATA_HOME:-$HOME/.local/share}/maison/overlay.",
-            bootstrap,
-        )
-        self.assertIn(
-            "MAISON_OVERLAY_HOME:-${XDG_DATA_HOME:-$HOME/.local/share}/maison/overlay",
-            bootstrap,
-        )
-        self.assertIn("overlay_template", bootstrap)
-        self.assertNotIn("examples/", bootstrap)
+        self.assertIn("--consumer PATH", bootstrap)
+        self.assertIn("MAISON_CONSUMER_ROOT", bootstrap)
+        self.assertIn("is_consumer_checkout", bootstrap)
+        self.assertNotIn("MAISON_OVERLAY_HOME", bootstrap)
+        self.assertNotIn("overlay_template", bootstrap)
 
     def test_cli_help_discovers_mise_tasks_and_forwards_command_help(self) -> None:
         environment = os.environ.copy()
@@ -404,9 +401,9 @@ class RepositoryContractTest(unittest.TestCase):
         self.assertIn("  restore         Restore a manifest-backed dotfile handoff backup", overview.stdout)
         self.assertIn("docs:\n  serve", overview.stdout)
         self.assertIn("  sync", overview.stdout)
-        self.assertIn("Pull Maison and your private overlay", overview.stdout)
-        self.assertIn("Show the active private overlay and remote status", overview.stdout)
-        self.assertIn("Publish committed private overlay changes", overview.stdout)
+        self.assertIn("Pull the consumer repository, then apply its configuration", overview.stdout)
+        self.assertIn("Show the consumer repository and remote status", overview.stdout)
+        self.assertIn("Publish committed consumer repository changes", overview.stdout)
         self.assertIn("[tasks.fix]", read("mise.toml"))
         self.assertIn('run = "hk fix -a"', read("mise.toml"))
         self.assertNotIn("check:\n", overview.stdout)
@@ -461,7 +458,7 @@ class RepositoryContractTest(unittest.TestCase):
         self.assertIn(f"./{record}", summary)
         self.assertIn("maison-017-maison-terroir-repository-split/index.md", feature_index)
 
-    def test_overlay_authoring_reader_contracts(self) -> None:
+    def test_consumer_authoring_reader_contracts(self) -> None:
         readme = read("README.md")
         operations = read("docs/operations.md")
         task_reference = read("docs/task-reference.md")
@@ -470,29 +467,25 @@ class RepositoryContractTest(unittest.TestCase):
         tool_guide = read("docs/add-a-tool.md")
         app_guide = read("docs/add-an-app.md")
         summary = read("docs/src/SUMMARY.md")
-        roadmap = read("docs/src/planned-features.md")
+        consumer_reference = read("docs/src/reference/consumer.md")
 
         self.assertIn("maison status", readme)
         self.assertIn("maison publish", readme)
-        self.assertIn("active private overlay", operations)
+        self.assertIn("consumer repository", operations)
         self.assertIn("last-known", operations)
-        self.assertIn("stash", operations)
-        self.assertIn("status", task_reference)
-        self.assertIn("publish", task_reference)
-        self.assertIn("active private", tooling)
-        self.assertIn("Git overlay", tooling)
-        self.assertIn("Inventory profiles", package_policy)
+        self.assertIn("focused-commit", task_reference)
+        self.assertIn("consumer", tooling)
+        self.assertIn("consumer repository", package_policy)
         self.assertIn("focused commit", tool_guide)
-        self.assertIn("added(app)", app_guide)
-        self.assertIn("maison-overlay-authoring-lifecycle/design.md", summary)
-        self.assertIn("| Delivered", roadmap)
+        self.assertIn("consumer", app_guide)
+        self.assertIn("Consumer Repository Reference", summary)
+        self.assertIn("MAISON_CONSUMER_ROOT", consumer_reference)
 
-    def test_readme_quickstart_covers_supported_installation_paths_in_order(self) -> None:
+    def test_readme_quickstart_covers_consumer_installation(self) -> None:
         readme = read("README.md")
         sections = (
             "## Quickstart",
-            "## Supported systems",
-            "## Private overlay",
+            "## Consumer repository",
             "## Bootstrap behavior",
             "## Common commands",
             "## Deployment and recovery",
@@ -502,35 +495,12 @@ class RepositoryContractTest(unittest.TestCase):
         )
         positions = [readme.index(section) for section in sections]
         self.assertEqual(positions, sorted(positions))
-        self.assertEqual(readme.count("curl -fsSL"), 4)
         self.assertNotRegex(readme, r"curl[^\n|]*\|\s*(?:bash|sh)\b")
-        self.assertNotIn("raw.githubusercontent.com", readme)
-        self.assertIn(
-            "github.com/RobertDeRose/maison/releases/download/${MAISON_BOOTSTRAP_VERSION}/bootstrap.sh",
-            readme,
-        )
-        self.assertIn(
-            "github.com/RobertDeRose/maison/releases/download/${MAISON_BOOTSTRAP_VERSION}/SHA256SUMS",
-            readme,
-        )
-        self.assertIn('MAISON_BOOTSTRAP_VERSION="v0.1.1"', readme)
-        self.assertIn("shasum -a 256 -c -", readme)
-        self.assertIn("sha256sum -c -", readme)
-        self.assertIn("### 1. Install with curl and create an overlay during setup", readme)
-        self.assertIn("### 2. Install with curl and use an existing overlay", readme)
-        self.assertIn("### 3. Clone Maison and run Copier manually", readme)
-        self.assertIn("git clone https://github.com/RobertDeRose/maison.git", readme)
-        self.assertNotIn("uvx --from copier", readme)
-        self.assertIn("copy --trust", readme)
-        self.assertIn("bootstrap/copier-requirements.txt", readme)
-        self.assertIn("overlay_template", readme)
-
-    def test_template_documents_mise_dotfile_mapping(self) -> None:
-        config = read("overlay_template/config/mise/config.toml")
-        guide = read("overlay_template/dotfiles/README.md")
-        self.assertIn("[dotfiles]", config)
-        self.assertIn("mise.jdx.dev/dotfiles.html", guide)
-        self.assertIn("mise bootstrap dotfiles", guide)
+        self.assertIn("git clone git@github.com:RobertDeRose/terroir.git", readme)
+        self.assertIn("MAISON_CONSUMER_ROOT", readme)
+        self.assertIn("MAISON_BOOTSTRAP_VERSION", readme)
+        self.assertNotIn("MAISON_OVERLAY_HOME", readme)
+        self.assertNotIn("overlay_template", readme)
 
     def test_linux_user_creation_reuses_existing_primary_group(self) -> None:
         build = read(".github/scripts/build-platform-targets.sh")

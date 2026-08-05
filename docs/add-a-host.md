@@ -1,23 +1,23 @@
 # Add a host
 
-Real hosts belong in the private overlay inventory. The Copier template automatically registers the current host on
-first generation by detecting macOS/Linux and calling Maison's existing `host:add` task. From a Maison checkout, the
-manual equivalent is:
+Real hosts belong in the consumer repository's `inventory.toml`. Select the consumer explicitly or run from its Git
+checkout:
 
 ```bash
-./bootstrap.sh --host "$(hostname -s)" --overlay GIT-URL-OR-PATH
-MAISON_OVERLAY_PATH="$HOME/src/my-maison-overlay" \
-  mise -C /path/to/maison run host:add -- "$(hostname -s)" --user "$(id -un)"
+export MAISON_HOME="$HOME/.maison"
+export MAISON_CONSUMER_ROOT="$HOME/src/terroir"
+maison host add "$(hostname -s)" --user "$(id -un)"
 ```
 
-Use `copier update --trust` to update an existing generated overlay; template updates do not register hosts again. Add
-additional hosts through `host:add` so the inventory mutation remains locked and schema-validated. When an overlay
-inventory is active, `host:add` writes both `inventory.toml` and optional `hosts/<hostname>/system.nix` to that repository.
-The active inventory must satisfy the shared schema contract in `schemas/inventory.toml`: supported systems are
-`aarch64-darwin`, `aarch64-linux`, and `x86_64-linux`; profiles are `base`, `dev`, `mac`, and `linux`; duplicate
-profiles, unknown feature keys, unknown deploy fields, and wrong value types are rejected.
+`host:add` writes the consumer inventory and, when requested, an optional `hosts/<hostname>/system.nix` override. It
+requires a Git authoring checkout, validates the candidate inventory before replacement, and refuses to use Maison's
+neutral inventory as a mutation target.
 
-For a deployable Linux host, add an explicit deployment table to the active `inventory.toml`:
+The inventory must satisfy the shared schema in `schemas/inventory.toml`: supported systems are `aarch64-darwin`,
+`aarch64-linux`, and `x86_64-linux`; profiles are `base`, `dev`, `mac`, and `linux`. Duplicate profiles, unknown
+feature keys, unknown deploy fields, and wrong value types are rejected.
+
+For a deployable Linux host, add an explicit deployment table to the consumer `inventory.toml`:
 
 ```toml
 [hosts.example.deploy]
@@ -31,9 +31,7 @@ auto_rollback = true
 magic_rollback = true
 ```
 
-`ssh_user` is the deployment account used for system activation and repository-transaction helper access. It defaults to `maison-deploy` and is separate from the managed user (`user_ssh_user`), which owns the remote repository. For a first deployment to an existing host that does not yet have a reachable `maison-deploy` account, temporarily set `ssh_user` to an existing privileged account for the system deployment, then switch back to `maison-deploy` after the account and sudoers policy exist.
-
-Then run:
+Then validate and preview without activation:
 
 ```bash
 maison host validate
@@ -41,4 +39,5 @@ maison system plan --host example
 maison system deploy example --dry-activate
 ```
 
-Host override directories must match an inventory host and may contain only `system.nix`. Host override files may contain OS-level exceptions only. User differences belong in Tera dotfiles or platform mise configuration.
+Host override directories must match an inventory host and may contain only `system.nix`. Host override files contain
+OS-level exceptions; user differences belong in consumer mise configuration or dotfiles.

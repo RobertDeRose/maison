@@ -94,19 +94,15 @@ class VerifiedBootstrapContractTest(unittest.TestCase):
             self.assertNotEqual(refused.returncode, 0)
             self.assertIn("checksum", refused.stderr.lower())
 
-    def test_copier_bootstrap_uses_hashed_repository_lock(self) -> None:
+    def test_bootstrap_requires_consumer_owned_state(self) -> None:
         bootstrap = read("bootstrap.sh")
-        readme = read("README.md")
-        requirements = read("bootstrap/copier-requirements.txt")
-        source = f"{bootstrap}\n{readme}"
+        source = f"{bootstrap}\n{read('README.md')}"
 
-        self.assertNotIn("uvx --from copier", source)
-        self.assertIn(
-            'uv pip install \\\n      --python "$copier_env/bin/python" \\\n      --require-hashes', bootstrap
-        )
-        self.assertIn("bootstrap/copier-requirements.txt", source)
-        self.assertIn("copier==9.17.0", requirements)
-        self.assertIn("copier==9.17.0 \\\n    --hash=sha256:", requirements)
+        self.assertIn("--consumer PATH", source)
+        self.assertIn("flake.nix, flake.lock, and inventory.toml", source)
+        self.assertIn("MAISON_REQUIRE_CONSUMER", source)
+        self.assertNotIn("copier-requirements", source)
+        self.assertNotIn("MAISON_OVERLAY_HOME", source)
 
     def test_bootstrap_runtime_plugins_and_tools_are_immutable(self) -> None:
         project_config = tomllib.loads(read("mise.toml"))
@@ -138,6 +134,17 @@ class RootDeploymentEvaluationContractTest(unittest.TestCase):
             self.skipTest("nix is required for root deployment evaluation")
 
         fixture = ROOT / "tests/fixtures/inventory/valid/root-deployment"
+        expression = f"""
+let
+  source = builtins.getFlake (toString {ROOT});
+  inventoryFile = toString ({fixture} + "/inventory.toml");
+  inventory = builtins.fromTOML (builtins.readFile inventoryFile);
+  outputs = import ({ROOT} + "/nix/outputs.nix") {{
+    inputs = source.inputs;
+    inherit inventoryFile inventory;
+  }};
+in outputs.systemConfigs.root-bootstrap
+"""
         result = run(
             [
                 "nix",
@@ -145,12 +152,11 @@ class RootDeploymentEvaluationContractTest(unittest.TestCase):
                 "--extra-experimental-features",
                 "nix-command flakes",
                 "eval",
+                "--impure",
                 "--no-update-lock-file",
-                "--override-input",
-                "overlay",
-                f"path:{fixture}",
                 "--json",
-                ".#systemConfigs.root-bootstrap",
+                "--expr",
+                expression,
                 "--apply",
                 (
                     "configuration: { "
@@ -178,8 +184,6 @@ class RootDeploymentEvaluationContractTest(unittest.TestCase):
             },
         )
 
-
-class DeploymentContractTest(unittest.TestCase):
     def deployment_environment(self, temp: Path, home: Path) -> tuple[str, dict[str, str]]:
         """Provide a deterministic portable Linux deployment user."""
 
@@ -294,8 +298,9 @@ class DeploymentContractTest(unittest.TestCase):
 
     def test_nix_validation_batches_compatible_work(self) -> None:
         check = read(".mise/tasks/check/nix")
-        self.assertIn('MAISON_CHECK_OVERLAY_PATH="$(nix_overlay_path)"', check)
-        self.assertIn("export MAISON_CHECK_OVERLAY_PATH", check)
+        self.assertIn('inventoryFile = "${toString ./inventory.toml}"', check)
+        self.assertNotIn("MAISON_CHECK_OVERLAY", check)
+        self.assertNotIn("override-input", check)
         self.assertIn("BATCH_NIX_EVAL", check)
         self.assertIn('check_installables+=(".#checks.\\"$current_system\\".\\"$check_name\\"")', check)
         self.assertIn('run_nix_checked build --no-update-lock-file --no-link "${check_installables[@]}"', check)
@@ -375,9 +380,11 @@ class DeploymentContractTest(unittest.TestCase):
         self.assertIn("/etc/maison/maison-deploy-transaction", script)
         self.assertNotIn("maison-deploy-helper.", script)
         self.assertNotIn("maison-deploy-${host}-$$", script)
-        self.assertIn("mise run system:deploy", script)
-        self.assertIn("mise run user:apply", script)
-        self.assertLess(script.index("mise run system:deploy"), script.index("mise run user:apply"))
+        self.assertIn('mise -C "$framework_root" run system:deploy', script)
+        self.assertIn('user_convergence.py" apply', script)
+        self.assertLess(
+            script.index('mise -C "$framework_root" run system:deploy'), script.index('user_convergence.py" apply')
+        )
 
     def test_deploy_archive_contains_committed_content_only(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

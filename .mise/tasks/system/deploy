@@ -6,11 +6,12 @@
 #USAGE flag "--dry-activate" help="Run deploy-rs dry activation"
 #USAGE flag "--skip-checks" help="Skip deploy-rs preflight checks"
 set -euo pipefail
-root="${MISE_PROJECT_ROOT:-$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)}"
+framework_root="${MAISON_HOME:-${MISE_PROJECT_ROOT:-$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)}}"
+source "$framework_root/.mise/lib/common.sh"
+root="$(maison_consumer_root "${BASH_SOURCE[0]}")"
 cd "$root"
-source "$root/.mise/lib/common.sh"
-source "$root/.mise/lib/inventory.sh"
-source "$root/.mise/lib/nix.sh"
+source "$framework_root/.mise/lib/inventory.sh"
+source "$framework_root/.mise/lib/nix.sh"
 host="${usage_host:?mise did not provide the required host argument}"
 require_inventory_host "$root" "$host"
 case "$(inventory_host_system "$root" "$host")" in *-linux) ;; *) die "deploy supports Linux hosts only" ;; esac
@@ -34,5 +35,5 @@ args=("$root#$host.system")
 if command -v deploy >/dev/null 2>&1; then
   exec deploy "${args[@]}"
 else
-  nix_command run "$root#deploy" -- "${args[@]}"
+  nix_command run "$framework_root#deploy" -- "${args[@]}"
 fi

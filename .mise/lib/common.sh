@@ -1,32 +1,123 @@
 #!/usr/bin/env bash
 
-repo_root() {
-  local start="${1:-${BASH_SOURCE[1]:-${BASH_SOURCE[0]}}}" directory git_root
+maison_install_root() {
+  local start="${1:-${BASH_SOURCE[1]:-${BASH_SOURCE[0]}}}" directory git_root candidate
+
+  if [ -n "${MAISON_HOME:-}" ]; then
+    candidate="$(cd "$MAISON_HOME" 2> /dev/null && pwd -P)" || {
+      die "Maison installation is unavailable: $MAISON_HOME"
+      return 1
+    }
+    printf '%s\n' "$candidate"
+    return
+  fi
 
   if [ -n "${MISE_PROJECT_ROOT:-}" ] &&
     [ -f "$MISE_PROJECT_ROOT/mise.toml" ] &&
-    [ -f "$MISE_PROJECT_ROOT/flake.nix" ]; then
+    [ -f "$MISE_PROJECT_ROOT/flake.nix" ] &&
+    [ -d "$MISE_PROJECT_ROOT/.mise/tasks" ]; then
     (cd "$MISE_PROJECT_ROOT" && pwd -P)
     return
   fi
 
   if git_root="$(git -C "$(dirname "$start")" rev-parse --show-toplevel 2> /dev/null)" &&
     [ -f "$git_root/mise.toml" ] &&
-    [ -f "$git_root/flake.nix" ]; then
+    [ -f "$git_root/flake.nix" ] &&
+    [ -d "$git_root/.mise/tasks" ]; then
     printf '%s\n' "$git_root"
     return
   fi
 
   directory="$(cd "$(dirname "$start")" && pwd -P)"
   while [ "$directory" != / ]; do
-    if [ -f "$directory/mise.toml" ] && [ -f "$directory/flake.nix" ]; then
+    if [ -f "$directory/mise.toml" ] &&
+      [ -f "$directory/flake.nix" ] &&
+      [ -d "$directory/.mise/tasks" ]; then
       printf '%s\n' "$directory"
       return
     fi
     directory="$(dirname "$directory")"
   done
 
-  die "could not locate Maison repository root from $start"
+  die "could not locate Maison installation root from $start"
+  return 1
+}
+
+maison_consumer_root() {
+  local start="${1:-${BASH_SOURCE[1]:-${BASH_SOURCE[0]}}}" maison_root candidate="" git_root explicit=false
+  maison_root="$(maison_install_root "$start")" || return 1
+  if [ -n "${MAISON_CONSUMER_ROOT:-${MAISON_REPOSITORY:-${MAISON_REPO:-}}}" ]; then
+    candidate="${MAISON_CONSUMER_ROOT:-${MAISON_REPOSITORY:-${MAISON_REPO:-}}}"
+    explicit=true
+  fi
+
+  if [ -z "$candidate" ] && [ -n "${MISE_PROJECT_ROOT:-}" ]; then
+    candidate="$MISE_PROJECT_ROOT"
+    [ "$(cd "$candidate" 2> /dev/null && pwd -P)" = "$maison_root" ] && candidate=""
+  fi
+  if [ -z "$candidate" ] &&
+    git_root="$(git -C "$PWD" rev-parse --show-toplevel 2> /dev/null)" &&
+    [ "$(cd "$git_root" && pwd -P)" != "$maison_root" ]; then
+    candidate="$git_root"
+  fi
+  # Direct `mise run` from a Maison checkout remains useful for framework
+  # development. Packaged/explicit CLI invocations always set MAISON_HOME and
+  # therefore require a separate consumer repository.
+  if [ -z "$candidate" ] && [ -z "${MAISON_HOME:-}" ]; then
+    candidate="$maison_root"
+  fi
+
+  [ -n "$candidate" ] || {
+    die "a consumer repository is required; set MAISON_CONSUMER_ROOT or run from its checkout"
+    return 1
+  }
+  candidate="$(cd "$candidate" 2> /dev/null && pwd -P)" || {
+    die "consumer repository is unavailable: $candidate"
+    return 1
+  }
+  [ -f "$candidate/flake.nix" ] || {
+    die "consumer repository is missing flake.nix: $candidate"
+    return 1
+  }
+  [ ! -L "$candidate/flake.nix" ] || {
+    die "consumer flake.nix must be a regular consumer file: $candidate"
+    return 1
+  }
+  [ -f "$candidate/flake.lock" ] || {
+    die "consumer repository is missing flake.lock: $candidate"
+    return 1
+  }
+  [ ! -L "$candidate/flake.lock" ] || {
+    die "consumer flake.lock must be a regular consumer file: $candidate"
+    return 1
+  }
+  [ -f "$candidate/inventory.toml" ] || {
+    die "consumer repository is missing inventory.toml: $candidate"
+    return 1
+  }
+  [ ! -L "$candidate/inventory.toml" ] || {
+    die "consumer inventory.toml must be a regular consumer file: $candidate"
+    return 1
+  }
+  if [ -n "${MAISON_HOME:-}" ] || [ "$explicit" = true ]; then
+    case "$candidate/" in
+      "$maison_root/"* )
+        die "consumer repository cannot be inside Maison's checkout: $candidate"
+        return 1
+        ;;
+    esac
+    case "$maison_root/" in
+      "$candidate/"* )
+        die "consumer repository cannot contain Maison's checkout: $candidate"
+        return 1
+        ;;
+    esac
+  fi
+  printf '%s\n' "$candidate"
+}
+
+repo_root() {
+  maison_install_root "$@"
 }
 
 log_info() { printf '==> %s\n' "$*"; }

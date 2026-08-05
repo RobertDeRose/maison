@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Safe Git lifecycle operations for Maison private overlays."""
+"""Safe Git lifecycle operations for a Maison consumer repository."""
 
 from __future__ import annotations
 
@@ -21,15 +21,13 @@ _SCRIPT_DIR = Path(__file__).resolve().parent
 if str(_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_DIR))
 
-from maison_overlay import active_overlay_path, default_state_file
+
+class RepositoryGitError(RuntimeError):
+    """Raised when a consumer repository Git operation cannot safely continue."""
 
 
-class OverlayGitError(RuntimeError):
-    """Raised when an overlay Git operation cannot safely continue."""
-
-
-class OverlayGitTimeout(OverlayGitError):
-    """Raised when a bounded overlay Git operation exceeds its time budget."""
+class RepositoryGitTimeout(RepositoryGitError):
+    """Raised when a bounded repository Git operation exceeds its time budget."""
 
 
 FETCH_TIMEOUT_SECONDS = 30.0
@@ -159,12 +157,12 @@ def _git(
         except subprocess.TimeoutExpired as error:
             _terminate_process_group(process)
             process.communicate()
-            raise OverlayGitTimeout(f"{' '.join(command)} timed out after {timeout:g} seconds") from error
+            raise RepositoryGitTimeout(f"{' '.join(command)} timed out after {timeout:g} seconds") from error
         result = subprocess.CompletedProcess(command, process.returncode, stdout, stderr)
     if check and result.returncode != 0:
         detail = (result.stderr or result.stdout).strip()
         command_text = " ".join(command)
-        raise OverlayGitError(f"{command_text} failed: {detail or f'exit {result.returncode}'}")
+        raise RepositoryGitError(f"{command_text} failed: {detail or f'exit {result.returncode}'}")
     return result
 
 
@@ -177,27 +175,13 @@ def require_repository(path: Path) -> Path:
 
     candidate = path.expanduser()
     if not candidate.exists():
-        raise OverlayGitError(f"overlay repository does not exist: {candidate}")
+        raise RepositoryGitError(f"consumer repository does not exist: {candidate}")
     if not candidate.is_dir():
-        raise OverlayGitError(f"overlay repository is not a directory: {candidate}")
+        raise RepositoryGitError(f"consumer repository is not a directory: {candidate}")
     result = _git(candidate, ["rev-parse", "--show-toplevel"], check=False)
     if result.returncode != 0:
-        raise OverlayGitError(f"overlay is not a Git authoring checkout: {candidate}")
+        raise RepositoryGitError(f"consumer repository is not a Git authoring checkout: {candidate}")
     return Path(result.stdout.strip()).resolve()
-
-
-def active_repository(*, root: Path | None = None, state_file: Path | None = None) -> Path:
-    """Resolve and require the active private overlay."""
-
-    path = active_overlay_path(state_file or default_state_file())
-    if path is None:
-        raise OverlayGitError(
-            "no active private overlay; pass --overlay, set MAISON_OVERLAY, or configure overlay.toml"
-        )
-    repository = require_repository(path)
-    if root is not None and repository == root.expanduser().resolve():
-        raise OverlayGitError("public Maison is not a private overlay; select an active private overlay repository")
-    return repository
 
 
 def _branch(repository: Path) -> str:
@@ -246,7 +230,7 @@ def fetch_upstream(
             check=False,
             timeout=timeout,
         )
-    except OverlayGitTimeout as error:
+    except RepositoryGitTimeout as error:
         return FetchResult(succeeded=False, error=str(error))
     if result.returncode == 0:
         return FetchResult(succeeded=True)
@@ -345,7 +329,7 @@ def inspect_repository(repository: Path, *, fetch: bool = True) -> RepositorySta
 
 def format_status(status: RepositoryStatus) -> str:
     lines = [
-        f"Overlay: {status.path}",
+        f"Consumer repository: {status.path}",
         f"Branch: {status.branch}",
         f"Upstream: {status.upstream or 'none configured'}",
         f"Worktree: {status.worktree}",
@@ -374,17 +358,17 @@ def create_stash(repository: Path) -> Stash | None:
     tracked, untracked, _ = _worktree_changes(repository)
     if not tracked and not untracked:
         return None
-    message = f"maison-overlay-{uuid.uuid4().hex}"
+    message = f"maison-consumer-{uuid.uuid4().hex}"
     result = _git(
         repository,
         ["stash", "push", "--include-untracked", "--message", message],
         check=False,
     )
     if result.returncode != 0:
-        raise OverlayGitError(f"unable to stash overlay changes: {_result_error(result)}")
+        raise RepositoryGitError(f"unable to stash consumer changes: {_result_error(result)}")
     ref_result = _git(repository, ["rev-parse", "--verify", "refs/stash"], check=False)
     if ref_result.returncode != 0 or not ref_result.stdout.strip():
-        raise OverlayGitError("Git reported a stash but its reference could not be recovered")
+        raise RepositoryGitError("Git reported a stash but its reference could not be recovered")
     return Stash(ref="stash@{0}", commit=ref_result.stdout.strip(), message=message)
 
 
@@ -393,7 +377,7 @@ def restore_stash(repository: Path, stash: Stash | None) -> None:
         return
     result = _git(repository, ["stash", "pop", "--index", stash.ref], check=False)
     if result.returncode != 0:
-        raise OverlayGitError(
+        raise RepositoryGitError(
             f"stash restoration conflict; stash remains recoverable at {stash.ref} "
             f"({stash.commit}): {_result_error(result)}"
         )
@@ -406,8 +390,8 @@ def _with_stash(repository: Path, operation: Callable[[], T]) -> T:
     except Exception as error:
         try:
             restore_stash(repository, stash)
-        except OverlayGitError as restore_error:
-            raise OverlayGitError(f"{error}; {restore_error}") from error
+        except RepositoryGitError as restore_error:
+            raise RepositoryGitError(f"{error}; {restore_error}") from error
         raise
     restore_stash(repository, stash)
     return value
@@ -416,13 +400,13 @@ def _with_stash(repository: Path, operation: Callable[[], T]) -> T:
 def _require_fetch_and_compare(repository: Path) -> tuple[Upstream, int, int]:
     upstream = _upstream(repository)
     if upstream is None:
-        raise OverlayGitError("overlay has no configured upstream branch")
+        raise RepositoryGitError("consumer repository has no configured upstream branch")
     fetch_result = fetch_upstream(repository, upstream)
     if not fetch_result.succeeded:
-        raise OverlayGitError(f"unable to fetch overlay upstream: {fetch_result.error}")
+        raise RepositoryGitError(f"unable to fetch consumer upstream: {fetch_result.error}")
     counts = _comparison(repository, upstream)
     if counts is None:
-        raise OverlayGitError("unable to compare overlay with its configured upstream")
+        raise RepositoryGitError("unable to compare consumer repository with its configured upstream")
     return upstream, counts[0], counts[1]
 
 
@@ -432,7 +416,7 @@ def refresh_repository(repository: Path) -> RefreshResult:
     repository = require_repository(repository)
     upstream, ahead, behind = _require_fetch_and_compare(repository)
     if ahead > 0 and behind > 0:
-        raise OverlayGitError("overlay history has diverged from its upstream")
+        raise RepositoryGitError("consumer repository history has diverged from its upstream")
 
     def update() -> bool:
         if behind == 0:
@@ -451,11 +435,11 @@ def publish_repository(repository: Path) -> PublishResult:
     upstream, ahead, behind = _require_fetch_and_compare(repository)
     remote = upstream.remote
     if remote is None or remote == ".":
-        raise OverlayGitError("overlay upstream is not a publishable remote branch")
+        raise RepositoryGitError("consumer repository upstream is not a publishable remote branch")
     if behind > 0:
         if ahead > 0:
-            raise OverlayGitError("overlay history has diverged from its upstream")
-        raise OverlayGitError("overlay is behind its upstream; refresh before publishing")
+            raise RepositoryGitError("consumer repository history has diverged from its upstream")
+        raise RepositoryGitError("consumer repository is behind its upstream; refresh before publishing")
     if ahead == 0:
         return PublishResult(pushed=False, commits=0)
 
@@ -466,7 +450,7 @@ def publish_repository(repository: Path) -> PublishResult:
             check=False,
         )
         if result.returncode != 0:
-            raise OverlayGitError(f"push failed: {_result_error(result)}")
+            raise RepositoryGitError(f"push failed: {_result_error(result)}")
         return True
 
     _with_stash(repository, push)
@@ -482,10 +466,10 @@ def _relative_paths(repository: Path, paths: list[Path]) -> tuple[str, ...]:
         try:
             relative = resolved.relative_to(root)
         except ValueError as error:
-            raise OverlayGitError(f"commit path is outside overlay repository: {path}") from error
+            raise RepositoryGitError(f"commit path is outside consumer repository: {path}") from error
         result.append(str(relative))
     if not result:
-        raise OverlayGitError("focused commit requires at least one path")
+        raise RepositoryGitError("focused commit requires at least one path")
     return tuple(dict.fromkeys(result))
 
 
@@ -500,7 +484,7 @@ def require_clean_paths(repository: Path, paths: list[Path]) -> tuple[str, ...]:
     )
     changed = tuple(line for line in result.stdout.splitlines() if line)
     if changed:
-        raise OverlayGitError(
+        raise RepositoryGitError(
             "target files already contain local changes: "
             + ", ".join(line[3:] if len(line) > 3 else line for line in changed)
         )
@@ -519,13 +503,13 @@ def commit_paths(
 
     repository = require_repository(repository)
     if operation not in {"added", "removed"}:
-        raise OverlayGitError("focused commit operation must be added or removed")
+        raise RepositoryGitError("focused commit operation must be added or removed")
     if any("\n" in value or "\r" in value for value in (scope, identifier)):
-        raise OverlayGitError("focused commit scope and identifier cannot contain newlines")
+        raise RepositoryGitError("focused commit scope and identifier cannot contain newlines")
     relative_paths = _relative_paths(repository, paths)
     subject = f"{operation}({scope}): `{identifier}`"
 
-    with tempfile.TemporaryDirectory(prefix="maison-overlay-index-") as directory:
+    with tempfile.TemporaryDirectory(prefix="maison-consumer-index-") as directory:
         index = Path(directory) / "index"
         environment = {"GIT_INDEX_FILE": str(index)}
         _git(repository, ["read-tree", "HEAD"], env=environment)
@@ -533,10 +517,10 @@ def commit_paths(
         staged = _git(repository, ["diff", "--cached", "--name-only"], env=environment)
         changed_paths = tuple(line for line in staged.stdout.splitlines() if line)
         if not changed_paths:
-            raise OverlayGitError("focused commit has no changes in its requested paths")
+            raise RepositoryGitError("focused commit has no changes in its requested paths")
         unexpected = set(changed_paths) - set(relative_paths)
         if unexpected:
-            raise OverlayGitError(f"focused commit selected unexpected paths: {sorted(unexpected)}")
+            raise RepositoryGitError(f"focused commit selected unexpected paths: {sorted(unexpected)}")
         _git(repository, ["commit", "--message", subject], env=environment)
 
     # Align only the committed paths in the real index; unrelated staged work is untouched.
@@ -546,12 +530,9 @@ def commit_paths(
 
 
 def _repository_argument(args: argparse.Namespace) -> Path:
-    if args.repo is not None:
-        repository = require_repository(args.repo)
-        if args.root is not None and repository == args.root.expanduser().resolve():
-            raise OverlayGitError("public Maison is not a private overlay")
-        return repository
-    return active_repository(root=args.root, state_file=args.state_file)
+    if args.repo is None:
+        raise RepositoryGitError("a consumer repository path is required; pass --repo")
+    return require_repository(args.repo)
 
 
 def parser() -> argparse.ArgumentParser:
@@ -561,8 +542,6 @@ def parser() -> argparse.ArgumentParser:
     for name in ("status", "publish"):
         command = commands.add_parser(name)
         command.add_argument("--repo", type=Path)
-        command.add_argument("--root", type=Path)
-        command.add_argument("--state-file", type=Path)
         if name == "status":
             command.add_argument("--json", action="store_true", dest="as_json")
 
@@ -596,13 +575,13 @@ def main(argv: list[str] | None = None) -> int:
             if result.pushed:
                 print(f"Published {result.commits} committed change(s) to the configured upstream.")
             else:
-                print("Overlay is already up to date; no commits to publish.")
+                print("Consumer repository is already up to date; no commits to publish.")
         elif args.command == "refresh":
             result = refresh_repository(require_repository(args.repo))
             if result.updated:
-                print("Overlay refreshed with a fast-forward update.")
+                print("Consumer repository refreshed with a fast-forward update.")
             else:
-                print("Overlay already has the latest upstream commit.")
+                print("Consumer repository already has the latest upstream commit.")
         elif args.command == "check-clean":
             require_clean_paths(require_repository(args.repo), args.path)
         elif args.command == "commit":
@@ -614,8 +593,8 @@ def main(argv: list[str] | None = None) -> int:
                 paths=args.path,
             )
             print(f"Created {result.subject} ({result.sha}).")
-    except (OSError, OverlayGitError) as error:
-        print(f"error: maison overlay git: {error}", file=sys.stderr)
+    except (OSError, RepositoryGitError) as error:
+        print(f"error: maison repository git: {error}", file=sys.stderr)
         return 1
     return 0
 

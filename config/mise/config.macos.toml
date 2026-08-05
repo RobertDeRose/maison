@@ -1,5 +1,5 @@
 # Maison intentionally keeps the public macOS user policy empty.
-# Add personal tools and preferences to a private overlay based on overlay_template.
+# Consumer repositories may add personal tools and preferences here.
 [tools]
 
 [env]

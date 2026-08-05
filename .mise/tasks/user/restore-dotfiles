@@ -4,7 +4,7 @@
 #USAGE arg "<backup_directory>" help="Maison dotfile backup directory"
 #USAGE flag "--force" help="Replace existing target paths"
 set -euo pipefail
-root="${MISE_PROJECT_ROOT:-$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)}"
+root="${MAISON_HOME:-${MISE_PROJECT_ROOT:-$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)}}"
 [ "${usage_force:-false}" = true ] || {
   printf 'error: restore-dotfiles requires --force\n' >&2
   exit 2
