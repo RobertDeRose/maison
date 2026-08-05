@@ -27,19 +27,24 @@ and [consumer reference](docs/src/reference/consumer.md).
 
 ## Quickstart
 
-Create or clone a consumer repository first. For example, Terroir can own the personal inventory and configuration while
-Maison remains the reusable framework:
+For an existing consumer repository, clone it first. For example, Terroir can own the personal inventory and
+configuration while Maison remains the reusable framework:
 
 ```bash
 git clone git@github.com:RobertDeRose/terroir.git "$HOME/src/terroir"
-```
-
-Install Maison from a reviewed release and select the consumer explicitly:
-
-```bash
 MAISON_BOOTSTRAP_VERSION="v0.1.1"
 bash bootstrap.sh --consumer "$HOME/src/terroir" --ref "$MAISON_BOOTSTRAP_VERSION"
 ```
+
+For a fresh consumer, Maison retains its Copier starter. Bootstrap renders the starter, registers the current host,
+pins the consumer lock, and stops for review before activation:
+
+```bash
+bash bootstrap.sh --setup "$HOME/src/terroir"
+```
+
+Review the generated `flake.nix`, `inventory.toml`, and user policy before creating the consumer's first commit. The
+starter is a setup-time scaffold only; runtime configuration and Git history remain consumer-owned.
 
 The bootstrap script installs Maison under `~/.maison` when needed, links the `maison` command, verifies pinned
 platform artifacts, and hands control to the consumer repository. It never uses the Maison checkout as the personal
@@ -80,9 +85,15 @@ repository is not a substitute for secret storage. See the [fnox reference](docs
 
 ## Bootstrap behavior
 
-`bootstrap.sh` accepts `--consumer PATH` or `MAISON_CONSUMER_ROOT`. The selected repository must already contain the
-consumer flake, lock, and inventory. Running without a consumer installs or repairs only the Maison CLI and prints the
-next step; non-interactive runs fail clearly instead of activating neutral or Maison-owned state.
+`bootstrap.sh` accepts `--consumer PATH` for an existing consumer or `--setup PATH` for a fresh Copier-generated
+consumer. `MAISON_CONSUMER_ROOT` selects an existing repository. A fresh setup destination must be separate from Maison;
+bootstrap renders `overlay_template/`, registers the current host through `maison host add`, creates the consumer
+`flake.lock`, validates the required consumer files, and stops for review. Create the consumer's first commit, then rerun
+with `--consumer` to activate it.
+
+Interactive bootstrap without either path offers the same fresh setup and otherwise installs only the CLI. Non-interactive
+runs require `--consumer` or `--setup` and fail clearly instead of activating neutral or Maison-owned state. The
+Copier starter does not create saved alternate roots or runtime overlay state.
 
 Bootstrap first installs verified pinned mise, trusts only the Maison project configuration, installs verified Nix/Lix
 artifacts when needed, and runs the bootstrap task with the consumer root. Use `--user-only` on the mise task when system
@@ -162,6 +173,7 @@ inventory.toml                    neutral Maison validation inventory
 nix/                              reusable OS modules and orchestration helpers
 .mise/tasks/                      Maison framework workflows
 scripts/                          bootstrap, validation, and deployment transactions
+overlay_template/                 Copier starter for fresh consumer repositories
 mise.toml                         Maison development tools and task discovery
 mise.lock                         Maison development tool lock
 schemas/                          public inventory schema

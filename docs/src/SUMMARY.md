@@ -41,7 +41,7 @@
   - [MAISON-015: Linux runtime activation verification](./features/maison-015-linux-runtime-verification/design.md)
   - [MAISON-016: Pi TypeScript validation boundary](./features/maison-016-pi-typescript-validation/design.md)
   - [MAISON-017: Maison/Terroir repository split](./features/maison-017-maison-terroir-repository-split/design.md)
-  - [Retired Copier consumer bootstrap](./features/maison-overlay-copier-bootstrap/design.md)
+  - [Copier fresh consumer bootstrap](./features/maison-overlay-copier-bootstrap/design.md)
   - [Retired alternate repository command surface](./features/maison-overlay-authoring-lifecycle/design.md)
   <!-- END FEATURE DESIGNS -->
 - [Implemented Features](./features/index.md)
@@ -63,6 +63,6 @@
   - [MAISON-015: Linux runtime activation verification](./features/maison-015-linux-runtime-verification/index.md)
   - [MAISON-016: Pi TypeScript validation boundary](./features/maison-016-pi-typescript-validation/index.md)
   - [MAISON-017: Maison/Terroir repository split](./features/maison-017-maison-terroir-repository-split/index.md)
-  - [Retired Copier consumer bootstrap](./features/maison-overlay-copier-bootstrap/index.md)
+  - [Copier fresh consumer bootstrap](./features/maison-overlay-copier-bootstrap/index.md)
   - [Retired alternate repository command surface](./features/maison-overlay-authoring-lifecycle/index.md)
   <!-- END IMPLEMENTED FEATURES -->

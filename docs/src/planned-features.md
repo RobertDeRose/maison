@@ -39,11 +39,12 @@ selection.
 | `maison-015-linux-runtime-verification`         | MAISON-015: Linux runtime activation verification    | `maison-mol-cg3x` | Delivered     | `maison-014-remote-convergence-restoration`     | [record](features/maison-015-linux-runtime-verification/index.md)         |
 | `maison-016-pi-typescript-validation`           | MAISON-016: Pi TypeScript validation boundary        | `maison-mol-fmud` | Delivered     | `maison-015-linux-runtime-verification`         | [record](features/maison-016-pi-typescript-validation/index.md)           |
 | `maison-017-maison-terroir-repository-split`    | MAISON-017: Maison/Terroir repository split          | `maison-mol-jfhs` | Delivered     | `maison-016-pi-typescript-validation`           | [record](features/maison-017-maison-terroir-repository-split/index.md)    |
-| `maison-overlay-copier-bootstrap`               | Retired Copier consumer bootstrap                    | `maison-mol-5s9`  | Retired       | `maison-017-maison-terroir-repository-split`    | [record](features/maison-overlay-copier-bootstrap/index.md)               |
+| `maison-overlay-copier-bootstrap`               | Copier fresh consumer bootstrap                      | `maison-mol-5s9`  | Delivered     | `maison-017-maison-terroir-repository-split`    | [record](features/maison-overlay-copier-bootstrap/index.md)               |
 | `maison-overlay-authoring-lifecycle`            | Retired alternate repository command surface         | `maison-mol-3jb`  | Retired       | `maison-overlay-copier-bootstrap`               | [record](features/maison-overlay-authoring-lifecycle/index.md)            |
 
-The retired entries above remain only as historical delivery records. The supported architecture is the public Maison
-framework plus one selected consumer repository; consumer Git history is managed explicitly with Git.
+The alternate repository command surface remains retired. The supported architecture is the public Maison framework
+plus one selected consumer repository; the retained Copier starter is setup-time only, and consumer Git history is managed
+explicitly with Git.
 
 ## Later P2 maintainability follow-ups
 

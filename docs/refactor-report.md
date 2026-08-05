@@ -16,9 +16,11 @@ validation; the selected consumer supplies all installation-specific state.
 
 ## Retired architecture
 
-The old private-overlay, Copier-generated consumer, saved alternate configuration root, and repository
-`publish`/`status`/`sync` commands are not supported. The repository no longer contains an overlay template, overlay source state, or a second
-framework authoring path. Consumer Git history is managed explicitly by the consumer operator.
+The old private-overlay runtime, saved alternate configuration root, and repository `publish`/`status`/`sync` commands are
+not supported. Maison does retain `overlay_template/` as a Copier setup-time starter: `bootstrap.sh --setup PATH`
+renders a fresh consumer, registers its first host, and pins its consumer lock. The template does not create saved
+runtime state or a second framework authoring path. Consumer Git history remains explicitly managed by the consumer
+operator.
 
 The historical split sources remain private and archived as `terroir.original` and `nix-config`. Terroir is the fresh
 consumer destination and Maison is the fresh public framework history. Migration evidence and recovery requirements are

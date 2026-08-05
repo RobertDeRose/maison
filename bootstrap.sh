@@ -2,8 +2,8 @@
 # Install Maison and hand machine setup to a consumer repository.
 #
 # Usage:
-#   ./bootstrap.sh [--host HOST] [--consumer PATH] [--repo OWNER/REPO|URL|PATH] [--ref REF]
-#   Run from the consumer checkout or pass MAISON_CONSUMER_ROOT explicitly.
+#   ./bootstrap.sh [--host HOST] [--consumer PATH|--setup PATH] [--repo OWNER/REPO|URL|PATH] [--ref REF]
+#   Run from an existing consumer checkout, or use --setup to render a fresh one with Copier.
 #   Download this file from a reviewed release, verify it against the published checksum, then run:
 #     bash bootstrap.sh --consumer "$HOME/src/terroir" --repo RobertDeRose/maison --ref v0.1.1
 
@@ -14,19 +14,20 @@ show_help() {
 Install Maison and hand machine setup to a consumer repository.
 
 Usage:
-  bootstrap.sh [--host HOST] [--consumer PATH] [--repo OWNER/REPO|URL|PATH] [--ref REF]
+  bootstrap.sh [--host HOST] [--consumer PATH|--setup PATH] [--repo OWNER/REPO|URL|PATH] [--ref REF]
   bootstrap.sh [HOST]
 
 Options:
   --host HOST       Consumer inventory host; defaults to the short local hostname.
-  --consumer PATH   Consumer Git repository with flake.nix, flake.lock, and inventory.toml.
+  --consumer PATH   Existing consumer Git repository with flake.nix, flake.lock, and inventory.toml.
+  --setup PATH      Render a fresh consumer at PATH with the Copier starter template.
   --repo REPO       GitHub owner/repository, Git URL, or local Maison repository path.
   --ref REF         Maison branch, tag, or immutable commit; defaults to main.
   -h, --help        Show this help text.
 
 Environment:
-  MAISON_CONSUMER_ROOT  Consumer repository path; equivalent to --consumer.
-  MAISON_REQUIRE_CONSUMER  Fail instead of deferring when no consumer is selected.
+  MAISON_CONSUMER_ROOT    Existing consumer repository path; equivalent to --consumer.
+  MAISON_REQUIRE_CONSUMER Fail instead of offering deferred fresh setup.
 HELP
 }
 
@@ -41,6 +42,7 @@ repo="${REPO:-RobertDeRose/maison}"
 ref="${REF:-${BRANCH:-main}}"
 profiles="${PROFILES:-}"
 consumer="${MAISON_CONSUMER_ROOT:-${MAISON_REPOSITORY:-${MAISON_REPO:-}}}"
+consumer_setup=""
 
 while [ "$#" -gt 0 ]; do
   case "$1" in
@@ -51,6 +53,14 @@ while [ "$#" -gt 0 ]; do
       ;;
     --consumer | --repository)
       [ "$#" -ge 2 ] || bootstrap_die "--consumer requires a value"
+      [ -z "$consumer_setup" ] || bootstrap_die "--consumer cannot be combined with --setup"
+      consumer="$2"
+      shift 2
+      ;;
+    --setup)
+      [ "$#" -ge 2 ] || bootstrap_die "--setup requires a value"
+      [ -z "$consumer" ] || bootstrap_die "--setup cannot be combined with --consumer or MAISON_CONSUMER_ROOT"
+      consumer_setup="$2"
       consumer="$2"
       shift 2
       ;;
@@ -142,9 +152,48 @@ is_consumer_checkout() {
 print_consumer_setup_help() {
   log "Maison CLI installed at $HOME/.local/bin/maison"
   printf '%s\n' "No consumer repository was selected, so Nix and user activation were skipped."
-  printf '%s\n' "Set MAISON_CONSUMER_ROOT or rerun bootstrap with --consumer /path/to/consumer."
+  printf '%s\n' "Use --setup /path/to/consumer to render a fresh consumer with the Copier starter."
+  printf '%s\n' "Or set MAISON_CONSUMER_ROOT or rerun bootstrap with --consumer /path/to/consumer."
   printf '%s\n' "The consumer must own flake.nix, flake.lock, inventory.toml, hosts, and user configuration."
   printf '%s\n' "Read: $repo_root/docs/src/reference/consumer.md"
+}
+
+print_fresh_consumer_next_steps() {
+  log "Fresh consumer created at $consumer"
+  printf '%s\n' "Review the generated flake.nix, inventory.toml, and user policy."
+  printf '%s\n' "Create the consumer's first Git commit, then rerun bootstrap with --consumer $consumer."
+  printf '%s\n' "No Nix system or user activation was performed during fresh setup."
+}
+
+setup_consumer_with_copier() {
+  local destination="$consumer_setup" copier_user
+  copier_user="$(id -un)"
+  [ -n "$destination" ] || bootstrap_die "fresh consumer destination is empty"
+  if [ -e "$destination" ]; then
+    [ -d "$destination" ] || bootstrap_die "consumer setup destination is not a directory: $destination"
+    [ -z "$(find "$destination" -mindepth 1 -maxdepth 1 -print -quit)" ] ||
+      bootstrap_die "consumer setup destination is not empty: $destination"
+  else
+    mkdir -p "$destination"
+  fi
+  destination="$(cd "$destination" && pwd -P)"
+  case "$destination/" in
+    "$repo_root" | "$repo_root/"*)
+      bootstrap_die "consumer setup destination must be separate from Maison: $destination"
+      ;;
+  esac
+
+  log "Creating fresh consumer at $destination with Copier"
+  copier_args=(copy --trust --data "username=$copier_user")
+  [ -t 0 ] || copier_args+=(--defaults)
+  MAISON_HOME="$repo_root" MAISON_CONSUMER_ROOT="$destination" MAISON_HOST="$host" \
+    mise exec --locked uv -- uvx --from copier copier "${copier_args[@]}" \
+      "$repo_root/overlay_template" "$destination"
+
+  [ -d "$destination/.git" ] || bootstrap_die "Copier did not initialize the consumer Git repository: $destination"
+  [ -f "$destination/flake.nix" ] || bootstrap_die "Copier did not render the consumer flake: $destination"
+  [ -f "$destination/inventory.toml" ] || bootstrap_die "Copier did not render consumer inventory: $destination"
+  consumer="$destination"
 }
 
 case "$(uname -s)" in
@@ -206,12 +255,6 @@ if [ -z "$consumer" ] &&
   is_consumer_checkout "$git_root"; then
   consumer="$git_root"
 fi
-if [ -n "$consumer" ]; then
-  consumer="$(cd "$consumer" 2> /dev/null && pwd -P)" || bootstrap_die "consumer repository is unavailable: $consumer"
-  is_consumer_checkout "$consumer" ||
-    bootstrap_die "consumer repository must contain flake.nix, flake.lock, and inventory.toml: $consumer"
-fi
-
 cd "$repo_root"
 export MAISON_HOME="$repo_root"
 export MISE_TRUSTED_CONFIG_PATHS="$repo_root${MISE_TRUSTED_CONFIG_PATHS:+:$MISE_TRUSTED_CONFIG_PATHS}"
@@ -235,14 +278,53 @@ mise trust "$repo_root/mise.toml" > /dev/null
 
 if [ -z "$consumer" ]; then
   if [ "${MAISON_REQUIRE_CONSUMER:-false}" = true ] || [ ! -t 0 ]; then
-    bootstrap_die "a consumer repository is required; pass --consumer or set MAISON_CONSUMER_ROOT"
+    bootstrap_die "a consumer repository is required; pass --consumer, --setup, or set MAISON_CONSUMER_ROOT"
   fi
-  print_consumer_setup_help
-  exit 0
+  printf 'No consumer selected. Create a fresh consumer with Copier? [Y/n] ' >&2
+  IFS= read -r reply || reply=n
+  case "$reply" in
+    "" | y | Y | yes | YES | Yes)
+      default_destination="${MAISON_CONSUMER_SETUP_PATH:-$HOME/src/terroir}"
+      printf 'Consumer destination [%s]: ' "$default_destination" >&2
+      IFS= read -r destination || destination="$default_destination"
+      consumer_setup="${destination:-$default_destination}"
+      consumer="$consumer_setup"
+      ;;
+    n | N | no | NO | No)
+      print_consumer_setup_help
+      exit 0
+      ;;
+    *) bootstrap_die "answer yes or no when choosing fresh consumer setup" ;;
+  esac
+fi
+
+if [ -n "$consumer_setup" ]; then
+  setup_consumer_with_copier
+fi
+
+consumer="$(cd "$consumer" 2> /dev/null && pwd -P)" || bootstrap_die "consumer repository is unavailable: $consumer"
+case "$consumer/" in
+  "$repo_root/"*) bootstrap_die "consumer repository must be separate from Maison: $consumer" ;;
+esac
+if [ -z "$consumer_setup" ]; then
+  is_consumer_checkout "$consumer" ||
+    bootstrap_die "consumer repository must contain flake.nix, flake.lock, and inventory.toml: $consumer"
 fi
 
 export MAISON_CONSUMER_ROOT="$consumer"
 install_nix_or_lix_if_missing
+
+if [ -n "$consumer_setup" ]; then
+  log "Pinning fresh consumer flake inputs"
+  nix flake lock "path:$consumer"
+fi
+is_consumer_checkout "$consumer" ||
+  bootstrap_die "consumer repository must contain flake.nix, flake.lock, and inventory.toml: $consumer"
+
+if [ -n "$consumer_setup" ]; then
+  print_fresh_consumer_next_steps
+  exit 0
+fi
 
 log "Handing off to Maison for consumer host $host"
 bootstrap_args=(--host "$host" --consumer "$consumer")

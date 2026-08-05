@@ -1,0 +1,37 @@
+_min_copier_version: "9.0.0"
+_answers_file: .copier-answers.yml
+
+username:
+  type: str
+  help: Unix username to manage in the consumer inventory (bootstrap pre-fills the current user)
+  validator: >-
+    {% if not username or username == "root" or username[0] not in "abcdefghijklmnopqrstuvwxyz_"
+       or not username.replace("-", "").replace("_", "").isalnum() %}
+    Use a non-root Unix username containing only lowercase letters, digits, hyphens, and underscores.
+    {% endif %}
+
+full_name:
+  type: str
+  help: Full name for the inventory user
+  default: Maison User
+
+email:
+  type: str
+  help: Email address for the inventory user
+  default: user@example.invalid
+
+github:
+  type: str
+  help: GitHub username for the inventory user
+  default: example-user
+
+maison_url:
+  type: str
+  help: Maison flake input URL
+  default: github:RobertDeRose/maison
+
+_tasks:
+  - command: bash scripts/add-current-host.sh
+    condition: "{{ _copier_operation == 'copy' }}"
+    extra_vars:
+      username: "{{ username }}"

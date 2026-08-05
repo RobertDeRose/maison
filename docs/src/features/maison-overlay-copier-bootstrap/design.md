@@ -1,5 +1,18 @@
 # Design — Copier-backed overlay setup and bootstrap onboarding
 
+> Historical design boundary: the private-overlay runtime and saved alternate-root behavior described below were
+> superseded by the consumer-root architecture. The maintained `overlay_template/` remains supported as a setup-time
+> Copier starter for fresh consumers via `bootstrap.sh --setup PATH`.
+
+## Current supported slice
+
+The retained template generates a consumer flake, inventory, mise policy, and host-registration helper. The explicit
+`--setup PATH` bootstrap renders it into a separate destination, registers the first host, pins the consumer lock from
+the working-tree path, and stops for review. After the operator creates the first consumer commit, `--consumer PATH`
+performs normal activation. Copier is not a runtime dependency, and Maison does not save, hide, synchronize,
+publish, or author an alternate consumer root. The remainder of this design preserves the original overlay workflow as
+historical delivery evidence.
+
 ## Metadata
 
 - Beads feature root: `maison-mol-5s9`

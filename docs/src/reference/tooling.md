@@ -37,7 +37,8 @@ maison plan
 ```
 
 Consumer operations use the consumer flake and lock directly. They do not use Maison's lock as a fallback, do not pass a
-a synthetic alternate configuration root, and do not write Maison files.
+a synthetic alternate configuration root, and do not write Maison files. For fresh setup, `bootstrap.sh --setup PATH`
+renders the retained `overlay_template/` Copier starter once; Copier is not part of normal runtime operations.
 
 ## Tasks
 

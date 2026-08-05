@@ -236,7 +236,7 @@ class RepositoryContractTest(unittest.TestCase):
         self.assertIn("gh release create", workflow)
         self.assertIn("bootstrap.sh SHA256SUMS", workflow)
 
-    def test_retired_repository_architecture_is_absent(self) -> None:
+    def test_retired_repository_command_surface_is_absent(self) -> None:
         retired_paths = (
             ROOT / ".mise/tasks/publish",
             ROOT / ".mise/tasks/status",
@@ -244,11 +244,12 @@ class RepositoryContractTest(unittest.TestCase):
             ROOT / ".mise/lib/repository_git.sh",
             ROOT / "scripts/maison_overlay.py",
             ROOT / "scripts/maison_repository_git.py",
-            ROOT / "overlay_template",
         )
         for path in retired_paths:
             with self.subTest(path=path.relative_to(ROOT)):
                 self.assertFalse(path.exists())
+        self.assertTrue((ROOT / "overlay_template/copier.yml").is_file())
+        self.assertTrue((ROOT / "overlay_template/flake.nix.jinja").is_file())
 
     def test_bootstrap_supports_immutable_commit_refs(self) -> None:
         bootstrap = read("bootstrap.sh")
@@ -260,6 +261,8 @@ class RepositoryContractTest(unittest.TestCase):
     def test_bootstrap_selects_an_explicit_consumer(self) -> None:
         bootstrap = read("bootstrap.sh")
         self.assertIn("--consumer PATH", bootstrap)
+        self.assertIn("--setup PATH", bootstrap)
+        self.assertIn("overlay_template", bootstrap)
         self.assertIn("MAISON_CONSUMER_ROOT", bootstrap)
         self.assertIn("is_consumer_checkout", bootstrap)
 

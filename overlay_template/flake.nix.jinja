@@ -1,0 +1,40 @@
+{
+  description = "Maison consumer configuration";
+
+  inputs = {
+    maison.url = {{ maison_url | tojson }};
+    nixpkgs.follows = "maison/nixpkgs";
+    flake-parts.follows = "maison/flake-parts";
+    darwin.follows = "maison/darwin";
+    nix-homebrew.follows = "maison/nix-homebrew";
+    nix-hex-box.follows = "maison/nix-hex-box";
+    system-manager.follows = "maison/system-manager";
+  };
+
+  outputs = inputs@{ maison, ... }:
+    let
+      lib = inputs.nixpkgs.lib;
+      inventory = builtins.fromTOML (builtins.readFile ./inventory.toml);
+      inventoryData = maison.lib.validateInventory inventory;
+      darwinHosts = lib.filterAttrs (_: host: lib.hasSuffix "-darwin" host.system) inventoryData.hosts;
+      linuxHosts = lib.filterAttrs (_: host: lib.hasSuffix "-linux" host.system) inventoryData.hosts;
+      darwinConfigurations = lib.mapAttrs (
+        _: host:
+        maison.lib.mkDarwinSystem {
+          inherit inputs lib host;
+          hostRoot = ./hosts;
+        }
+      ) darwinHosts;
+      systemConfigs = lib.mapAttrs (
+        _: host:
+        maison.lib.mkSystemManagerSystem {
+          inherit inputs lib host;
+          hostRoot = ./hosts;
+        }
+      ) linuxHosts;
+    in
+    {
+      inherit darwinConfigurations systemConfigs;
+      deploy = maison.lib.mkDeployments { inherit inputs inventoryData systemConfigs; };
+    };
+}

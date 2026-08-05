@@ -21,6 +21,29 @@ class InventoryBehaviorTest(unittest.TestCase):
         self.assertEqual(rows.returncode, 0, rows.stderr)
         self.assertIn("example-linux\toperator\tMaison Operator", rows.stdout)
 
+    def test_has_user_supports_first_host_registration(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "inventory.toml"
+            path.write_text(
+                """schema = 1
+
+[defaults]
+user = "operator"
+
+[users.operator]
+username = "operator"
+full_name = "Example Operator"
+email = "operator@example.invalid"
+github = "example-user"
+"""
+            )
+            result = self.run_inventory(path, "has-user", "operator")
+            self.assertEqual(result.returncode, 0, result.stderr)
+            missing = self.run_inventory(path, "has-user", "missing")
+            self.assertEqual(missing.returncode, 1)
+            invalid = self.run_inventory(path, "validate")
+            self.assertNotEqual(invalid.returncode, 0)
+
     def test_host_table_returns_all_host_list_columns_in_one_query(self) -> None:
         result = self.run_inventory(ROOT / "inventory.toml", "host-table")
         self.assertEqual(result.returncode, 0, result.stderr)

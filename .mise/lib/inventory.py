@@ -317,6 +317,13 @@ def validated(path: Path, repo_root: Path | None = None) -> tuple[dict[str, User
     return users, hosts
 
 
+def users_validated_without_hosts(path: Path) -> dict[str, User]:
+    data = load_inventory(path)
+    if data.get("schema") != 1:
+        fail(f"unsupported schema {data.get('schema', 'missing')!r}; expected schema = 1")
+    return parse_users(data)
+
+
 def value_to_text(value: Any) -> str:
     if isinstance(value, bool):
         return "true" if value else "false"
@@ -361,7 +368,11 @@ def parser() -> argparse.ArgumentParser:
 def main() -> int:
     args = parser().parse_args()
     try:
-        users, hosts = validated(args.file, args.repo_root)
+        if args.command in {"has-user", "user-field"}:
+            users = users_validated_without_hosts(args.file)
+            hosts = {}
+        else:
+            users, hosts = validated(args.file, args.repo_root)
         if args.command == "validate":
             print(f"{args.file} is valid")
         elif args.command == "list-hosts":

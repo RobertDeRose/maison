@@ -1,62 +1,60 @@
-# Copier-backed overlay setup and bootstrap onboarding
+# Copier-backed fresh consumer setup and bootstrap onboarding
 
-> Historical record: this bootstrap path is retired. Maison now requires an existing consumer repository and does not
-> create or persist a generated alternate configuration root. See [Migration Contract](../../migration-contract.md).
+> The former private-overlay runtime is retired, but the Copier template remains a supported setup-time starter for a
+> fresh consumer repository. See [Consumer Repository Reference](../../reference/consumer.md).
 
 ## Delivery Summary
 
 - Beads feature root: `maison-mol-5s9`
-- Status: delivered, later retired by `maison-hi8`
+- Status: delivered; retained as the fresh-consumer setup scaffold
 - Pull request: pending delivery action
 - Merge commit: `14a5e92` (fast-forward target)
 - Design record: [design.md](design.md)
 
 ## Delivered Capability
 
-Maison now treats private-overlay creation as a first-class bootstrap workflow. `overlay_template/` is a Copier
-template that renders a private inventory, policy stubs, dotfile guidance, Copier answers, and a first-copy host setup
-task. Bootstrap seeds the inventory username from the current effective user; the task delegates host registration and
-supported-platform detection to Maison's validated `host:add` command.
+Maison retains `overlay_template/` as a Copier template that renders a consumer flake, inventory, mise policy, dotfile
+guidance, Copier answers, and a first-copy host setup task. Bootstrap seeds the inventory username from the current
+effective user; the task delegates host registration and supported-platform detection to Maison's validated `host:add`
+command.
 
-Bootstrap accepts `--overlay` or the canonical `MAISON_OVERLAY` environment variable. Existing local Git repositories
-are used directly; remote sources retain the standard clone/update behavior. When no overlay is available, interactive
-users can choose immediate Copier setup. Declining setup installs and links the Maison CLI but skips Nix and system/user
-activation and prints the documentation path for later setup.
+`bootstrap.sh --setup PATH` renders the template into a destination separate from Maison, creates the consumer lock, and
+stops for review before activation. After the operator creates the first consumer commit, `--consumer PATH` hands it to
+normal bootstrap. The generated repository owns its files and Git history. Copier is not a runtime dependency, and Maison
+does not save or manage an alternate configuration root.
 
 ## User-Facing Behavior
 
-Explicit setup:
+Bootstrap setup:
 
 ```bash
-MAISON_OVERLAY=GIT-URL-OR-PATH ./bootstrap.sh --host "$(hostname -s)"
+./bootstrap.sh --setup "$HOME/src/terroir" --host "$(hostname -s)"
 ```
 
-Manual template setup from a Maison checkout:
+Manual setup from a Maison checkout:
 
 ```bash
 mise install uv
-MAISON_HOME="$PWD" MAISON_HOST="$(hostname -s)" \
-  mise exec -- uvx --from copier copier copy --trust \
-    --data "username=$(id -un)" overlay_template "$HOME/src/my-maison-overlay"
+MAISON_HOME="$PWD" MAISON_CONSUMER_ROOT="$HOME/src/terroir" \
+  mise exec --locked uv -- uvx --from copier copier copy --trust \
+    --data "username=$(id -un)" overlay_template "$HOME/src/terroir"
 ```
 
-The legacy `MAISON_OVERLAY_SOURCE` environment variable remains accepted as a compatibility fallback. Manual Copier
-runs can seed the username with `--data "username=$(id -un)"`. `MAISON_REQUIRE_OVERLAY=true` keeps the non-interactive
-missing-overlay failure mode. `copier update --trust` does not rerun host registration.
+The generated `flake.lock` is pinned during bootstrap. Review the generated files and create the consumer's first Git
+commit before applying it. `copier update --trust` updates the starter files but does not rerun host registration.
 
 ## Design Integration
 
 The feature keeps Maison's ownership boundary intact: Maison owns the framework, schema, bootstrap orchestration, and
-mutation task; the generated private repository owns user/site inventory and configuration. Overlay state remains in the
-owner-only XDG state file. Inventory mutation continues through `mise run host:add`, preserving repository locks,
-validation, supported-system checks, and rollback behavior. Copier is installed ephemerally through Maison-managed `uv`.
+mutation task; the generated consumer owns its flake, lock, inventory, user configuration, and Git history. Inventory
+mutation continues through `mise run host:add`, preserving repository locks, validation, supported-system checks, and
+rollback behavior. Copier is installed ephemerally through Maison-managed `uv` and is not used by runtime commands.
 
 ## Operational Impact
 
-First-run immediate setup needs network access for `uvx copier` and normal Git credentials. The generated repository is
-initialized as a Git authoring checkout, but publishing a remote and committing/pushing policy remain user decisions.
-A user who declines setup can follow the printed README/template guidance and rerun bootstrap with `--overlay` or
-`MAISON_OVERLAY`.
+Fresh setup needs network access for `uvx copier`, Nix input locking, and normal Git credentials. The generated
+repository is initialized as a Git authoring checkout; reviewing and creating its first commit, then publishing a remote,
+remain user decisions. A user who declines interactive setup can rerun bootstrap later with `--setup`.
 
 ## Reference and Contracts
 

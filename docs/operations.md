@@ -16,13 +16,23 @@ personal deployment root.
 
 ## Bootstrap
 
+Use an existing consumer directly:
+
 ```bash
 ./bootstrap.sh --consumer "$HOME/src/terroir" --host "$(hostname -s)"
 ```
 
-Bootstrap installs verified pinned mise and Lix artifacts, trusts the Maison project configuration, and hands the
-selected consumer to the normal bootstrap task. Without a consumer, an interactive run installs only the CLI and prints
-next steps; non-interactive runs fail clearly. No neutral Maison inventory is activated as a substitute.
+For a fresh consumer, use the retained Copier starter:
+
+```bash
+./bootstrap.sh --setup "$HOME/src/terroir" --host "$(hostname -s)"
+```
+
+Bootstrap renders `overlay_template/` into the separate destination, registers the current host through Maison's
+validated `host:add` task, creates the consumer `flake.lock`, and stops for review without activation. Inspect the output,
+create the consumer's first Git commit, then rerun with `--consumer` to activate it. The starter is setup-time scaffolding;
+the consumer owns all generated files and Git history. Interactive bootstrap without a consumer offers this path;
+non-interactive runs require `--consumer` or `--setup`. No neutral Maison inventory is activated as a substitute.
 
 ## Preview
 

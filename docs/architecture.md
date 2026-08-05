@@ -64,6 +64,14 @@ Consumers declare logical confidential values in `fnox.toml` and choose their pr
 SSH private keys, and signing private keys resolve only at runtime and belong in the selected provider, not in either
 repository or the Nix store.
 
+### Fresh consumer setup
+
+Maison retains `overlay_template/` as a Copier starter for new consumer repositories. `bootstrap.sh --setup PATH`
+renders it into a destination separate from Maison, registers the current host through the consumer `host:add` task,
+pins the generated consumer flake, and stops for review before activation. After the operator creates the consumer's first
+commit, normal bootstrap uses that consumer. This template is a setup-time scaffold, not a second runtime configuration
+root: Maison does not save, hide, synchronize, publish, or otherwise manage an alternate consumer path.
+
 The canonical consumer is Terroir. The archived private `terroir.original` checkout is migration input only, and the
 former `nix-config` source is a private archived framework reference; neither is an active Maison input. Maison's public
 history is fresh and contains only reusable, neutral content. The migration manifest determines what belongs in Terroir.

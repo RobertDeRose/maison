@@ -1,0 +1,16 @@
+# Consumer-owned global mise configuration.
+[settings]
+experimental = true
+env_shell_expand = true
+dotfiles.default_mode = "symlink"
+lockfile = true
+lockfile_platforms = ["macos-arm64", "linux-arm64", "linux-x64"]
+
+[tools]
+# Add user tools here.
+
+[bootstrap.packages]
+# Add user bootstrap packages here.
+
+[env]
+# Add non-secret environment defaults here. Use fnox for confidential values.

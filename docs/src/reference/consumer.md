@@ -15,6 +15,20 @@ installation; Maison supplies reusable orchestration and framework code.
 A consumer may also own `hosts/`, `config/mise/`, `dotfiles/`, and any host-specific Nix modules. The inventory and configuration paths are interpreted relative to the consumer root. If the consumer declares
 runtime secrets, its root `fnox.toml` is validated under the [fnox contract](./fnox.md).
 
+## Fresh setup
+
+The maintained `overlay_template/` directory is a Copier starter for fresh consumers; its historical overlay name does
+not change the ownership model. Use the verified bootstrap script to render and initialize one:
+
+```bash
+./bootstrap.sh --setup "$HOME/src/terroir"
+```
+
+Bootstrap registers the current host through Maison's validated `host:add` task, creates the consumer `flake.lock`, and
+stops before activation. Review the generated files, create the consumer's first Git commit, and rerun bootstrap with
+`--consumer`. Copier is not required for normal runtime commands, and Maison does not save or manage the generated
+consumer path.
+
 ## Root selection
 
 Commands use the first available value:
