@@ -12,8 +12,8 @@ installation; Maison supplies reusable orchestration and framework code.
 | `inventory.toml` | Consumer | Users, hosts, profiles, and deployment targets |
 | `README.md`      | Consumer | Maison relationship and consumer usage         |
 
-A consumer may also own `hosts/`, `config/mise/`, `dotfiles/`, and any host-specific Nix modules. The inventory and
-configuration paths are interpreted relative to the consumer root.
+A consumer may also own `hosts/`, `config/mise/`, `dotfiles/`, and any host-specific Nix modules. The inventory and configuration paths are interpreted relative to the consumer root. If the consumer declares
+runtime secrets, its root `fnox.toml` is validated under the [fnox contract](./fnox.md).
 
 ## Root selection
 

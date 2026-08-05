@@ -24,8 +24,8 @@ documentation.
 
 Maison owns reusable framework code, neutral examples, tests, documentation, dstack controls, and validation tooling. The
 consumer owns `flake.nix`, `flake.lock`, `inventory.toml`, host topology, mise policy, dotfiles, deployment state, and
-personal configuration. Bitwarden owns passwords, tokens, secret values, SSH private keys, signing private keys, and other
-private key material.
+personal configuration. The consumer's fnox-selected provider owns passwords, tokens, secret values, SSH private keys,
+signing private keys, and other private key material.
 
 ## Boundaries
 

@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 
+# shellcheck source=.mise/lib/fnox.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/fnox.sh"
+
 load_nix_environment() {
   if command -v nix > /dev/null 2>&1; then
     return 0
@@ -14,7 +17,14 @@ load_nix_environment() {
 }
 
 configure_github_access_token() {
-  local token="${MISE_GITHUB_TOKEN:-${GITHUB_API_TOKEN:-${GITHUB_TOKEN:-}}}"
+  local root="${1:-${MAISON_CONSUMER_ROOT:-}}" token=""
+  if [ -n "$root" ] && maison_fnox_config_path "$root" > /dev/null 2>&1; then
+    maison_fnox_preflight "$root" || return
+    if maison_fnox_has_secret "$root" GITHUB_TOKEN; then
+      token="$(maison_fnox_get "$root" GITHUB_TOKEN)" || return
+    fi
+  fi
+  [ -n "$token" ] || token="${MISE_GITHUB_TOKEN:-${GITHUB_API_TOKEN:-${GITHUB_TOKEN:-}}}"
   if [ -z "$token" ] && command -v mise > /dev/null 2>&1; then
     token="$(mise token github --raw 2> /dev/null || true)"
   fi

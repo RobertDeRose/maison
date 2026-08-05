@@ -1,0 +1,6 @@
+# Neutral Maison fixture: no provider credentials or secret values are required.
+root = true
+if_missing = "error"
+env = "exec"
+
+[secrets]

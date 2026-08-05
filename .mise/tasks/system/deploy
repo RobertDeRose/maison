@@ -16,7 +16,7 @@ host="${usage_host:?mise did not provide the required host argument}"
 require_inventory_host "$root" "$host"
 case "$(inventory_host_system "$root" "$host")" in *-linux) ;; *) die "deploy supports Linux hosts only" ;; esac
 load_nix_environment
-configure_github_access_token
+configure_github_access_token "$root"
 
 # deploy-rs expects the parent of an explicit profilePath to exist. Keep the
 # path identical to system-manager's own PROFILE_DIR/PROFILE_NAME contract.

@@ -18,7 +18,7 @@ maison doctor
 
 The consumer must contain `flake.nix`, `flake.lock`, and `inventory.toml`. If it is unavailable, restore that Git checkout
 or set `MAISON_CONSUMER_ROOT` to another reviewed checkout. Never copy private inventory or deploy endpoints into Maison
-as a recovery shortcut; secrets and private keys remain in Bitwarden.
+as a recovery shortcut; secrets and private keys remain in the consumer's fnox-selected provider.
 
 ## System rollback
 

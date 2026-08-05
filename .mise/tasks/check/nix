@@ -7,7 +7,7 @@ cd "$root"
 source "$root/.mise/lib/common.sh"
 source "$root/.mise/lib/nix.sh"
 load_nix_environment
-configure_github_access_token
+configure_github_access_token "$root"
 export NIX_SUPPRESS_DIRTY_WARNING=true
 
 run_nix_checked() {

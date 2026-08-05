@@ -73,8 +73,10 @@ maison plan
 The consumer's flake should import Maison's public modules and compose its own host outputs. Maison's `flake.lock` is
 only for Maison development, validation, and release; consumer commands never update it.
 
-Keep passwords, tokens, SSH private keys, signing private keys, and other secrets in Bitwarden or an equivalent secret
-manager. A private Git repository is not a substitute for secret storage.
+Declare logical confidential values in the consumer's `fnox.toml` and let the consumer choose the fnox provider.
+Passwords, tokens, SSH private keys, signing private keys, and other secret material resolve at runtime; they never
+belong in Maison, the consumer Git history, Nix expressions, process arguments, or the Nix store. A private Git
+repository is not a substitute for secret storage. See the [fnox reference](docs/src/reference/fnox.md).
 
 ## Bootstrap behavior
 

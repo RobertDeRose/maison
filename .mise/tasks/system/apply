@@ -16,7 +16,7 @@ host="${usage_host:-$(current_hostname)}"
 require_inventory_host "$root" "$host"
 validate_host_platform "$root" "$host" "$(current_system)"
 load_nix_environment
-configure_github_access_token
+configure_github_access_token "$root"
 export NIX_SUPPRESS_DIRTY_WARNING=true
 if [ "${usage_no_activate:-false}" = true ]; then
   exec mise -C "$framework_root" run system:plan -- --host "$host"

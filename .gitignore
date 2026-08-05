@@ -33,6 +33,7 @@ mise.local.toml
 .env
 .env.local
 .env.*.local
+fnox.local.toml
 
 # Beads / Dolt files
 .dolt/

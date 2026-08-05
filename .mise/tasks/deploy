@@ -9,6 +9,9 @@ set -euo pipefail
 framework_root="${MAISON_HOME:-${MISE_PROJECT_ROOT:-$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)}}"
 source "$framework_root/.mise/lib/common.sh"
 root="$(maison_consumer_root "${BASH_SOURCE[0]}")"
+# shellcheck source=.mise/lib/fnox.sh
+source "$framework_root/.mise/lib/fnox.sh"
+maison_fnox_preflight "$root"
 cd "$root"
 source "$framework_root/.mise/lib/inventory.sh"
 
@@ -74,13 +77,15 @@ quoted_framework_root="$(printf '%q' "$remote_framework_root")"
 # shellcheck disable=SC2029 # destinations are shell-escaped above
 ssh "$ssh_user@$hostname" "cat > $quoted_archive" < "$archive"
 # shellcheck disable=SC2029 # the runtime path is validated and shell-escaped above
-ssh "$user@$hostname" "mkdir -p $quoted_framework_root/.mise/lib $quoted_framework_root/scripts $quoted_framework_root/bin $quoted_framework_root/dotfiles/pi $quoted_framework_root/bootstrap $quoted_framework_root/config/mise"
+ssh "$user@$hostname" "mkdir -p $quoted_framework_root/.mise/lib $quoted_framework_root/scripts $quoted_framework_root/bin $quoted_framework_root/dotfiles/pi $quoted_framework_root/bootstrap $quoted_framework_root/config/mise $quoted_framework_root/schemas"
 runtime_files=(
   .mise/lib/common.sh
   .mise/lib/platform.sh
   .mise/lib/bootstrap.sh
   .mise/lib/dotfile_backups.py
   .mise/lib/user_convergence.py
+  .mise/lib/fnox.py
+  .mise/lib/fnox.sh
   scripts/user-prepare.sh
   scripts/user-link-mise-lock.sh
   scripts/user-apply-packages.sh
@@ -90,6 +95,7 @@ runtime_files=(
   bin/maison
   dotfiles/pi/settings.defaults.json
   bootstrap/artifacts.toml
+  schemas/fnox.toml
   config/mise/config.toml
   config/mise/config.macos.toml
   config/mise/config.macos-arm64.toml
@@ -103,7 +109,7 @@ for runtime_file in "${runtime_files[@]}"; do
   ssh "$user@$hostname" "cat > $quoted_runtime_file" < "$framework_root/$runtime_file"
 done
 # shellcheck disable=SC2029 # paths are validated and shell-escaped above
-ssh "$user@$hostname" "chmod 0644 $quoted_framework_root/.mise/lib/user_convergence.py; chmod 0755 $quoted_framework_root/scripts/user-prepare.sh $quoted_framework_root/scripts/user-link-mise-lock.sh $quoted_framework_root/scripts/user-apply-packages.sh $quoted_framework_root/scripts/user-finalize.sh $quoted_framework_root/bin/maison"
+ssh "$user@$hostname" "chmod 0644 $quoted_framework_root/.mise/lib/user_convergence.py $quoted_framework_root/.mise/lib/fnox.py; chmod 0755 $quoted_framework_root/.mise/lib/fnox.sh $quoted_framework_root/scripts/user-prepare.sh $quoted_framework_root/scripts/user-link-mise-lock.sh $quoted_framework_root/scripts/user-apply-packages.sh $quoted_framework_root/scripts/user-finalize.sh $quoted_framework_root/bin/maison"
 
 quoted_repo="$(printf '%q' "$repo_path")"
 sudo_prefix=""
@@ -144,6 +150,8 @@ runtime_root="$3"
 shift 3
 export MAISON_HOME="$runtime_root"
 export MAISON_CONSUMER_ROOT="$repo_path"
+# shellcheck source=.mise/lib/fnox.sh
+. "$runtime_root/.mise/lib/fnox.sh"
 if ! command -v mise >/dev/null 2>&1; then
   # shellcheck source=.mise/lib/common.sh
   . "$runtime_root/.mise/lib/common.sh"
@@ -164,12 +172,13 @@ mkdir -p -m 700 "$recovery_dir"
 rm -f -- "$phase_file" "$report_file"
 export MAISON_CONVERGENCE_EVENT_FILE="$phase_file"
 mise trust "$runtime_root/mise.toml" >/dev/null
-if "$runtime_root/.mise/lib/user_convergence.py" apply --root "$repo_path" "$@"; then
-  rm -f -- "$phase_file"
+if maison_fnox_config_path "$repo_path" >/dev/null 2>&1; then
+  maison_fnox_preflight "$repo_path"
+  maison_fnox_exec "$repo_path" "$runtime_root/.mise/lib/user_convergence.py" apply --root "$repo_path" "$@"
 else
-  status=$?
-  exit "$status"
+  "$runtime_root/.mise/lib/user_convergence.py" apply --root "$repo_path" "$@"
 fi
+rm -f -- "$phase_file"
 REMOTE_USER
   action=commit
   user_status=0
@@ -211,6 +220,8 @@ runtime_root="$5"
 shift 5
 export MAISON_HOME="$runtime_root"
 export MAISON_CONSUMER_ROOT="$repo_path"
+# shellcheck source=.mise/lib/fnox.sh
+. "$runtime_root/.mise/lib/fnox.sh"
 recovery_python="$runtime_root/.mise/lib/user_convergence.py"
 recovery_prepare="$runtime_root/scripts/user-prepare.sh"
 actual_restored_revision="$(cat -- "$repo_path/.maison-revision")"
@@ -229,9 +240,16 @@ export MAISON_RECOVERY_INITIAL_EXIT_CODE="$initial_exit_code"
 export MAISON_RECOVERY_PREPARE_SCRIPT="$recovery_prepare"
 cd "$repo_path"
 export MISE_TRUSTED_CONFIG_PATHS="$repo_path${MISE_TRUSTED_CONFIG_PATHS:+:$MISE_TRUSTED_CONFIG_PATHS}"
-python3 "$recovery_python" recovery --root "$repo_path" --report "$report_file" \
-  --failed-revision "$failed_revision" --restored-revision "$restored_revision" \
-  --initial-exit-code "$initial_exit_code" --event-file "$phase_file" "$@"
+if maison_fnox_config_path "$repo_path" >/dev/null 2>&1; then
+  maison_fnox_preflight "$repo_path"
+  maison_fnox_exec "$repo_path" python3 "$recovery_python" recovery --root "$repo_path" --report "$report_file" \
+    --failed-revision "$failed_revision" --restored-revision "$restored_revision" \
+    --initial-exit-code "$initial_exit_code" --event-file "$phase_file" "$@"
+else
+  python3 "$recovery_python" recovery --root "$repo_path" --report "$report_file" \
+    --failed-revision "$failed_revision" --restored-revision "$restored_revision" \
+    --initial-exit-code "$initial_exit_code" --event-file "$phase_file" "$@"
+fi
 REMOTE_RECOVERY
     recovery_status=0
   else

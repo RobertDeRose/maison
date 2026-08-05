@@ -12,6 +12,9 @@ if [ -n "${usage_consumer:-}" ]; then
   export MAISON_CONSUMER_ROOT="$usage_consumer"
 fi
 root="$(maison_consumer_root "${BASH_SOURCE[0]}")"
+# shellcheck source=.mise/lib/fnox.sh
+source "$framework_root/.mise/lib/fnox.sh"
+maison_fnox_preflight "$root"
 cd "$root"
 source "$framework_root/.mise/lib/platform.sh"
 source "$framework_root/.mise/lib/bootstrap.sh"

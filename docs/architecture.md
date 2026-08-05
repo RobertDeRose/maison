@@ -60,7 +60,9 @@ Commands select the consumer in this order:
 Packaged or explicit CLI invocations reject Maison itself as the consumer. Direct `mise` use from a Maison checkout is
 reserved for framework development and validation; authoring helpers still refuse to mutate that checkout.
 
-Secrets, passwords, tokens, SSH private keys, and signing private keys belong in Bitwarden, not in either repository.
+Consumers declare logical confidential values in `fnox.toml` and choose their provider. Secrets, passwords, tokens,
+SSH private keys, and signing private keys resolve only at runtime and belong in the selected provider, not in either
+repository or the Nix store.
 
 ## Nix system layer
 

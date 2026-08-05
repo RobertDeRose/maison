@@ -5,6 +5,11 @@
 #USAGE flag "--force-dotfiles" help="Preview replacement of conflicting user dotfiles"
 set -euo pipefail
 framework_root="${MAISON_HOME:-${MISE_PROJECT_ROOT:-$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)}}"
+source "$framework_root/.mise/lib/common.sh"
+root="$(maison_consumer_root "${BASH_SOURCE[0]}")"
+# shellcheck source=.mise/lib/fnox.sh
+source "$framework_root/.mise/lib/fnox.sh"
+maison_fnox_preflight "$root"
 printf '\n==> System preview (no activation)\n'
 args=()
 [ -z "${usage_host:-}" ] || args+=(--host "$usage_host")

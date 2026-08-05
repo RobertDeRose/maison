@@ -26,7 +26,9 @@ The same package is available as `inputs.maison.packages.${system}.maison`, and 
 | `lib`                      | Maison orchestration functions and inventory validation helpers                           |
 | `orchestration`            | Alias for the Maison orchestration library                                                |
 | `schemas.inventory`        | Public inventory schema path                                                              |
+| `schemas.fnox`             | Provider-neutral fnox contract schema                                                     |
 | `fixtures.inventory`       | Neutral valid and invalid inventory fixture corpus                                        |
+| `fixtures.fnox`            | Credential-free fnox contract fixture corpus                                              |
 
 The `lib` output also appears under `lib.maison` for consumers that prefer a named namespace. Its stable helpers are:
 
@@ -34,7 +36,8 @@ The `lib` output also appears under `lib.maison` for consumers that prefer a nam
 - `mkDarwinSystem` — compose a consumer-owned nix-darwin host;
 - `mkSystemManagerSystem` — compose a consumer-owned system-manager host;
 - `mkDeployments` — compose deployment definitions from consumer-owned data;
-- `profiles` and the validation predicates — shared framework contracts.
+- `profiles` and the validation predicates — shared framework contracts;
+- `validateFnox config` — validate logical fnox metadata without resolving secret values.
 
 The host composition helpers receive consumer inputs, a consumer host record, and the consumer host-root path. Maison
 never supplies a personal user, host, deployment target, provider credential, or topology through these outputs.
@@ -76,8 +79,8 @@ Run the public contract and platform checks without changing Maison's lock file:
 nix flake check github:RobertDeRose/maison --no-update-lock-file
 ```
 
-Each supported system exposes `checks.<system>.public` for the packaged CLI, module paths, schema, and fixture corpus;
+Each supported system exposes `checks.<system>.public` for the packaged CLI, module paths, schemas, and fixture corpora;
 the remaining checks cover inventory and platform-specific framework behavior.
 
-The neutral fixture corpus is intentionally credential-free. Consumers and CI can reuse it to verify inventory handling
-without requiring age, Bitwarden, fnox, or another provider account.
+The neutral inventory and fnox fixture corpora are intentionally credential-free. Consumers and CI can reuse them to
+verify framework handling without requiring an owner account or a particular provider.

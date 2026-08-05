@@ -12,9 +12,11 @@ let
   publicModules = maisonLib.modules;
   schemas = {
     inventory = ../schemas/inventory.toml;
+    fnox = ../schemas/fnox.toml;
   };
   fixtures = {
     inventory = ../tests/fixtures/inventory;
+    fnox = ../tests/fixtures/fnox;
   };
   inventoryData = import ./lib/inventory.nix {
     inherit lib inventory;
@@ -82,6 +84,7 @@ inputs.flake-parts.lib.mkFlake { inherit inputs; } {
     # functions contain only Maison-owned framework behavior.
     lib = publicLib;
     orchestration = maisonLib;
+    fnox = maisonLib.fnox;
     darwinModules = publicModules.darwin;
     systemManagerModules = publicModules.systemManager;
     inherit
@@ -154,8 +157,11 @@ inputs.flake-parts.lib.mkFlake { inherit inputs; } {
         test -f ${publicModules.darwin.default}
         test -f ${publicModules.systemManager.default}
         test -f ${schemas.inventory}
+        test -f ${schemas.fnox}
         test -d ${fixtures.inventory}
         test -f ${fixtures.inventory}/valid/minimal/inventory.toml
+        test -d ${fixtures.fnox}
+        test -f ${fixtures.fnox}/valid/minimal/fnox.toml
         touch "$out"
       '';
     in

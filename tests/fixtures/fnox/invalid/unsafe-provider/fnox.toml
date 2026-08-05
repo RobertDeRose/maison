@@ -1,0 +1,7 @@
+root = true
+if_missing = "error"
+env = "exec"
+
+[providers.consumer]
+type = "consumer-selected-provider"
+token = "fixture-token-must-not-be-stored"

@@ -6,8 +6,11 @@ set -euo pipefail
 framework_root="${MAISON_HOME:-${MISE_PROJECT_ROOT:-$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)}}"
 source "$framework_root/.mise/lib/common.sh"
 root="$(maison_consumer_root "${BASH_SOURCE[0]}")"
+# shellcheck source=.mise/lib/fnox.sh
+source "$framework_root/.mise/lib/fnox.sh"
+maison_fnox_preflight "$root"
 source "$framework_root/.mise/lib/consumer.sh"
 load_maison_consumer_environment "$root"
 args=()
 [ "${usage_force_dotfiles:-false}" != true ] || args+=(--force-dotfiles)
-exec python3 "$framework_root/.mise/lib/user_convergence.py" plan --root "$root" "${args[@]}"
+maison_fnox_exec "$root" python3 "$framework_root/.mise/lib/user_convergence.py" plan --root "$root" "${args[@]}"

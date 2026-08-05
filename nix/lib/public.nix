@@ -5,6 +5,7 @@
 let
   validation = import ./validation.nix { inherit lib; };
   profiles = import ./profiles.nix;
+  fnoxContract = import ./fnox.nix { inherit lib; };
   modules = {
     darwin = {
       default = ../modules/darwin/default.nix;
@@ -42,6 +43,9 @@ in
     ;
 
   schema = builtins.fromTOML (builtins.readFile ../../schemas/inventory.toml);
+
+  fnox = fnoxContract;
+  validateFnox = fnoxContract.validate;
 
   validateInventory = inventory: import ./inventory.nix { inherit lib inventory; };
 

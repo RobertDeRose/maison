@@ -5,7 +5,7 @@ Nix validators load that same file for supported systems, profile names, feature
 
 Maison ships only a neutral starter inventory. Real users, host names, deployment endpoints, and host overrides belong
 in the consumer repository's `inventory.toml` and `hosts/` tree. Inventory may contain non-secret topology, but passwords,
-tokens, SSH private keys, signing private keys, and other secrets remain in Bitwarden.
+tokens, SSH private keys, signing private keys, and other secrets remain in the consumer's fnox-selected provider.
 
 ## Top-level tables
 

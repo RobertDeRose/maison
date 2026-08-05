@@ -1,0 +1,15 @@
+schema_version = 1
+filename = "fnox.toml"
+required_root = true
+required_if_missing = "error"
+required_env = "exec"
+local_override = "fnox.local.toml"
+
+[secret]
+name_pattern = "^[A-Za-z_][A-Za-z0-9_]*$"
+resolution = "provider-or-runtime"
+
+[security]
+provider_types = "consumer-selected"
+credential_material = "runtime-only"
+ambient_shell_injection = false

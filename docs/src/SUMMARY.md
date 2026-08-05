@@ -19,6 +19,7 @@
 - [Tooling Reference](./reference/tooling.md)
 - [Public Flake Reference](./reference/flake.md)
 - [Consumer Repository Reference](./reference/consumer.md)
+- [fnox Reference](./reference/fnox.md)
 - [Inventory Reference](./reference/inventory.md)
 - [Refactor Report](./refactor-report.md)
 - [Planned Features](./planned-features.md)

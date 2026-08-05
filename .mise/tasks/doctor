@@ -6,6 +6,8 @@ set -euo pipefail
 framework_root="${MAISON_HOME:-${MISE_PROJECT_ROOT:-$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)}}"
 source "$framework_root/.mise/lib/common.sh"
 root="$(maison_consumer_root "${BASH_SOURCE[0]}")"
+# shellcheck source=.mise/lib/fnox.sh
+source "$framework_root/.mise/lib/fnox.sh"
 source "$framework_root/.mise/lib/platform.sh"
 source "$framework_root/.mise/lib/inventory.sh"
 host="${usage_host:-$(current_hostname)}"
@@ -18,4 +20,15 @@ if command -v deploy >/dev/null 2>&1; then printf '[ok]      %-18s %s\n' deploy-
 if inventory_has_host "$root" "$host"; then printf '[ok]      %-18s %s\n' host "$host ($(inventory_host_system "$root" "$host"))"; else printf '[error]   %-18s %s is not in inventory.toml\n' host "$host"; errors=$((errors+1)); fi
 if grep -R -n -E 'home-manager|homeConfigurations|homeConfig' "$root/flake.nix" "$root/nix" >/dev/null 2>&1; then printf '[error]   %-18s stale Home Manager reference\n' topology; errors=$((errors+1)); else printf '[ok]      %-18s no Home Manager references in the consumer Nix graph\n' topology; fi
 if [ -f "$HOME/.config/mise/config.toml" ]; then printf '[ok]      %-18s installed\n' user-config; else printf '[warning] %-18s run: maison user apply\n' user-config; fi
+if config="$(maison_fnox_config_path "$root" 2> /dev/null)"; then
+  if maison_fnox_validate_config "$root"; then
+    printf '[ok]      %-18s %s\n' fnox-contract "$config"
+  else
+    printf '[error]   %-18s invalid consumer contract\n' fnox-contract
+    errors=$((errors+1))
+  fi
+  if command -v fnox > /dev/null 2>&1; then printf '[ok]      %-18s %s\n' fnox "$(command -v fnox)"; else printf '[error]   %-18s missing for %s\n' fnox "$config"; errors=$((errors+1)); fi
+else
+  printf '[ok]      %-18s not configured\n' fnox
+fi
 exit "$errors"
