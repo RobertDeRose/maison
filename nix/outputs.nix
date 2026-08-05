@@ -5,6 +5,17 @@
 }:
 let
   lib = inputs.nixpkgs.lib;
+  maisonLib = import ./lib/public.nix { inherit inputs lib; };
+  publicLib = maisonLib // {
+    maison = maisonLib;
+  };
+  publicModules = maisonLib.modules;
+  schemas = {
+    inventory = ../schemas/inventory.toml;
+  };
+  fixtures = {
+    inventory = ../tests/fixtures/inventory;
+  };
   inventoryData = import ./lib/inventory.nix {
     inherit lib inventory;
   };
@@ -65,6 +76,18 @@ inputs.flake-parts.lib.mkFlake { inherit inputs; } {
       systemConfigs
       deploy
       ;
+
+    # These outputs are the stable public surface. Consumer repositories own
+    # inventory, host topology, and deployment state; these paths and
+    # functions contain only Maison-owned framework behavior.
+    lib = publicLib;
+    orchestration = maisonLib;
+    darwinModules = publicModules.darwin;
+    systemManagerModules = publicModules.systemManager;
+    inherit
+      schemas
+      fixtures
+      ;
   };
 
   perSystem =
@@ -88,6 +111,37 @@ inputs.flake-parts.lib.mkFlake { inherit inputs; } {
           exec python3 ${../.mise/lib/inventory.py} "$@"
         '';
       };
+      maisonRuntimeInputs = with pkgs; [
+        bash
+        coreutils
+        findutils
+        gawk
+        git
+        gnugrep
+        gnused
+        mise
+        nix
+        python3
+        usage
+        uv
+      ];
+      maisonPackage = pkgs.stdenvNoCC.mkDerivation {
+        pname = "maison";
+        version = "0.1.0";
+        dontUnpack = true;
+        nativeBuildInputs = [
+          pkgs.makeWrapper
+          pkgs.uv
+        ];
+        installPhase = ''
+          mkdir -p "$out/bin" "$out/share/maison"
+          cp -R ${../.}/. "$out/share/maison/"
+          makeWrapper "$out/share/maison/bin/maison" "$out/bin/maison" \
+            --set-default MAISON_HOME "$out/share/maison" \
+            --set-default MAISON_PACKAGE_VERSION "0.1.0" \
+            --prefix PATH : "${lib.makeBinPath maisonRuntimeInputs}"
+        '';
+      };
       nixfmtPackage = import ./lib/nixfmt-rs.nix {
         inherit
           lib
@@ -95,6 +149,15 @@ inputs.flake-parts.lib.mkFlake { inherit inputs; } {
           system
           ;
       };
+      publicCheck = pkgs.runCommand "maison-public-contract" { } ''
+        test -x ${maisonPackage}/bin/maison
+        test -f ${publicModules.darwin.default}
+        test -f ${publicModules.systemManager.default}
+        test -f ${schemas.inventory}
+        test -d ${fixtures.inventory}
+        test -f ${fixtures.inventory}/valid/minimal/inventory.toml
+        touch "$out"
+      '';
     in
     {
       # The contributor environment and `nix fmt` must use one formatter
@@ -103,6 +166,7 @@ inputs.flake-parts.lib.mkFlake { inherit inputs; } {
 
       packages = {
         inherit (pkgs) nh deploy-rs;
+        maison = maisonPackage;
         maison-inventory = inventoryPackage;
         nixfmt = nixfmtPackage;
       }
@@ -111,6 +175,10 @@ inputs.flake-parts.lib.mkFlake { inherit inputs; } {
       };
 
       apps = {
+        maison = {
+          type = "app";
+          program = "${maisonPackage}/bin/maison";
+        };
         deploy = {
           type = "app";
           program = "${pkgs.deploy-rs}/bin/deploy";
@@ -128,6 +196,7 @@ inputs.flake-parts.lib.mkFlake { inherit inputs; } {
       };
 
       checks = {
+        public = publicCheck;
         inventory = import ./checks/inventory.nix {
           inherit pkgs inventoryData;
         };

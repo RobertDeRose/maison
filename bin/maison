@@ -325,6 +325,8 @@ case "${1:-}" in
       revision="$(git -C "$maison_home" rev-parse --short HEAD)"
     elif [ -s "$maison_home/.maison-revision" ]; then
       revision="$(cut -c1-12 "$maison_home/.maison-revision")"
+    elif [ -n "${MAISON_PACKAGE_VERSION:-}" ]; then
+      revision="$MAISON_PACKAGE_VERSION"
     else
       revision=unknown
     fi

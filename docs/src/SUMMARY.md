@@ -17,6 +17,7 @@
 - [Feature Lifecycle](./development/feature-lifecycle.md)
 - [GitHub Pages](./operations/github-pages.md)
 - [Tooling Reference](./reference/tooling.md)
+- [Public Flake Reference](./reference/flake.md)
 - [Inventory Reference](./reference/inventory.md)
 - [Refactor Report](./refactor-report.md)
 - [Planned Features](./planned-features.md)

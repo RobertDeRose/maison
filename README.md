@@ -11,6 +11,20 @@ system-manager profiles and connection-aware system rollback.
 Maison is intentionally generic. It contains framework code, neutral examples, tests, and bootstrap tooling—not a
 maintainer's personal application list or dotfiles.
 
+## Public flake
+
+Consumers pin Maison as a flake input; they do not clone or mutate a Maison checkout to use its framework outputs:
+
+```bash
+nix run github:RobertDeRose/maison#maison -- --help
+nix flake check --no-update-lock-file
+```
+
+The public flake exports the CLI package and app, reusable nix-darwin and system-manager modules, the orchestration
+library, the inventory schema, and neutral validation fixtures. Consumer repositories own their inventory, host topology,
+configuration, deployment state, and lock file. See the [public flake reference](docs/src/reference/flake.md) for the
+output contract.
+
 ## Quickstart
 
 Choose one of these installation paths.

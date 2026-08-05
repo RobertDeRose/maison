@@ -15,6 +15,7 @@
 | `.config/cog-changelog.tera`          | Renders plain Markdown changelogs without author noise.                     |
 | `scripts/setup-tooling.py`            | Resolves the lock, installs tools, installs hooks, and returns JSON status. |
 | `schemas/inventory.toml`              | Shared public inventory schema contract for Python and Nix validators.      |
+| `docs/src/reference/flake.md`         | Public flake outputs, module entrypoints, library helpers, and checks.      |
 | `scripts/enable-docs-deployment.py`   | Configures workflow-built Pages through external `gh`.                      |
 | `.github/workflows/ci.yml`            | Runs repository checks, platform builds, and bootstrap checks on CI events. |
 | `.github/workflows/docs.yml`          | Builds gated docs from the default branch or manual dispatch.               |

@@ -1,5 +1,5 @@
 {
-  description = "Rob's system configuration";
+  description = "Maison provider-neutral configuration orchestration framework";
 
   # Flake-level cache configuration must remain literal. Importing these
   # values leaves thunks that newer Nix/Lix releases reject before evaluating
