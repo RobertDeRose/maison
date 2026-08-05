@@ -90,6 +90,95 @@ restore_docker_completion_links() {
   done
 }
 
+configured_packages_without_docker() {
+  local destination="$1"
+  local config_root="${MAISON_USER_CONFIG_ROOT:-}" config_dir platform_name architecture
+  local -a config_paths
+  [ -n "$config_root" ] || {
+    printf 'maison: MAISON_USER_CONFIG_ROOT is required for Docker Desktop fallback\n' >&2
+    return 1
+  }
+  config_dir="$config_root/config/mise"
+  [ -f "$config_dir/config.toml" ] || {
+    printf 'maison: missing active mise package configuration at %s\n' "$config_dir/config.toml" >&2
+    return 1
+  }
+
+  platform_name="${MAISON_PLATFORM:-$(uname -s)}"
+  architecture="${MAISON_ARCH:-$(uname -m)}"
+  config_paths=("$config_dir/config.toml")
+  case "$platform_name" in
+    Darwin)
+      config_paths+=("$config_dir/config.macos.toml")
+      case "$architecture" in
+        arm64 | aarch64) config_paths+=("$config_dir/config.macos-arm64.toml") ;;
+        x86_64 | amd64) config_paths+=("$config_dir/config.macos-x64.toml") ;;
+      esac
+      ;;
+    Linux)
+      config_paths+=("$config_dir/config.linux.toml")
+      case "$architecture" in
+        arm64 | aarch64) config_paths+=("$config_dir/config.linux-arm64.toml") ;;
+        x86_64 | amd64) config_paths+=("$config_dir/config.linux-x64.toml") ;;
+      esac
+      ;;
+  esac
+
+  python3 - "${config_paths[@]}" > "$destination" <<'PY'
+from pathlib import Path
+import sys
+import tomllib
+
+packages: set[str] = set()
+for path in map(Path, sys.argv[1:]):
+    if path.is_file():
+        with path.open("rb") as handle:
+            packages.update(tomllib.load(handle).get("bootstrap", {}).get("packages", {}))
+packages.discard("brew-cask:docker-desktop")
+for package in sorted(packages):
+    print(package)
+PY
+}
+
+ensure_docker_kubectl_link() {
+  local docker_app="${MAISON_DOCKER_APP:-/Applications/Docker.app}"
+  local source="$docker_app/Contents/Resources/bin/kubectl"
+  local target="${MAISON_DOCKER_KUBECTL_TARGET:-/usr/local/bin/kubectl}"
+  local sudo_bin="${MAISON_SUDO_BIN:-sudo}"
+
+  [ ! -e "$target" ] && [ ! -L "$target" ] || return 0
+  [ -f "$source" ] || {
+    printf 'maison: Docker Desktop did not provide %s\n' "$source" >&2
+    return 1
+  }
+
+  if mkdir -p "$(dirname "$target")" 2> /dev/null && ln -s "$source" "$target" 2> /dev/null; then
+    return 0
+  fi
+  [ ! -e "$target" ] && [ ! -L "$target" ] || return 0
+  command -v "$sudo_bin" > /dev/null 2>&1 || return 1
+  "$sudo_bin" mkdir -p "$(dirname "$target")"
+  "$sudo_bin" ln -s "$source" "$target"
+}
+
+converge_docker_desktop_with_homebrew() {
+  local brew_bin="${MAISON_BREW_BIN:-brew}" outdated
+  command -v "$brew_bin" > /dev/null 2>&1 || {
+    printf 'maison: Homebrew is required for the Docker Desktop compatibility fallback\n' >&2
+    return 1
+  }
+
+  if "$brew_bin" list --cask docker-desktop > /dev/null 2>&1; then
+    outdated="$("$brew_bin" outdated --cask --greedy --quiet docker-desktop)" || return
+    if printf '%s\n' "$outdated" | grep -Fxq docker-desktop; then
+      "$brew_bin" upgrade --cask docker-desktop
+    fi
+  else
+    "$brew_bin" install --cask docker-desktop
+  fi
+  ensure_docker_kubectl_link
+}
+
 prepare_docker_privileges() {
   local sudo_bin="${MAISON_SUDO_BIN:-sudo}"
 
@@ -104,6 +193,7 @@ prepare_docker_privileges() {
 }
 
 output_file="$(mktemp "${TMPDIR:-/tmp}/maison-packages.XXXXXX")"
+remaining_packages_file="$output_file.remaining"
 # Invoked indirectly by the EXIT trap below.
 # shellcheck disable=SC2329
 cleanup() {
@@ -112,7 +202,7 @@ cleanup() {
   if [ "$handoff_pending" = true ]; then
     restore_docker_completion_links
   fi
-  rm -f "$output_file"
+  rm -f "$output_file" "$remaining_packages_file"
   exit "$status"
 }
 trap cleanup EXIT
@@ -124,6 +214,22 @@ if run_packages "$output_file" "$@"; then
   exit 0
 else
   status=$?
+fi
+
+if grep -Fq "brew-cask:docker-desktop: unsupported postflight_steps step type symlink" "$output_file"; then
+  prepare_docker_privileges || exit "$?"
+  converge_docker_desktop_with_homebrew || exit "$?"
+  configured_packages_without_docker "$remaining_packages_file" || exit "$?"
+  remaining_packages=()
+  while IFS= read -r package; do
+    [ -z "$package" ] || remaining_packages+=("$package")
+  done < "$remaining_packages_file"
+  if [ "${#remaining_packages[@]}" -eq 0 ]; then
+    exit 0
+  fi
+  printf 'maison: retrying remaining package convergence after Docker Desktop compatibility fallback\n' >&2
+  run_packages "$output_file" "${remaining_packages[@]}"
+  exit "$?"
 fi
 
 if grep -Fq "not owned by cask 'docker-desktop'" "$output_file" &&

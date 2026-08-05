@@ -113,7 +113,11 @@ ditto -x -k path/to/Application.app.zip /tmp/application-restore
 
 Do not leave an extracted `.app` under the Maison backup tree.
 
-A Docker Desktop completion ownership error is repaired only when the conflicting path is a symlink to its exact known Docker.app completion file. Unrelated paths are not removed. If the retry fails before Docker replaces a removed link, Maison restores that original link and returns the retry failure.
+A Docker Desktop completion ownership error is repaired only when the conflicting path is a symlink to its exact known
+Docker.app completion file. Unrelated paths are not removed. If the retry fails before Docker replaces a removed link,
+Maison restores that original link and returns the retry failure. If mise instead rejects Docker Desktop's structured
+symlink metadata, Maison delegates only Docker Desktop to Homebrew, ensures the guarded Docker-provided `kubectl` link,
+and retries the remaining active-platform packages without Docker. Other cask metadata errors still fail unchanged.
 
 ## Failed remote user deployment
 

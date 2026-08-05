@@ -79,7 +79,12 @@ Maison-managed service units. A mismatch or reload failure returns an actionable
 
 `maison apply` activates system state first. The user phase starts only after system success. Repository deployment uses revision-bound finalize checks and startup recovery under the root-owned transaction namespace before user convergence starts. If remote user convergence fails, Maison restores and verifies the prior repository, then automatically runs restricted recovery as the managed user. Recovery repairs reversible dotfiles, lock links, non-package mise state, and finalization; it skips package/app convergence and writes a diagnostic under `~/.local/state/maison/recovery/`. Use `--host` for an inventory host. Use `--force-dotfiles` only after reviewing `user:plan`; Maison backs up the exact refused targets before replacement, and recovery preserves that explicit choice.
 
-User package convergence handles one known Docker Desktop cask migration conflict. It removes only six known completion symlinks when each resolves to its exact Docker.app completion source, then retries once. Any regular file, unrelated symlink, or unrelated installer failure remains an error. If the retry fails before Docker replaces a removed link, Maison restores the original link and returns the retry failure.
+User package convergence handles two narrowly scoped Docker Desktop cask compatibility cases. For historical completion
+ownership conflicts, it removes only six known symlinks when each resolves to its exact Docker.app completion source,
+then retries once; a failed retry restores the original links. When mise rejects Docker Desktop's structured
+`postflight_steps` symlink metadata, Maison delegates only that cask's install or upgrade to Homebrew, creates the guarded
+Docker-provided `kubectl` link only when absent, and retries every other active-platform package explicitly. Any regular
+file, unrelated symlink, unsupported metadata from another cask, or unrelated installer failure remains an error.
 
 ## Inspect drift
 

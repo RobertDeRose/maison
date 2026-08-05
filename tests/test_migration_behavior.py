@@ -173,6 +173,145 @@ class MigrationBehaviorTest(unittest.TestCase):
             self.assertEqual(result.returncode, 0)
             self.assertEqual(observed.read_text().strip(), "run apply --")
 
+    def test_docker_structured_symlink_uses_homebrew_and_retries_other_packages(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            temp = Path(directory)
+            config_root = temp / "overlay"
+            config = config_root / "config/mise"
+            config.mkdir(parents=True)
+            (config / "config.toml").write_text(
+                textwrap.dedent(
+                    """\
+                    [bootstrap.packages]
+                    "brew:jq" = "latest"
+                    "brew-cask:docker-desktop" = "latest"
+                    """
+                )
+            )
+            (config / "config.macos-arm64.toml").write_text('[bootstrap.packages]\n"brew-cask:anki" = "latest"\n')
+            (config / "config.linux.toml").write_text('[bootstrap.packages]\n"apt:linux-only" = "latest"\n')
+            docker = temp / "Docker.app"
+            source = docker / "Contents/Resources/bin/kubectl"
+            source.parent.mkdir(parents=True)
+            source.write_text("kubectl\n")
+            target = temp / "usr/local/bin/kubectl"
+            target.parent.mkdir(parents=True)
+            fake_bin = temp / "bin"
+            fake_bin.mkdir()
+            mise_calls = temp / "mise-calls"
+            brew_calls = temp / "brew-calls"
+            counter = temp / "counter"
+            executable(
+                fake_bin / "mise",
+                textwrap.dedent(
+                    """\
+                    #!/bin/sh
+                    printf '%s\n' "$*" >>"$MISE_CALLS"
+                    count=0
+                    [ ! -f "$COUNTER" ] || count=$(cat "$COUNTER")
+                    count=$((count + 1))
+                    printf '%s\n' "$count" >"$COUNTER"
+                    if [ "$count" -eq 1 ]; then
+                      message="mise ERROR brew-cask:docker-desktop: unsupported postflight_steps step type symlink"
+                      printf '%s\n' "$message" >&2
+                      printf '%s\n' "$message" >>"$MISE_LOG_FILE"
+                      exit 1
+                    fi
+                    case " $* " in
+                      *" brew-cask:docker-desktop "*) exit 97 ;;
+                    esac
+                    """
+                ),
+            )
+            executable(
+                fake_bin / "brew",
+                textwrap.dedent(
+                    """\
+                    #!/bin/sh
+                    printf '%s\n' "$*" >>"$BREW_CALLS"
+                    case "$*" in
+                      "list --cask docker-desktop") exit 0 ;;
+                      "outdated --cask --greedy --quiet docker-desktop") printf 'docker-desktop\\n' ;;
+                      "upgrade --cask docker-desktop") exit 0 ;;
+                      *) exit 98 ;;
+                    esac
+                    """
+                ),
+            )
+            env = os.environ.copy()
+            env.update(
+                {
+                    "PATH": f"{fake_bin}{os.pathsep}{env['PATH']}",
+                    "BREW_CALLS": str(brew_calls),
+                    "COUNTER": str(counter),
+                    "MAISON_ARCH": "arm64",
+                    "MAISON_DOCKER_APP": str(docker),
+                    "MAISON_DOCKER_KUBECTL_TARGET": str(target),
+                    "MAISON_PLATFORM": "Darwin",
+                    "MAISON_USER_CONFIG_ROOT": str(config_root),
+                    "MISE_CALLS": str(mise_calls),
+                }
+            )
+
+            result = run(
+                [str(ROOT / "scripts/user-apply-packages.sh")],
+                env=env,
+                capture_output=True,
+                text=True,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(
+                mise_calls.read_text().splitlines(),
+                [
+                    "bootstrap packages apply --yes",
+                    "bootstrap packages apply --yes brew-cask:anki brew:jq",
+                ],
+            )
+            self.assertEqual(
+                brew_calls.read_text().splitlines(),
+                [
+                    "list --cask docker-desktop",
+                    "outdated --cask --greedy --quiet docker-desktop",
+                    "upgrade --cask docker-desktop",
+                ],
+            )
+            self.assertTrue(target.is_symlink())
+            self.assertEqual(target.resolve(), source.resolve())
+            self.assertIn("retrying remaining package convergence", result.stderr)
+
+    def test_non_docker_structured_symlink_error_remains_a_failure(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            temp = Path(directory)
+            fake_bin = temp / "bin"
+            fake_bin.mkdir()
+            brew_calls = temp / "brew-calls"
+            executable(
+                fake_bin / "mise",
+                textwrap.dedent(
+                    """\
+                    #!/bin/sh
+                    message="mise ERROR brew-cask:orbstack: unsupported postflight_steps step type symlink"
+                    printf '%s\n' "$message" >&2
+                    printf '%s\n' "$message" >>"$MISE_LOG_FILE"
+                    exit 23
+                    """
+                ),
+            )
+            executable(fake_bin / "brew", '#!/bin/sh\nprintf "%s\\n" "$*" >>"$BREW_CALLS"\n')
+            env = os.environ.copy()
+            env.update(
+                {
+                    "PATH": f"{fake_bin}{os.pathsep}{env['PATH']}",
+                    "BREW_CALLS": str(brew_calls),
+                }
+            )
+
+            result = run([str(ROOT / "scripts/user-apply-packages.sh")], env=env)
+
+            self.assertEqual(result.returncode, 23)
+            self.assertFalse(brew_calls.exists())
+
     def test_docker_retry_preserves_interactive_stderr_for_sudo(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             temp = Path(directory)
