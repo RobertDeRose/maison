@@ -41,17 +41,20 @@ synthetic overlay input, and do not write Maison files.
 
 ## Tasks
 
-| Task          | Behavior                                                            |
-|---------------|---------------------------------------------------------------------|
-| `check`       | Install Maison tools, then run data, shell, Python, and Nix checks. |
-| `check:tests` | Run bounded Python unittest discovery across `tests/test_*.py`.     |
-| `fix`         | Apply deterministic hk fixes to the working tree.                   |
-| `docs:check`  | Build and validate documentation structure.                         |
-| `docs:build`  | Build the mdBook site.                                              |
-| `docs:serve`  | Serve mdBook on port 3000 or a supplied port.                       |
+| Task                | Behavior                                                            |
+|---------------------|---------------------------------------------------------------------|
+| `check`             | Install Maison tools, then run data, shell, Python, and Nix checks. |
+| `consumer:validate` | Validate a consumer without activation or provider credentials.     |
+| `check:tests`       | Run bounded Python unittest discovery across `tests/test_*.py`.     |
+| `fix`               | Apply deterministic hk fixes to the working tree.                   |
+| `docs:check`        | Build and validate documentation structure.                         |
+| `docs:build`        | Build the mdBook site.                                              |
+| `docs:serve`        | Serve mdBook on port 3000 or a supplied port.                       |
 
-Inventory fixtures live under `tests/fixtures/inventory/` and are consumed by Python tests and Nix evaluation checks.
-Add fixtures when changing schema fields, defaults, profile compatibility, deployment path rules, or host override layout.
+`consumer:validate` is the mise task behind `maison consumer validate`; it owns the framework-side contract so a
+consumer does not need a duplicate validation suite. Inventory fixtures live under `tests/fixtures/inventory/` and are
+consumed by Python tests and Nix evaluation checks. Add fixtures when changing schema fields, defaults, profile
+compatibility, deployment path rules, or host override layout.
 
 Python tests are partitioned by inventory, consumer repository, deployment/bootstrap, migration, ownership, repository
 mutation, transaction, configuration editing, deploy transaction, and user convergence behavior. External processes use

@@ -93,6 +93,7 @@ Run commands from the consumer checkout or set `MAISON_CONSUMER_ROOT`:
 
 ```bash
 maison doctor
+maison consumer validate
 maison plan
 maison apply
 maison status
@@ -113,6 +114,10 @@ maison user update
 
 maison deploy example-linux
 ```
+
+`maison consumer validate` runs the read-only consumer contract: flake composition, inventory, mise package and dotfile
+declarations, fnox references, documentation links, supported systems, and raw-credential/private-key boundaries. It
+never activates a system, mutates a lock file, or invokes fnox providers, so CI does not need personal credentials.
 
 The same operations are available as Maison mise tasks, for example `mise -C ~/.maison run system:plan`. Authoring
 commands write only consumer files. They require a Git checkout, reject pre-existing changes in mutation targets, use

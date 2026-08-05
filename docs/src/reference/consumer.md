@@ -10,6 +10,7 @@ installation; Maison supplies reusable orchestration and framework code.
 | `flake.nix`      | Consumer | Host outputs and the Maison flake input        |
 | `flake.lock`     | Consumer | Pinned inputs for that consumer                |
 | `inventory.toml` | Consumer | Users, hosts, profiles, and deployment targets |
+| `README.md`      | Consumer | Maison relationship and consumer usage         |
 
 A consumer may also own `hosts/`, `config/mise/`, `dotfiles/`, and any host-specific Nix modules. The inventory and
 configuration paths are interpreted relative to the consumer root.
@@ -39,6 +40,19 @@ inputs; Maison does not supply personal identity, topology, deployment endpoints
 
 The framework CLI targets consumer installables such as `darwinConfigurations.<host>` and
 `systemConfigs.<host>`. A consumer may expose additional aliases, but it must keep those outputs in its own flake.
+
+## Maison validation
+
+Run the read-only contract before activation or after changing the consumer lock:
+
+```bash
+maison consumer validate --consumer /path/to/consumer
+```
+
+The validator checks the Maison lock input, inventory and supported systems, Nix host outputs, mise package and dotfile
+declarations, documentation links, fnox references, and raw credential/private-key boundaries. It runs check-only Nix
+evaluation, never activates a system or updates a lock file, and does not invoke fnox providers or require their
+credentials. Provider selection remains consumer-owned.
 
 ## Mutation boundaries
 

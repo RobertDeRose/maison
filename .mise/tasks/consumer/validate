@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# [MISE] quiet=true
+# [MISE] description="Validate the selected consumer repository without activation"
+#USAGE flag "--consumer <path>" help="Consumer repository containing flake.nix, flake.lock, and inventory.toml"
+set -euo pipefail
+framework_root="${MAISON_HOME:-${MISE_PROJECT_ROOT:-$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)}}"
+# shellcheck source=.mise/lib/common.sh
+source "$framework_root/.mise/lib/common.sh"
+if [ -n "${usage_consumer:-}" ]; then
+  export MAISON_CONSUMER_ROOT="$usage_consumer"
+fi
+if [ -z "${MAISON_CONSUMER_ROOT:-${MAISON_REPOSITORY:-${MAISON_REPO:-}}}" ]; then
+  die "consumer validation requires MAISON_CONSUMER_ROOT, --consumer, or a consumer checkout"
+fi
+root="$(maison_consumer_root "${BASH_SOURCE[0]}")"
+exec python3 "$framework_root/scripts/validate_consumer.py" --consumer "$root"

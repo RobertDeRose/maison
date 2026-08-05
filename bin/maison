@@ -40,6 +40,9 @@
 #USAGE   cmd "list" help="List hosts" { arg "[args]..." }
 #USAGE   cmd "validate" help="Validate inventory" { arg "[args]..." }
 #USAGE }
+#USAGE cmd "consumer" help="Validate a consumer repository" {
+#USAGE   cmd "validate" help="Validate without activation" { arg "[args]..." }
+#USAGE }
 #USAGE cmd "tool" help="Manage global mise tools" {
 #USAGE   cmd "add" help="Add a tool" { arg "[args]..." }
 #USAGE   cmd "remove" help="Remove a tool" { arg "[args]..." }
@@ -209,6 +212,7 @@ format_task_groups() {
       if (task ~ /^package:(add|remove|search|update)$/) return "package"
       if (task ~ /^tool:(add|remove)$/) return "tool"
       if (task ~ /^host:(add|list)$/) return "host"
+      if (task == "consumer:validate") return "consumer"
       if (task ~ /^system:(apply|clean|deploy|history|plan|rollback)$/) return "system"
       if (task ~ /^user:(apply|plan|recover|restore-dotfiles|status|update)$/) return "user"
       if (task == "docs:serve") return "docs"
@@ -249,7 +253,7 @@ format_task_groups() {
         printf "%s", workflow
         printed_group = 1
       }
-      order_count = split("github app package tool host system user docs", order)
+      order_count = split("github app package tool host consumer system user docs", order)
       for (position = 1; position <= order_count; position++) {
         group = order[position]
         if (group in grouped) {

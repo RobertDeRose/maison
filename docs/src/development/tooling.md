@@ -83,6 +83,19 @@ The consumer is selected locally with `--consumer` during bootstrap, `MAISON_CON
 Git checkout. Consumer files and locks are ordinary Git state and are never copied into Maison. Do not commit consumer
 contents or Bitwarden material to Maison while running development checks.
 
+## Consumer validation
+
+Consumers can run the Maison-owned contract without adding a second test suite:
+
+```bash
+maison consumer validate --consumer /path/to/consumer
+```
+
+The read-only check validates the consumer flake and lock, inventory, supported systems, mise package and dotfile
+configuration, fnox references, documentation links, and raw credential/private-key boundaries. It evaluates expected
+Nix outputs without activation or lock updates, and the validator itself never invokes fnox providers; provider
+credentials are therefore not needed by the validation contract in CI.
+
 ## Hooks and recovery
 
 Setup installs repository-local hk hooks when the destination is a Git repository. To restore tooling after an offline
