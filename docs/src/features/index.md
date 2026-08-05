@@ -22,6 +22,7 @@ Planned or partially implemented work remains in [Planned features](../planned-f
 - [MAISON-014: Remote convergence restoration](maison-014-remote-convergence-restoration/index.md)
 - [MAISON-015: Linux runtime activation verification](maison-015-linux-runtime-verification/index.md)
 - [MAISON-016: Pi TypeScript validation boundary](maison-016-pi-typescript-validation/index.md)
+- [MAISON-017: Maison/Terroir repository split](maison-017-maison-terroir-repository-split/index.md)
 - [Copier-backed overlay setup and bootstrap onboarding](maison-overlay-copier-bootstrap/index.md)
 - [Overlay authoring lifecycle and command surface](maison-overlay-authoring-lifecycle/index.md)
 <!-- END IMPLEMENTED FEATURES -->

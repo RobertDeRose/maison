@@ -91,6 +91,16 @@ class DataFilesTest(unittest.TestCase):
         self.assertNotIn("home-manager", serialized)
         self.assertNotIn('"deploy-rs"', serialized)
 
+    def test_flake_lock_keeps_overlay_portable_and_builder_fix_pinned(self) -> None:
+        lock = json.loads(read("flake.lock"))["nodes"]
+        self.assertEqual(lock["overlay"]["locked"]["path"], ".")
+        nix_hex_box = lock["nix-hex-box"]["locked"]
+        self.assertNotEqual(
+            nix_hex_box["rev"],
+            "136290b4bb817b4440968f8a852fe5806db4c021",
+        )
+        self.assertGreaterEqual(nix_hex_box["lastModified"], 1785842561)
+
     def test_nix_formatter_uses_the_repository_lock(self) -> None:
         lock = tomllib.loads(read("mise.lock"))
         entries = lock["tools"]["aqua:Mic92/nixfmt-rs"]
@@ -436,6 +446,20 @@ class RepositoryContractTest(unittest.TestCase):
                 )
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assertIn(expected, result.stdout + result.stderr)
+
+    def test_split_delivery_record_is_reconciled(self) -> None:
+        record = "features/maison-017-maison-terroir-repository-split/index.md"
+        roadmap = read("docs/src/planned-features.md")
+        summary = read("docs/src/SUMMARY.md")
+        feature_index = read("docs/src/features/index.md")
+
+        self.assertTrue((ROOT / "docs/src" / record).is_file())
+        self.assertRegex(
+            roadmap,
+            r"maison-017-maison-terroir-repository-split[^\n]+Delivered[^\n]+\[record\]",
+        )
+        self.assertIn(f"./{record}", summary)
+        self.assertIn("maison-017-maison-terroir-repository-split/index.md", feature_index)
 
     def test_overlay_authoring_reader_contracts(self) -> None:
         readme = read("README.md")

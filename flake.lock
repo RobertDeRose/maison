@@ -147,11 +147,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1782763842,
-        "narHash": "sha256-QTJo8Zoaij/J+RVT7UCbtM+wQPAWJSJNm1z6uKJEW+I=",
+        "lastModified": 1785883648,
+        "narHash": "sha256-YoOB6zhvfb65w7OhOX+yyrBRLO8kwSSU0g6rdW36IVU=",
         "owner": "RobertDeRose",
         "repo": "nix-hex-box",
-        "rev": "136290b4bb817b4440968f8a852fe5806db4c021",
+        "rev": "3028259e6cf75265617c5cef278c62f83e503e32",
         "type": "github"
       },
       "original": {

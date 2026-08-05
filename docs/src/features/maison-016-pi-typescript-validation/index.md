@@ -47,13 +47,15 @@ OpenCode runtime configuration is changed by the validation metadata.
 - [Developer tooling](../../development/tooling.md)
 - [Tooling reference](../../reference/tooling.md)
 - Pi contributor guidance: private Terroir `dotfiles/pi/AGENTS.md`
-- OpenCode boundary: `dotfiles/opencode/README.md`
+- OpenCode boundary: private Terroir `dotfiles/opencode/README.md`
 - [Feature design](design.md)
 
 ## Validation Evidence
 
 - Historical delivery evidence: `mise run check:typescript` passed with `tsc --noEmit` and 10 focused behavioral tests
   before the workspace moved to Terroir.
+- Current Terroir evidence: `mise run check` and its GitHub validation workflow run the same typecheck and 10 focused
+  behavioral tests from the private workspace.
 - `uv run scripts/check-docs.py` — passed after documentation reconciliation.
 - Historical delivery evidence: `shellcheck .mise/tasks/check/_default .mise/tasks/check/typescript` passed before the
   workspace moved to Terroir.
