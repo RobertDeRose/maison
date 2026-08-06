@@ -23,5 +23,5 @@ maison_lume_bin() {
 maison_lume_lock_dir() {
   local state_home="${XDG_STATE_HOME:-${HOME:-}}"
   [ -n "$state_home" ] || die "HOME or XDG_STATE_HOME is required for the Lume installation lock"
-  printf '%s/maison/lume/%s/install.lock\n' "$state_home" "$MAISON_LUME_VERSION"
+  printf '%s/maison/lume/.%s.install.lock\n' "$state_home" "$MAISON_LUME_VERSION"
 }

@@ -107,8 +107,9 @@ fi
 acquire_lock "$lock_dir"
 lock_owned=true
 
-if [ -e "$lume_binary" ] || [ -L "$lume_binary" ]; then
-  if [ -L "$lume_binary" ] || ! verify_lume_version "$lume_binary"; then
+if [ -e "$install_dir" ] || [ -L "$install_dir" ]; then
+  if [ -L "$install_dir" ] || [ ! -d "$install_dir" ] || [ -L "$lume_binary" ] ||
+    [ ! -f "$lume_binary" ] || ! verify_lume_version "$lume_binary"; then
     die "incompatible existing Lume installation at $lume_binary; remove it manually or restore Lume ${MAISON_LUME_VERSION}"
   fi
   printf 'Lume %s is already installed at %s\n' "$MAISON_LUME_VERSION" "$lume_binary"

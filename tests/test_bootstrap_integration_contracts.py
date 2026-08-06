@@ -264,6 +264,21 @@ printf 'lume 0.4.0\\n'
             self.assertIn("incompatible", result.stderr.lower())
             self.assertFalse((root / "curl.log").exists())
 
+    def test_rejects_partial_existing_install_without_download(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            archive = self.make_archive(root)
+            fake_bin = self.write_fake_tools(root)
+            environment = self.installer_environment(root, archive, fake_bin)
+            install_dir = self.install_path(environment).parent
+            install_dir.mkdir(parents=True, mode=0o700)
+            (install_dir / "partial").write_text("interrupted install\n")
+
+            result = self.run_installer(environment)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("incompatible", result.stderr.lower())
+            self.assertFalse((root / "curl.log").exists())
+
     def test_serializes_concurrent_installers(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -285,6 +300,27 @@ printf 'lume 0.4.0\\n'
             results = [process.communicate(timeout=30) for process in processes]
             self.assertEqual([process.returncode for process in processes], [0, 0], results)
             self.assertEqual(len((root / "curl.log").read_text().splitlines()), 1)
+
+    def test_default_data_and_state_roots_do_not_conflict(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            archive = self.make_archive(root)
+            fake_bin = self.write_fake_tools(root)
+            environment = self.installer_environment(root, archive, fake_bin)
+            environment.pop("XDG_DATA_HOME")
+            environment.pop("XDG_STATE_HOME")
+
+            result = self.run_installer(environment)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            installed = root / "home/maison/lume/0.5.1/lume"
+            self.assertTrue(installed.is_file())
+            self.assertEqual(
+                subprocess.run(
+                    [str(installed), "--version"], capture_output=True, text=True, check=False
+                ).stdout.strip(),
+                "lume 0.5.1",
+            )
+            self.assertFalse((root / "home/maison/lume/.0.5.1.install.lock").exists())
 
     def test_rejects_non_apple_silicon_hosts_before_download(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
