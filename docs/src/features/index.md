@@ -25,4 +25,5 @@ Planned or partially implemented work remains in [Planned features](../planned-f
 - [MAISON-017: Maison/Terroir repository split](maison-017-maison-terroir-repository-split/index.md)
 - [Copier fresh consumer bootstrap](maison-overlay-copier-bootstrap/index.md)
 - [Retired alternate repository command surface](maison-overlay-authoring-lifecycle/index.md)
+- [MAISON-018: Cross-platform consumer bootstrap integration](maison-018-cross-platform-bootstrap-integration/index.md)
 <!-- END IMPLEMENTED FEATURES -->
