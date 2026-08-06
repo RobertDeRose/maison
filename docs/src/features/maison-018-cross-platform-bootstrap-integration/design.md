@@ -256,15 +256,20 @@ recorded in this design rather than the upstream shell installer.
 
 ## Documentation Impact
 
-| Documentation concern      | Exact page                                                                   | Create or update | Planned change                                                                                                            | Owning Beads task  |
-|----------------------------|------------------------------------------------------------------------------|------------------|---------------------------------------------------------------------------------------------------------------------------|--------------------|
-| Usage / Operations         | `docs/src/operations.md`                                                     | Update           | `.1` documents host Lume installation; `.2` owns Linux integration; `.3` owns macOS image, VM, SIP, and cleanup sections. | `.1`, `.2`, `.3`   |
-| Development                | `docs/src/development/tooling.md`                                            | Update           | Document direct Mise invocation, hidden-task filtering, pinned Lume artifact, and Apple Silicon prerequisites.            | `maison-mol-4pv.1` |
-| Reference                  | `docs/src/task-reference.md`                                                 | Update           | Define public task listing, direct Mise task names, arguments, image/version contracts, and deferred SIP behavior.        | `.1`, `.2`, `.3`   |
-| Reference                  | `docs/src/reference/tooling.md`                                              | Update           | Add test-task dependency, staging, artifact, and validation contracts.                                                    | `maison-mol-4pv.1` |
-| Navigation                 | `docs/src/SUMMARY.md`                                                        | Update           | Register the feature design.                                                                                              | `maison-mol-o5z`   |
-| Planned Features           | `docs/src/planned-features.md`                                               | Update           | Add MAISON-018 roadmap entry and dependency status.                                                                       | `maison-mol-o5z`   |
-| Implemented Feature Record | `docs/src/features/maison-018-cross-platform-bootstrap-integration/index.md` | Create close-out | Record delivery, deferred SIP lane, and evidence.                                                                         | `maison-mol-55k`   |
+| Documentation concern        | Exact page                                                                     | Create or update     | Planned change                                                                                                                                            | Owning Beads task                  |
+|------------------------------|--------------------------------------------------------------------------------|----------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------|------------------------------------|
+| Documentation concern        | Exact page                                                                     | Create or update     | Planned change                                                                                                                                            | Owning Beads task                  |
+| ---------------------------- | ------------------------------------------------------------------------------ | -------------------- | ----------------------------------------------------------------------------------------------------------------------------------                        | --------------------               |
+| Usage / Operations           | `docs/operations.md`                                                           | Update               | `.1` owns the hidden-task/Lume host-prerequisite section; `.2` owns the Linux integration section; `.3` owns macOS image, VM, SIP, and cleanup sections.  | `.1`, `.2`, `.3`                   |
+| Navigation wrapper           | `docs/src/operations.md`                                                       | No direct content    | Include-only wrapper; validate navigation after the root operations page changes.                                                                         | `.2`, `.3`                         |
+| Development                  | `docs/src/development/tooling.md`                                              | Update               | Document direct Mise invocation, hidden-task filtering, pinned Lume artifact, and Apple Silicon prerequisites.                                            | `maison-mol-4pv.1`                 |
+| Reference                    | `docs/task-reference.md`                                                       | Update               | `.1` owns public listing/hidden-boundary sections; `.2` owns Linux task arguments/contracts; `.3` owns macOS image/VM contracts and deferred SIP wording. | `.1`, `.2`, `.3`                   |
+| Navigation wrapper           | `docs/src/task-reference.md`                                                   | No direct content    | Include-only wrapper; validate navigation after the root task-reference page changes.                                                                     | `maison-mol-4pv.1`                 |
+| Reference                    | `docs/src/reference/tooling.md`                                                | Update               | Add test-task dependency, staging, artifact, and validation contracts.                                                                                    | `maison-mol-4pv.1`                 |
+| Navigation                   | `docs/src/SUMMARY.md`                                                          | Update               | Register the design now and the implemented record during close-out.                                                                                      | `maison-mol-o5z`, `maison-mol-55k` |
+| Planned Features             | `docs/src/planned-features.md`                                                 | Update               | Add MAISON-018 roadmap entry and reconcile its delivered state during close-out.                                                                          | `maison-mol-o5z`, `maison-mol-55k` |
+| Implemented-feature index    | `docs/src/features/index.md`                                                   | Update close-out     | Add the delivered feature record to the reader-facing implemented-feature index.                                                                          | `maison-mol-55k`                   |
+| Implemented Feature Record   | `docs/src/features/maison-018-cross-platform-bootstrap-integration/index.md`   | Create close-out     | Record delivery, deferred SIP lane, documentation, and validation evidence.                                                                               | `maison-mol-55k`                   |
 
 ## Validation Strategy
 
@@ -299,10 +304,13 @@ recorded in this design rather than the upstream shell installer.
 
 The Linux child records the known upstream system-manager failure as validation evidence but does not depend on the
 open bug; an open `related`/`discovered-from` relationship preserves provenance without blocking implementation. The
-Lume installer and hidden CLI-boundary tasks precede the macOS lane. `.2` owns `.mise/lib/consumer-integration.sh`,
-committed-content staging, lock parsing, bootstrap blob verification, and Linux task files; `.3` owns the Lume VM
-helper, macOS task, and macOS-specific tests/docs. `.3` depends on `.2` for the shared helper. The SIP child is
-deferred, has no task file before activation, and does not block required children or the implementation coordinator.
+Lume installer and hidden CLI-boundary tasks precede the Linux lane so shared operations/task-reference edits are
+serialized. `.2` owns `.mise/lib/consumer-integration.sh`, committed-content staging, lock parsing, bootstrap blob
+verification, and Linux task files; `.3` owns the Lume VM helper, macOS task, and macOS-specific tests/docs. Each
+implementation child makes one isolated commit containing only its owned source, tests, and documentation sections:
+`.1` then `.2` then `.3`; no child reformats or edits another child's sections. `.3` depends on `.2` for the shared
+helper. The SIP child is deferred, has no task file before activation, and does not block required children or the
+implementation coordinator.
 
 ## Rollout and Migration
 
