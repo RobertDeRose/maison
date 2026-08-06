@@ -36,6 +36,28 @@ mise run docs:deployment:enable
 mise run docs:serve
 ```
 
+## Hidden integration-test tasks
+
+Maison's platform integration tests are hidden Mise tasks. They remain directly invocable from the Maison checkout,
+but the public `maison` resolver, help, task list, and generated completions reject or omit every `test:*` task:
+
+```bash
+mise -C "$MAISON_HOME" tasks --hidden
+mise -C "$MAISON_HOME" run test:lume:install
+```
+
+The Lume prerequisite is pinned to Trycua CUA release `lume-v0.5.1`, archive
+`lume-0.5.1-darwin-arm64.tar.gz`, URL
+`https://github.com/trycua/cua/releases/download/lume-v0.5.1/lume-0.5.1-darwin-arm64.tar.gz`, and SHA-256
+`7f10cfbe66a800f98a5db88129f7dc024600fcdc139e0be124845bc7a3dc1359`. On Apple Silicon macOS 13 or newer it
+installs the verified top-level executable at
+`${XDG_DATA_HOME:-$HOME/.local/share}/maison/lume/0.5.1/lume`.
+
+The installer downloads an archive to a mode-0700 temporary directory, verifies its digest before extraction, checks
+`lume --version`, serializes concurrent installation, preserves a compatible existing install, and fails clearly on
+incompatible versions. It does not use `curl | bash`, privileged installation, global PATH changes, or launch-agent
+mutation. Public Maison workflows never invoke this host-side prerequisite.
+
 Use `/update-project` for the recorded template channel, or `/update-project --stable` / `--unstable` to change it. The
 update always records the exact resolved template commit.
 

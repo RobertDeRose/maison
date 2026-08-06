@@ -127,6 +127,30 @@ Repository replacement uses the root-owned transaction boundary and revision-bou
 only reversible user state, skips package/application side effects, and writes diagnostics under
 `~/.local/state/maison/recovery/`. Deployed snapshots are runtime artifacts, not authoring checkouts.
 
+## Hidden integration-test prerequisites
+
+Integration tests are deliberate host-side operations and are not part of the public `maison` command surface. Run
+hidden tasks directly through the Maison checkout's Mise project:
+
+```bash
+mise -C "$MAISON_HOME" tasks --hidden
+mise -C "$MAISON_HOME" run test:lume:install
+```
+
+`maison tasks`, `maison help`, and generated `maison` completions intentionally omit every `test:*` task. Ordinary
+bootstrap, apply, deploy, and update commands never install Lume or mutate host VM tooling.
+
+The macOS lane's host prerequisite is pinned to Trycua CUA release `lume-v0.5.1`, archive
+`lume-0.5.1-darwin-arm64.tar.gz`, and SHA-256
+`7f10cfbe66a800f98a5db88129f7dc024600fcdc139e0be124845bc7a3dc1359`. The verified executable is installed only at
+`${XDG_DATA_HOME:-$HOME/.local/share}/maison/lume/0.5.1/lume` on Apple Silicon macOS 13 or newer. The installer
+validates the archive before extraction, uses a user-owned concurrency lock, is idempotent, and fails rather than
+replacing an incompatible existing version. It never uses the upstream shell installer, a privileged package manager,
+a global PATH change, or a launch agent.
+
+The Lume prerequisite is host-local test infrastructure. It does not install a VM image, alter the production
+consumer, or authorize running Darwin bootstrap on the current host outside a disposable VM.
+
 ## Validation
 
 ```bash

@@ -60,6 +60,21 @@ state together when any step fails. Inventory fixtures live under `tests/fixture
 consumed by Python tests and Nix evaluation checks. Add fixtures when changing schema fields, defaults, profile
 compatibility, deployment path rules, or host override layout.
 
+### Hidden integration-test tasks
+
+Platform integration tasks are Mise-only and are hidden from `maison` resolution, help, completion, and task listings.
+Use `mise -C "$MAISON_HOME" tasks --hidden` for discovery and invoke a task directly when deliberately running
+integration infrastructure. The public CLI cannot expose hidden tasks through flags such as `maison tasks --hidden`.
+
+The host-side Lume prerequisite is pinned to Trycua CUA release `lume-v0.5.1` and archive
+`lume-0.5.1-darwin-arm64.tar.gz` at
+`https://github.com/trycua/cua/releases/download/lume-v0.5.1/lume-0.5.1-darwin-arm64.tar.gz`, with SHA-256
+`7f10cfbe66a800f98a5db88129f7dc024600fcdc139e0be124845bc7a3dc1359`. On Apple Silicon macOS 13 or newer,
+`test:lume:install` verifies the archive and version, then atomically installs its top-level `lume` executable at
+`${XDG_DATA_HOME:-$HOME/.local/share}/maison/lume/0.5.1/lume`. The install is user-owned, idempotent, serialized for
+concurrent callers, and refuses to replace an incompatible version. No privileged package installation, global PATH
+mutation, launch agent, or upstream shell installer is used.
+
 Python tests are partitioned by inventory, consumer repository, deployment/bootstrap, migration, ownership, repository
 mutation, transaction, configuration editing, deploy transaction, and user convergence behavior. External processes use
 `tests/support/processes.py`, which supplies process-group cleanup, bounded diagnostics, and a 30-second default timeout.

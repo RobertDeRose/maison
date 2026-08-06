@@ -191,8 +191,8 @@ cache_task_names() {
 
 is_public_task() {
   case "$1" in
-    # Repository maintenance remains available through mise, not Maison.
-    fix) return 1 ;;
+    # Repository maintenance and integration tests remain available through mise, not Maison.
+    fix | test:*) return 1 ;;
     *) return 0 ;;
   esac
 }
@@ -356,7 +356,7 @@ HELP
   fi
   cat <<'HELP'
 
-Run `maison tasks` for the complete underlying mise task list.
+Run `maison tasks` for the public task list; use mise directly for hidden integration tests.
 HELP
 }
 
@@ -392,8 +392,9 @@ case "${1:-}" in
     ;;
   tasks)
     shift
-    cd "$maison_home"
-    exec "$mise_bin" tasks "$@"
+    [ "$#" -eq 0 ] || die "usage: maison tasks"
+    list_public_task_names
+    exit 0
     ;;
   completion)
     [ "$#" -eq 2 ] || die "usage: maison completion <bash|zsh|fish>"

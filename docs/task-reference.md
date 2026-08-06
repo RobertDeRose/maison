@@ -19,6 +19,24 @@ configuration root.
 | `bootstrap [--consumer PATH]`            | Verify Maison runtimes, select a consumer, and converge both layers |
 | `check`                                  | Validate Maison framework data, scripts, tests, and Nix outputs     |
 
+## Hidden integration-test tasks
+
+The following tasks are intentionally absent from the public `maison` command surface. Use direct Mise invocation
+from the Maison checkout; `mise tasks --hidden` is the only supported discovery path for hidden tasks.
+
+| Task                   | Behavior                                                                                    |
+|------------------------|---------------------------------------------------------------------------------------------|
+| `test:lume:install`    | Install the verified Trycua Lume 0.5.1 host prerequisite on Apple Silicon macOS 13 or newer |
+| `test:bootstrap:linux` | Run the disposable Linux consumer bootstrap integration test                                |
+| `test:bootstrap:mac`   | Run the disposable Lume macOS consumer bootstrap integration test                           |
+| `test:deploy`          | Run the disposable Linux deployment integration test                                        |
+| `test:image`           | Build or inspect the disposable Linux integration image                                     |
+
+The Lume task installs only `${XDG_DATA_HOME:-$HOME/.local/share}/maison/lume/0.5.1/lume` after verifying the pinned
+archive SHA-256 `7f10cfbe66a800f98a5db88129f7dc024600fcdc139e0be124845bc7a3dc1359`. It is idempotent and concurrency
+safe, does not use the upstream shell installer, and is never invoked by public bootstrap, apply, deploy, or update
+commands. The macOS image and worker lifecycle remain separate disposable test infrastructure.
+
 ## System commands
 
 | Task                 | Behavior                                                     |

@@ -1,0 +1,158 @@
+#!/usr/bin/env bash
+# [MISE] quiet=true
+# [MISE] description="Install the pinned Lume prerequisite for macOS integration tests"
+#MISE hide=true
+#USAGE flag "--help" help="Show the Lume prerequisite contract"
+
+set -euo pipefail
+
+framework_root="${MAISON_HOME:-${MISE_PROJECT_ROOT:-$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)}}"
+# shellcheck source=.mise/lib/common.sh
+source "$framework_root/.mise/lib/common.sh"
+# shellcheck source=.mise/lib/lume.sh
+source "$framework_root/.mise/lib/lume.sh"
+
+require_apple_silicon_macos() {
+  local os arch product_version major
+  os="$(uname -s)"
+  arch="$(uname -m)"
+  if [ "$os" != Darwin ] || { [ "$arch" != arm64 ] && [ "$arch" != aarch64 ]; }; then
+    die "Lume ${MAISON_LUME_VERSION} requires Apple Silicon macOS; detected ${os}/${arch}"
+  fi
+  require_command sw_vers
+  product_version="$(sw_vers -productVersion 2> /dev/null || true)"
+  major="${product_version%%.*}"
+  case "$major" in
+    '' | *[!0-9]*) die "could not determine the macOS version from sw_vers" ;;
+  esac
+  [ "$major" -ge 13 ] || die "Lume ${MAISON_LUME_VERSION} requires macOS 13 or newer (found $product_version)"
+}
+
+verify_lume_version() {
+  local binary="$1" output
+  [ -x "$binary" ] || return 1
+  output="$($binary --version 2>&1 || true)"
+  printf '%s\n' "$output" | grep -Eq "(^|[^0-9])${MAISON_LUME_VERSION}([^0-9]|$)"
+}
+
+checksum_for() {
+  local archive="$1"
+  if command -v shasum > /dev/null 2>&1; then
+    shasum -a 256 "$archive" | awk '{ print $1 }'
+  else
+    sha256sum "$archive" | awk '{ print $1 }'
+  fi
+}
+
+acquire_lock() {
+  local lock_dir="$1" parent wait_seconds=0
+  parent="$(dirname "$lock_dir")"
+  mkdir -p "$parent"
+  chmod 700 "$parent"
+  while ! mkdir "$lock_dir" 2> /dev/null; do
+    if [ -r "$lock_dir/pid" ]; then
+      IFS= read -r lock_pid < "$lock_dir/pid" || lock_pid=""
+      case "$lock_pid" in
+        '' | *[!0-9]*) ;;
+        *)
+          if ! kill -0 "$lock_pid" 2> /dev/null; then
+            rm -rf "$lock_dir"
+            continue
+          fi
+          ;;
+      esac
+    fi
+    if [ "$wait_seconds" -ge 300 ]; then
+      die "timed out waiting for the Lume installation lock: $lock_dir"
+    fi
+    sleep 1
+    wait_seconds=$((wait_seconds + 1))
+  done
+  chmod 700 "$lock_dir"
+  printf '%s\n' "$$" > "$lock_dir/pid"
+}
+
+lock_dir="$(maison_lume_lock_dir)"
+install_dir="$(maison_lume_data_root)"
+lume_binary="$install_dir/lume"
+temporary_root=""
+temporary_binary=""
+lock_owned=false
+
+cleanup() {
+  local status=$?
+  if [ -n "$temporary_binary" ]; then
+    rm -f "$temporary_binary"
+  fi
+  if [ -n "$temporary_root" ]; then
+    rm -rf "$temporary_root"
+  fi
+  if [ "$lock_owned" = true ]; then
+    rm -rf "$lock_dir"
+  fi
+  return "$status"
+}
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+trap 'exit 129' HUP
+
+require_apple_silicon_macos
+require_command curl
+require_command tar
+if ! command -v shasum > /dev/null 2>&1 && ! command -v sha256sum > /dev/null 2>&1; then
+  die "required command not found: shasum or sha256sum"
+fi
+
+acquire_lock "$lock_dir"
+lock_owned=true
+
+if [ -e "$lume_binary" ] || [ -L "$lume_binary" ]; then
+  if [ -L "$lume_binary" ] || ! verify_lume_version "$lume_binary"; then
+    die "incompatible existing Lume installation at $lume_binary; remove it manually or restore Lume ${MAISON_LUME_VERSION}"
+  fi
+  printf 'Lume %s is already installed at %s\n' "$MAISON_LUME_VERSION" "$lume_binary"
+  exit 0
+fi
+
+require_command mktemp
+temporary_root="$(mktemp -d "${TMPDIR:-/tmp}/maison-lume.XXXXXX")"
+chmod 700 "$temporary_root"
+archive_path="$temporary_root/$MAISON_LUME_ARCHIVE"
+extract_dir="$temporary_root/extract"
+mkdir -m 700 "$extract_dir"
+
+printf 'Downloading pinned Lume %s from %s\n' "$MAISON_LUME_VERSION" "$MAISON_LUME_URL"
+curl --fail --silent --show-error --location --proto '=https' --tlsv1.2 \
+  --output "$archive_path" "$MAISON_LUME_URL"
+actual_sha256="$(checksum_for "$archive_path")"
+[ "$actual_sha256" = "$MAISON_LUME_SHA256" ] || {
+  die "Lume archive checksum mismatch: expected $MAISON_LUME_SHA256, got $actual_sha256"
+}
+
+entries="$(tar -tzf "$archive_path")" || die "could not inspect the Lume archive"
+while IFS= read -r entry; do
+  [ -n "$entry" ] || continue
+  case "$entry" in
+    lume | lume.app | lume.app/*) ;;
+    *) die "unexpected path in the Lume archive: $entry" ;;
+  esac
+  case "$entry" in
+    /* | *..*) die "unsafe path in the Lume archive: $entry" ;;
+  esac
+done <<< "$entries"
+tar -xzf "$archive_path" -C "$extract_dir"
+staged_binary="$extract_dir/lume"
+[ -f "$staged_binary" ] && [ ! -L "$staged_binary" ] || die "Lume archive did not contain a regular top-level executable"
+chmod 700 "$staged_binary"
+verify_lume_version "$staged_binary" || die "downloaded Lume does not report version ${MAISON_LUME_VERSION}"
+
+mkdir -p "$install_dir"
+chmod 700 "$(dirname "$install_dir")" "$install_dir"
+temporary_binary="$install_dir/.lume.$$"
+rm -f "$temporary_binary"
+cp "$staged_binary" "$temporary_binary"
+chmod 700 "$temporary_binary"
+mv -f "$temporary_binary" "$lume_binary"
+temporary_binary=""
+printf 'Installed Lume %s at %s\n' "$MAISON_LUME_VERSION" "$lume_binary"
