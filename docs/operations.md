@@ -176,6 +176,32 @@ success, failure, or interruption. The unqualified integration command `test:boo
 `maison bootstrap` task is unchanged. The upstream `system-manager` read-only `/nix/store` failure is reported as
 validation evidence when reproduced and is not hidden or treated as a consumer configuration failure.
 
+## macOS consumer integration
+
+Run the macOS lane only on an Apple Silicon macOS 13-or-newer host with GitHub authentication, `jq`, SSH tooling,
+and sufficient VM resources:
+
+```bash
+mise -C "$MAISON_HOME" run test:bootstrap:mac -- --consumer "$MAISON_CONSUMER_ROOT"
+```
+
+The task depends on the verified Lume 0.5.1 installer, pulls the exact Trycua base `macos-tahoe-cua:26.5.2` only
+when its host-local stopped base is absent, and verifies macOS 26.5.2/build `25F84`, Command Line Tools, SSH, and
+`csrutil status: disabled` before cloning a uniquely named worker. The required lane therefore covers the published
+base's SIP-disabled contract; `test:bootstrap:mac-sip` is reserved for deferred work and is not shipped.
+
+Each run stages only committed consumer content outside the checkout, adds a disposable `aarch64-darwin` host and
+test user, fetches and verifies the locked Maison `bootstrap.sh` blob, and transfers only a generated public SSH key,
+the validated script, and an owner-only token file. The worker runs headlessly through Lume, then raw SSH/SCP uses
+`IdentitiesOnly=yes`; the host's SSH directory, production inventory, private keys, and private endpoints are never
+used. Verification covers the locked Maison revision, Darwin/system and user convergence, mise/fnox/Maison state,
+UTF-8 locale, and worker hostname.
+
+On success, failure, or interruption, the task removes the worker, remote stage/token/script, local stage, token, key,
+and downloaded script. Lume command and remote output is kept in owner-only temporary files; the optional
+`MAISON_MAC_LOG` receives only sanitized result summaries. If the lane fails, inspect the pinned base/worker and
+resource capacity, then rerun after removing any manually retained worker; the named base is never deleted by cleanup.
+
 ## Validation
 
 ```bash

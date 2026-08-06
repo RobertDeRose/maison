@@ -1,0 +1,399 @@
+#!/usr/bin/env bash
+# [MISE] quiet=true
+# [MISE] description="Run macOS bootstrap validation in a disposable Lume VM"
+# [MISE] depends=["test:lume:install"]
+#MISE hide=true
+#USAGE arg "[hostname]" help="Temporary inventory host" default="ci-macos"
+#USAGE flag "--consumer <path>" help="External consumer repository"
+set -euo pipefail
+
+framework_root="${MAISON_HOME:-${MISE_PROJECT_ROOT:-$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)}}"
+# shellcheck source=.mise/lib/common.sh
+source "$framework_root/.mise/lib/common.sh"
+# shellcheck source=.mise/lib/consumer.sh
+source "$framework_root/.mise/lib/consumer.sh"
+# shellcheck source=.mise/lib/consumer-integration.sh
+source "$framework_root/.mise/lib/consumer-integration.sh"
+# shellcheck source=.mise/lib/lume.sh
+source "$framework_root/.mise/lib/lume.sh"
+
+if [ -n "${usage_consumer:-}" ]; then
+  export MAISON_CONSUMER_ROOT="$usage_consumer"
+fi
+root="$(maison_consumer_root "${BASH_SOURCE[0]}")"
+require_command curl
+require_command git
+require_command jq
+require_command mise
+require_command python3
+require_command scp
+require_command ssh
+require_command ssh-keygen
+require_command tar
+
+maison_ref="$(consumer_integration_maison_ref "$root")"
+github_token="$(consumer_integration_require_github_token)"
+lume_binary="$(maison_lume_bin)"
+[ -x "$lume_binary" ] || die "verified Lume ${MAISON_LUME_VERSION} is unavailable at $lume_binary"
+"$lume_binary" --version 2>&1 | grep -Eq "(^|[^0-9])${MAISON_LUME_VERSION}([^0-9]|$)" ||
+  die "Lume ${MAISON_LUME_VERSION} is required at $lume_binary"
+
+image="macos-tahoe-cua:26.5.2"
+base_name="maison-test-macos-tahoe-26.5.2-base"
+hostname="${usage_hostname:-ci-macos}"
+worker_name="maison-test-macos-$$-${RANDOM:-0}"
+run_id="$$-${RANDOM:-0}"
+stage_dir="$(mktemp -d "${TMPDIR:-/tmp}/maison-macos.XXXXXX")"
+ssh_home="$(mktemp -d "${TMPDIR:-/tmp}/maison-macos-ssh.XXXXXX")"
+chmod 700 "$stage_dir" "$ssh_home"
+consumer_stage="$stage_dir/consumer"
+bootstrap_file="$stage_dir/bootstrap.sh"
+token_file="$stage_dir/.github-token"
+ssh_key="$ssh_home/maison-test-ed25519"
+pubkey_file="$ssh_key.pub"
+base_info="$stage_dir/base.json"
+worker_info="$stage_dir/worker.json"
+command_log="$stage_dir/lume.log"
+remote_log="$stage_dir/remote.log"
+log_file="${MAISON_MAC_LOG:-$stage_dir/result.log}"
+remote_root="/tmp/maison-mac-integration-$run_id"
+state_home="${XDG_STATE_HOME:-${HOME:-}}"
+[ -n "$state_home" ] || die "HOME or XDG_STATE_HOME is required for the macOS base provenance"
+base_provenance="$state_home/maison/lume/$base_name.provenance"
+base_provenance_temp="$state_home/maison/lume/.$base_name.provenance.$$"
+worker_created=false
+worker_running=false
+base_running=false
+base_created=false
+base_verified=false
+
+: > "$log_file"
+chmod 600 "$log_file"
+record() {
+  printf '%s\n' "$*" | tee -a "$log_file"
+}
+
+cleanup() {
+  local status=$?
+  trap - EXIT HUP INT TERM
+  if [ "$worker_running" = true ]; then
+    "$lume_binary" stop "$worker_name" >>"$command_log" 2>&1 || true
+  fi
+  if [ "$worker_created" = true ]; then
+    "$lume_binary" delete "$worker_name" --force >>"$command_log" 2>&1 || true
+  fi
+  if [ "$base_running" = true ]; then
+    "$lume_binary" stop "$base_name" >>"$command_log" 2>&1 || true
+  fi
+  if [ "$base_created" = true ] && [ "$base_verified" = false ]; then
+    "$lume_binary" delete "$base_name" --force >>"$command_log" 2>&1 || true
+    rm -f "$base_provenance"
+  fi
+  rm -f "$base_provenance_temp"
+  github_token=""
+  rm -rf "$stage_dir" "$ssh_home"
+  if [ -n "${MAISON_MAC_LOG:-}" ] && [ -f "$log_file" ]; then
+    chmod 600 "$log_file"
+  fi
+  exit "$status"
+}
+trap cleanup EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+consumer_integration_stage "$root" "$consumer_stage" "$hostname" '["base", "linux"]'
+cat >"$consumer_stage/inventory.toml" <<EOF
+schema = 1
+
+[users.tester]
+username = "tester"
+full_name = "macOS Integration Test User"
+email = "tester@localhost"
+github = "RobertDeRose"
+
+[hosts.$hostname]
+system = "aarch64-darwin"
+user = "tester"
+profiles = ["base", "mac"]
+EOF
+GIT_AUTHOR_DATE=2000-01-01T00:00:00Z \
+  GIT_COMMITTER_DATE=2000-01-01T00:00:00Z \
+  git -C "$consumer_stage" add inventory.toml
+GIT_AUTHOR_DATE=2000-01-01T00:00:00Z \
+  GIT_COMMITTER_DATE=2000-01-01T00:00:00Z \
+  git -C "$consumer_stage" commit --amend --no-edit -qm 'test: stage macOS consumer fixture'
+
+consumer_integration_fetch_bootstrap "$maison_ref" "$github_token" "$bootstrap_file"
+umask 077
+printf '%s\n' "$github_token" >"$token_file"
+chmod 600 "$token_file"
+github_token=""
+
+ssh-keygen -q -t ed25519 -N '' -f "$ssh_key" -C maison-macos-integration
+ssh_options=(
+  -i "$ssh_key"
+  -o IdentitiesOnly=yes
+  -o StrictHostKeyChecking=no
+  -o UserKnownHostsFile=/dev/null
+  -o LogLevel=ERROR
+  -o ConnectTimeout=5
+)
+scp_options=(
+  -i "$ssh_key"
+  -o IdentitiesOnly=yes
+  -o StrictHostKeyChecking=no
+  -o UserKnownHostsFile=/dev/null
+  -o LogLevel=ERROR
+)
+ssh_target() {
+  # shellcheck disable=SC2029 # validated SSH options intentionally expand locally
+  ssh "${ssh_options[@]}" "$@"
+}
+scp_target() {
+  scp "${scp_options[@]}" "$@"
+}
+
+lume_command() {
+  "$lume_binary" "$@" >>"$command_log" 2>&1
+}
+lume_get_json() {
+  local destination="$1"
+  shift
+  "$lume_binary" "$@" >"$destination" 2>>"$command_log"
+}
+verify_base_provenance() {
+  [ -f "$base_provenance" ] ||
+    die "existing base $base_name lacks pinned provenance; remove it manually before retrying"
+  grep -Fxq "image=$image" "$base_provenance" ||
+    die "existing base $base_name is not recorded as $image"
+  grep -Fxq "lume_version=$MAISON_LUME_VERSION" "$base_provenance" ||
+    die "existing base $base_name lacks Lume $MAISON_LUME_VERSION provenance"
+}
+write_base_provenance() {
+  local parent temporary
+  parent="$(dirname "$base_provenance")"
+  mkdir -p "$parent"
+  chmod 700 "$state_home/maison" "$parent"
+  temporary="$base_provenance_temp"
+  umask 077
+  printf 'base=%s\\nimage=%s\\nlume_version=%s\\n' "$base_name" "$image" "$MAISON_LUME_VERSION" >"$temporary"
+  chmod 600 "$temporary"
+  mv -f "$temporary" "$base_provenance"
+}
+
+if ! lume_get_json "$base_info" get "$base_name" --format json; then
+  record "==> Pulling pinned Trycua image $image into stopped base $base_name"
+  lume_command pull "$image" "$base_name" --organization trycua || die "could not pull the pinned macOS base image"
+  base_created=true
+  lume_get_json "$base_info" get "$base_name" --format json || die "pulled macOS base cannot be inspected"
+else
+  verify_base_provenance
+  record "==> Reusing the pinned stopped base $base_name"
+fi
+jq -e 'type == "object" or type == "array"' "$base_info" >/dev/null || die "Lume returned invalid base metadata"
+lume_command stop "$base_name" || true
+record "==> Verifying the published macOS base before cloning"
+lume_command run "$base_name" --detach --display none --log-file "$stage_dir/base-runtime.log" ||
+  die "could not boot the pinned macOS base for preflight"
+base_running=true
+# shellcheck disable=SC2016 # the command is evaluated inside the guest
+if ! lume_command ssh "$base_name" --user lume --password lume --timeout 180 \
+  'set -e; test "$(sw_vers -productVersion)" = "26.5.2"; test "$(sw_vers -buildVersion)" = "25F84"; test -d /Library/Developer/CommandLineTools; test -r /etc/ssh/sshd_config; defaults read /Library/Preferences/com.apple.loginwindow autoLoginUser | grep -Fq lume; csrutil status | grep -Eiq "disabled"; test "$(id -un)" = "lume"' \
+  >"$remote_log"; then
+  die "published macOS base failed identity, Command Line Tools, SSH, or SIP preflight"
+fi
+lume_command stop "$base_name" || die "could not stop the pinned macOS base after preflight"
+base_running=false
+write_base_provenance
+base_verified=true
+
+record "==> Cloning disposable macOS worker $worker_name"
+lume_command clone "$base_name" "$worker_name" || die "could not clone the pinned macOS base"
+worker_created=true
+lume_command run "$worker_name" --detach --display none --log-file "$stage_dir/worker-runtime.log" ||
+  die "could not boot disposable macOS worker"
+worker_running=true
+lume_get_json "$worker_info" get "$worker_name" --format json || die "could not inspect disposable macOS worker"
+jq -e 'type == "object" or type == "array"' "$worker_info" >/dev/null || die "Lume returned invalid worker metadata"
+worker_ip="$(python3 - "$worker_info" <<'PY'
+import ipaddress
+import json
+import sys
+
+with open(sys.argv[1], encoding="utf-8") as handle:
+    value = json.load(handle)
+
+
+def values(item):
+    if isinstance(item, dict):
+        for child in item.values():
+            yield from values(child)
+    elif isinstance(item, list):
+        for child in item:
+            yield from values(child)
+    elif isinstance(item, str):
+        yield item
+
+for candidate in values(value):
+    try:
+        address = ipaddress.ip_address(candidate)
+    except ValueError:
+        continue
+    if address.version == 4 and not (address.is_loopback or address.is_unspecified or address.is_multicast):
+        print(address)
+        break
+else:
+    raise SystemExit("Lume metadata did not contain a usable worker IPv4 address")
+PY
+)"
+python3 - "$worker_ip" <<'PY'
+import ipaddress
+import sys
+
+address = ipaddress.ip_address(sys.argv[1])
+if address.version != 4 or address.is_loopback or address.is_unspecified or address.is_multicast:
+    raise SystemExit(f"invalid disposable worker address: {address}")
+PY
+
+record "==> Installing only the generated public SSH key through the disposable Lume account"
+pubkey="$(cat "$pubkey_file")"
+printf -v quoted_pubkey '%q' "$pubkey"
+lume_command ssh "$worker_name" --user lume --password lume --timeout 180 \
+  "umask 077; mkdir -p ~/.ssh; touch ~/.ssh/authorized_keys; printf '%s\\n' $quoted_pubkey >> ~/.ssh/authorized_keys; chmod 700 ~/.ssh; chmod 600 ~/.ssh/authorized_keys" \
+  || die "could not install the disposable public SSH key"
+
+wait_for_ssh() {
+  local target="$1" attempt
+  for attempt in $(seq 1 120); do
+    if ssh_target -T "$target" true >>"$remote_log" 2>&1; then
+      return 0
+    fi
+    sleep 1
+  done
+  record "error: disposable macOS worker SSH did not become ready after $attempt attempts"
+  return 1
+}
+wait_for_ssh "lume@$worker_ip" || die "disposable macOS worker SSH is unavailable"
+
+ssh_target "lume@$worker_ip" /bin/bash -s -- "$remote_root" <<'REMOTE_PREPARE' >>"$remote_log" 2>&1
+set -euo pipefail
+remote_root="$1"
+mkdir -p "$remote_root"
+chmod 700 "$remote_root"
+REMOTE_PREPARE
+scp_target -r "$consumer_stage" "lume@$worker_ip:$remote_root/" >>"$remote_log" 2>&1 || die "could not transfer committed consumer stage"
+scp_target "$bootstrap_file" "$token_file" "lume@$worker_ip:$remote_root/" >>"$remote_log" 2>&1 ||
+  die "could not transfer validated bootstrap inputs"
+ssh_target "lume@$worker_ip" /bin/bash -s -- "$remote_root" <<'REMOTE_PERMISSIONS' >>"$remote_log" 2>&1
+set -euo pipefail
+remote_root="$1"
+chmod 700 "$remote_root"
+chmod 700 "$remote_root/consumer"
+chmod 700 "$remote_root/bootstrap.sh" "$remote_root/.github-token"
+REMOTE_PERMISSIONS
+
+record "==> Running the pinned Maison bootstrap inside disposable worker $worker_name"
+if ! ssh_target "lume@$worker_ip" /bin/bash -s -- "$remote_root" "$hostname" "$maison_ref" <<'REMOTE_BOOTSTRAP' >"$remote_log" 2>&1
+set -euo pipefail
+remote_root="$1"
+hostname="$2"
+maison_ref="$3"
+trap 'rm -f "$remote_root/.github-token" "$remote_root/bootstrap.sh"' EXIT
+github_token="$(cat "$remote_root/.github-token")"
+export GITHUB_TOKEN="$github_token"
+unset github_token
+unset LC_ALL
+export LANG=C.UTF-8
+export LC_CTYPE=C.UTF-8
+export HOME_MANAGER_USER=tester
+export NIX_BUILD_CORES=1
+export CARGO_BUILD_JOBS=1
+export NIX_INSTALLER_NO_SANDBOX=true
+export MISE_TASK_RUN_AUTO_INSTALL=false
+MAISON_FNOX_PREFLIGHT_DONE=true bash "$remote_root/bootstrap.sh" \
+  --host "$hostname" \
+  --consumer "$remote_root/consumer" \
+  --repo RobertDeRose/maison \
+  --ref "$maison_ref"
+unset MAISON_FNOX_PREFLIGHT_DONE
+bash "$remote_root/bootstrap.sh" \
+  --host "$hostname" \
+  --consumer "$remote_root/consumer" \
+  --repo RobertDeRose/maison \
+  --ref "$maison_ref"
+unset GITHUB_TOKEN
+REMOTE_BOOTSTRAP
+then
+  die "pinned Maison bootstrap failed inside disposable macOS worker"
+fi
+
+# The bootstrap's system phase creates the staged test user. Run the user layer
+# once as that user so the verification covers the configured consumer identity,
+# not only the disposable Lume administrator used for first access.
+record "==> Converging the staged test user's mise/fnox state"
+if ! ssh_target "lume@$worker_ip" /bin/bash -s -- "$remote_root" >"$remote_log" 2>&1 <<'REMOTE_USER'
+set -euo pipefail
+remote_root="$1"
+maison_root=/Users/lume/.maison
+mise_bin=/Users/lume/.local/bin/mise
+sudo -n chown -R tester:staff "$remote_root/consumer"
+sudo -n chmod 755 "$remote_root" "$remote_root/consumer"
+sudo -n -u tester env HOME=/Users/tester PATH=/Users/lume/.local/bin:/Users/tester/.local/bin:/usr/bin:/bin \
+  MISE_GLOBAL_CONFIG_FILE="$remote_root/consumer/config/mise/config.toml" \
+  "$mise_bin" -C "$remote_root/consumer" install fnox
+fnox_bin="$(sudo -n -u tester env HOME=/Users/tester PATH=/Users/lume/.local/bin:/Users/tester/.local/bin:/usr/bin:/bin \
+  MISE_GLOBAL_CONFIG_FILE="$remote_root/consumer/config/mise/config.toml" \
+  "$mise_bin" -C "$remote_root/consumer" which fnox)"
+sudo -n -u tester mkdir -p /Users/tester/.local/bin
+sudo -n -u tester ln -sfn "$fnox_bin" /Users/tester/.local/bin/fnox
+sudo -n -u tester env HOME=/Users/tester PATH=/Users/lume/.local/bin:/Users/tester/.local/bin:/usr/bin:/bin \
+  MAISON_HOME="$maison_root" \
+  MAISON_CONSUMER_ROOT="$remote_root/consumer" \
+  MISE_TRUSTED_CONFIG_PATHS="$maison_root" \
+  MAISON_FNOX_PREFLIGHT_DONE=true \
+  MISE_TASK_RUN_AUTO_INSTALL=false \
+  "$mise_bin" -C "$maison_root" run user:apply
+REMOTE_USER
+then
+  die "staged macOS test-user convergence failed"
+fi
+
+record "==> Verifying macOS identity and bootstrap convergence"
+if ! ssh_target "lume@$worker_ip" /bin/bash -s -- "$hostname" "$maison_ref" "$remote_root" <<'REMOTE_VERIFY' >"$remote_log" 2>&1
+set -euo pipefail
+expected_hostname="$1"
+expected_revision="$2"
+remote_root="$3"
+export LANG=C.UTF-8
+export LC_CTYPE=C.UTF-8
+test "$(sw_vers -productVersion)" = "26.5.2"
+test "$(sw_vers -buildVersion)" = "25F84"
+test -d /Library/Developer/CommandLineTools
+test -r /etc/ssh/sshd_config
+csrutil status | grep -Eiq "disabled"
+test "$(hostname -s)" = "$expected_hostname"
+test -d /Users/tester
+test -f /Users/lume/.maison/flake.nix
+test "$(git -C /Users/lume/.maison rev-parse HEAD)" = "$expected_revision"
+test -x /Users/lume/.local/bin/mise
+test -x /Users/lume/.local/bin/fnox
+test -x /Users/lume/.local/bin/maison
+test -x /Users/tester/.local/bin/fnox
+test -f /Users/tester/.config/mise/config.toml || test -L /Users/tester/.config/mise/config.toml
+test "$(locale charmap)" = "UTF-8"
+test "$LANG" = "C.UTF-8"
+test "$LC_CTYPE" = "C.UTF-8"
+test ! -e "$HOME/.ssh/maison-test-ed25519"
+test ! -e "$remote_root/.github-token"
+test ! -e "$remote_root/bootstrap.sh"
+REMOTE_VERIFY
+then
+  die "macOS bootstrap convergence or disposable worker identity verification failed"
+fi
+ssh_target "lume@$worker_ip" /bin/bash -s -- "$remote_root" >>"$remote_log" 2>&1 <<'REMOTE_CLEANUP'
+set -euo pipefail
+rm -rf "$1"
+REMOTE_CLEANUP
+
+record "macOS bootstrap completed: Tahoe 26.5.2/build 25F84, Command Line Tools, SSH, SIP-disabled base, Darwin/system convergence, user convergence, locked Maison revision, UTF-8 locale, and worker identity verified."
