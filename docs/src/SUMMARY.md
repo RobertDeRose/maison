@@ -43,6 +43,7 @@
   - [MAISON-017: Maison/Terroir repository split](./features/maison-017-maison-terroir-repository-split/design.md)
   - [Copier fresh consumer bootstrap](./features/maison-overlay-copier-bootstrap/design.md)
   - [Retired alternate repository command surface](./features/maison-overlay-authoring-lifecycle/design.md)
+  - [MAISON-018: Cross-platform consumer bootstrap integration](./features/maison-018-cross-platform-bootstrap-integration/design.md)
   <!-- END FEATURE DESIGNS -->
 - [Implemented Features](./features/index.md)
   <!-- BEGIN IMPLEMENTED FEATURES -->
