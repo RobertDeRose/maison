@@ -1,0 +1,241 @@
+#!/usr/bin/env bash
+# [MISE] description="Run Apple Container remote deployment validation"
+#MISE hide=true
+# [MISE] quiet=true
+#USAGE flag "--consumer <path>" help="External consumer repository"
+set -euo pipefail
+
+framework_root="${MAISON_HOME:-${MISE_PROJECT_ROOT:-$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)}}"
+# shellcheck source=.mise/lib/common.sh
+source "$framework_root/.mise/lib/common.sh"
+# shellcheck source=.mise/lib/consumer.sh
+source "$framework_root/.mise/lib/consumer.sh"
+# shellcheck source=.mise/lib/consumer-integration.sh
+source "$framework_root/.mise/lib/consumer-integration.sh"
+# shellcheck source=.mise/lib/apple-container.sh
+source "$framework_root/.mise/lib/apple-container.sh"
+
+if [ -n "${usage_consumer:-}" ]; then
+  export MAISON_CONSUMER_ROOT="$usage_consumer"
+fi
+root="$(maison_consumer_root "${BASH_SOURCE[0]}")"
+require_consumer_repository "$root"
+consumer_integration_require_commands
+maison_ref="$(consumer_integration_maison_ref "$root")"
+maison_root="$(consumer_integration_maison_root "$root")"
+github_token="$(consumer_integration_require_github_token)"
+remote_fnox_spec=""
+if [ -f "$root/fnox.toml" ]; then
+  consumer_integration_install_local_fnox "$root"
+  remote_fnox_spec="$(consumer_integration_fnox_spec "$root")"
+fi
+
+name="maison-test-deploy-$$"
+image="${MAISON_TEST_IMAGE:-local/maison-test-linux:24.04}"
+host="ci-deploy"
+stage_dir="$(mktemp -d "${TMPDIR:-/tmp}/maison-deploy.XXXXXX")"
+ssh_home="$(mktemp -d "${TMPDIR:-/tmp}/maison-ssh.XXXXXX")"
+chmod 700 "$stage_dir" "$ssh_home"
+consumer_stage="$stage_dir/consumer"
+ssh_key="$ssh_home/maison-test-ed25519"
+pubkey_file="$ssh_key.pub"
+mise_artifact="$stage_dir/mise"
+lix_artifact="$stage_dir/lix-installer"
+homebrew_installer="$stage_dir/homebrew-install.sh"
+
+install_apple_container_test_signal_handlers "$name"
+cleanup() {
+  local status=$?
+  trap - EXIT HUP INT TERM
+  rm -rf "$stage_dir" "$ssh_home"
+  stop_and_delete_apple_test_container "$name"
+  exit "$status"
+}
+trap cleanup EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+ssh-keygen -q -t ed25519 -N '' -f "$ssh_key" -C maison-linux-integration
+ssh_options=(
+  -i "$ssh_key"
+  -o IdentitiesOnly=yes
+  -o StrictHostKeyChecking=no
+  -o UserKnownHostsFile=/dev/null
+  -o LogLevel=ERROR
+)
+
+consumer_integration_stage "$root" "$consumer_stage" "$host" '["base", "linux"]'
+consumer_integration_fetch_framework_artifact "$maison_root" mise aarch64-linux "$mise_artifact"
+consumer_integration_fetch_framework_artifact "$maison_root" lix aarch64-linux "$lix_artifact"
+consumer_integration_fetch_verified_url \
+  "https://raw.githubusercontent.com/Homebrew/install/24173182915f24bdd52a22fd073e421953b2a252/install.sh" \
+  "sha256:12479a24be3f5307eecac7cde670fad7118640f031229e964f544b1367b52a41" \
+  "$homebrew_installer"
+
+run_apple_container_test_command env -u MAISON_HOME MISE_PROJECT_ROOT="$framework_root" \
+  MAISON_TEST_IMAGE="$image" mise -C "$framework_root" run test:image
+container delete --force "$name" >/dev/null 2>&1 || true
+container run -d \
+  --name "$name" \
+  --memory 4G \
+  --cap-add ALL \
+  --tmpfs /run \
+  --tmpfs /tmp \
+  --dns 1.1.1.1 \
+  --dns 8.8.8.8 \
+  "$image" \
+  /lib/systemd/systemd --system >/dev/null
+wait_for_apple_container "$name"
+ip="$(apple_container_ipv4 "$name")"
+consumer_integration_stage "$root" "$consumer_stage" "$host" '["base", "linux"]' "$ip"
+stage_revision="$(git -C "$consumer_stage" rev-parse --verify HEAD)"
+
+container exec "$name" mkdir -p /workspace/host-ssh /workspace/artifacts
+container cp "$pubkey_file" "$name:/workspace/host-ssh/authorized_key"
+container cp "$mise_artifact" "$name:/workspace/artifacts/mise"
+container cp "$lix_artifact" "$name:/workspace/artifacts/lix-installer"
+container cp "$homebrew_installer" "$name:/workspace/artifacts/homebrew-install.sh"
+container exec "$name" sh -lc \
+  'mkdir -p /root/.ssh /home/tester/.ssh && \
+   cp /workspace/host-ssh/authorized_key /root/.ssh/authorized_keys && \
+   cp /workspace/host-ssh/authorized_key /home/tester/.ssh/authorized_keys && \
+   chown -R tester:tester /home/tester/.ssh && \
+   chmod 700 /root/.ssh /home/tester/.ssh && \
+   chmod 600 /root/.ssh/authorized_keys /home/tester/.ssh/authorized_keys && \
+   chmod 755 /workspace/artifacts/mise /workspace/artifacts/homebrew-install.sh /workspace/artifacts/lix-installer'
+
+ssh_target() {
+  # shellcheck disable=SC2029 # validated SSH options intentionally expand locally
+  ssh "${ssh_options[@]}" "$@"
+}
+
+wait_for_ssh() {
+  local target="$1" attempt
+  for attempt in $(seq 1 120); do
+    if ssh_target -T -o ConnectTimeout=2 "$target" true >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep 1
+  done
+  printf 'error: SSH target %s did not become ready after %s attempts\n' "$target" "$attempt" >&2
+  return 1
+}
+
+wait_for_ssh "root@$ip"
+wait_for_ssh "tester@$ip"
+
+printf '==> Installing verified Linux deployment prerequisites\n'
+ssh_target "tester@$ip" /bin/bash -s <<'REMOTE_TESTER'
+set -euo pipefail
+mkdir -p "$HOME/.local/bin"
+install -m 0755 /workspace/artifacts/mise "$HOME/.local/bin/mise"
+sudo rm -f /workspace/artifacts/mise
+export PATH="$HOME/.local/bin:$PATH"
+NONINTERACTIVE=1 HOMEBREW_NO_INSTALL_CLEANUP=1 \
+  /bin/bash /workspace/artifacts/homebrew-install.sh
+sudo rm -f /workspace/artifacts/homebrew-install.sh
+REMOTE_TESTER
+
+ssh_target "root@$ip" /bin/bash -s <<'REMOTE_ROOT'
+set -euo pipefail
+export NIX_INSTALLER_NO_CONFIRM=true
+export NIX_INSTALLER_ENABLE_FLAKES=true
+export NIX_INSTALLER_NO_SANDBOX=true
+/workspace/artifacts/lix-installer install
+rm -f /workspace/artifacts/lix-installer
+mkdir -p /etc/nix /usr/local/bin
+apt-get update -qq
+apt-get install -y -qq jq python3
+printf 'extra-trusted-users = root tester\n' > /etc/nix/nix.custom.conf
+ln -sfn /nix/var/nix/profiles/default/bin/nix-store /usr/local/bin/nix-store
+ln -sfn /nix/var/nix/profiles/default/bin/nix /usr/local/bin/nix
+ln -sfn /home/linuxbrew/.linuxbrew/bin/brew /usr/local/bin/brew
+systemctl restart nix-daemon.socket 2>/dev/null || true
+systemctl restart nix-daemon.service 2>/dev/null || true
+REMOTE_ROOT
+
+if [ -n "$remote_fnox_spec" ]; then
+  remote_fnox_argument="$(printf '%q' "$remote_fnox_spec")"
+  ssh_target "tester@$ip" /bin/bash -s -- "$remote_fnox_argument" <<'REMOTE_FNOX'
+set -euo pipefail
+spec="$1"
+temp_dir="$(mktemp -d /tmp/maison-fnox.XXXXXX)"
+cleanup() {
+  local status=$?
+  trap - EXIT
+  rm -rf "$temp_dir"
+  exit "$status"
+}
+trap cleanup EXIT
+printf '[tools]\nfnox = %s\n' "$(python3 -c 'import json,sys; print(json.dumps(sys.argv[1]))' "$spec")" > "$temp_dir/mise.toml"
+MISE_GLOBAL_CONFIG_FILE="$temp_dir/mise.toml" "$HOME/.local/bin/mise" -C "$temp_dir" install fnox
+fnox_bin="$(MISE_GLOBAL_CONFIG_FILE="$temp_dir/mise.toml" "$HOME/.local/bin/mise" -C "$temp_dir" which fnox)"
+test -x "$fnox_bin"
+ln -sfn "$fnox_bin" "$HOME/.local/bin/fnox"
+REMOTE_FNOX
+fi
+
+cat >"$ssh_home/.ssh_config" <<EOF
+Host *
+  IdentityFile $ssh_key
+  IdentitiesOnly yes
+  StrictHostKeyChecking no
+  UserKnownHostsFile /dev/null
+  LogLevel ERROR
+EOF
+chmod 600 "$ssh_home/.ssh_config"
+mkdir -p "$ssh_home/.ssh"
+cp "$ssh_home/.ssh_config" "$ssh_home/.ssh/config"
+chmod 700 "$ssh_home/.ssh" "$ssh_home"
+ssh_wrapper_dir="$ssh_home/bin"
+mkdir -m 700 "$ssh_wrapper_dir"
+ssh_binary="$(command -v ssh)"
+printf '#!/bin/sh\nexec %q -F %q "$@"\n' "$ssh_binary" "$ssh_home/.ssh/config" >"$ssh_wrapper_dir/ssh"
+chmod 700 "$ssh_wrapper_dir/ssh"
+
+mise_bin="$(command -v mise)"
+fnox_bin="$(command -v fnox)"
+python_bin="$(MISE_TRUSTED_CONFIG_PATHS="$maison_root" MISE_TASK_RUN_AUTO_INSTALL=false mise -C "$maison_root" which python)"
+[ -x "$python_bin" ] || die "Maison project Python runtime is unavailable"
+
+run_deploy() {
+  cd "$consumer_stage"
+  HOME="$ssh_home" \
+    PATH="$ssh_wrapper_dir:$(dirname "$mise_bin"):$(dirname "$fnox_bin"):$(dirname "$python_bin"):$PATH" \
+    MISE_TASK_RUN_AUTO_INSTALL=false \
+    NIX_SSHOPTS="-i $ssh_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" \
+    GITHUB_TOKEN="$github_token" \
+    MAISON_HOME="$maison_root" \
+    MAISON_CONSUMER_ROOT="$consumer_stage" \
+    "$maison_root/bin/maison" deploy "$host"
+}
+
+printf '==> Running Maison deployment through locked revision %s\n' "$maison_ref"
+run_apple_container_test_command run_deploy
+
+github_token=""
+ssh_target "tester@$ip" /bin/bash -s -- "$host" "$stage_revision" <<'REMOTE_VERIFY'
+set -euo pipefail
+expected_hostname="$1"
+expected_revision="$2"
+expected_revision_file=/home/tester/.maison/.maison-revision
+test -s "$expected_revision_file"
+revision="$(cat "$expected_revision_file")"
+test "$revision" = "$expected_revision"
+test -f /home/tester/.maison/flake.nix
+test -f /home/tester/.maison/inventory.toml
+test -x "$HOME/.local/bin/mise"
+test -x "$HOME/.local/bin/fnox"
+test -f "$HOME/.config/mise/config.toml" || test -L "$HOME/.config/mise/config.toml"
+systemctl is-active --quiet system-manager.target
+systemctl is-active --quiet maison-runtime-verification.service
+test "$(hostname -s)" = "$expected_hostname"
+test "$(cat /etc/hostname)" = "$expected_hostname"
+test "$(locale charmap)" = "UTF-8"
+test "$LANG" = "C.UTF-8"
+test "$LC_CTYPE" = "C.UTF-8"
+zsh -lc 'test "$LANG" = C.UTF-8 && test "$LC_CTYPE" = C.UTF-8 && [[ -o multibyte ]]'
+REMOTE_VERIFY
+
+printf "\nDeploy test completed against %s using container '%s'.\n" "$ip" "$name"

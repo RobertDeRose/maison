@@ -37,6 +37,21 @@ archive SHA-256 `7f10cfbe66a800f98a5db88129f7dc024600fcdc139e0be124845bc7a3dc135
 safe, does not use the upstream shell installer, and is never invoked by public bootstrap, apply, deploy, or update
 commands. The macOS image and worker lifecycle remain separate disposable test infrastructure.
 
+### Linux integration task contracts
+
+| Task                   | Arguments and contract                                                                |
+|------------------------|---------------------------------------------------------------------------------------|
+| `test:bootstrap:linux` | Optional host name, `--consumer PATH`, and `--dev`; runs disposable Linux convergence |
+| `test:deploy`          | `--consumer PATH`; deploys Linux through the disposable container                     |
+| `test:image`           | No consumer input; builds or reuses the pinned Apple Container image                  |
+
+These tasks require an explicit external consumer root, a clean committed checkout, and direct hidden Mise
+invocation. The bootstrap lane verifies the locked Maison GitHub revision and `bootstrap.sh` blob before running the
+public bootstrap script. The deployment lane generates an ephemeral SSH key pair, transfers only its public half, and
+uses verified mise, Lix, and Homebrew installer files; it never mounts or copies a host private-key directory or pipes
+a network response into a shell. All disposable containers, stages, tokens, scripts, and keys are removed on every
+exit path. The known `system-manager` builder failure remains external validation evidence when reproduced.
+
 ## System commands
 
 | Task                 | Behavior                                                     |

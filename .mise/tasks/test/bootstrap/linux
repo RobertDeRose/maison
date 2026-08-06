@@ -1,0 +1,142 @@
+#!/usr/bin/env bash
+# [MISE] description="Run Linux bootstrap validation in an Apple container"
+#MISE hide=true
+# [MISE] quiet=true
+#USAGE arg "[hostname]" help="Temporary inventory host" default="ci-bootstrap"
+#USAGE flag "--consumer <path>" help="External consumer repository"
+#USAGE flag "--dev" help="Include the Linux developer profile"
+set -euo pipefail
+
+framework_root="${MAISON_HOME:-${MISE_PROJECT_ROOT:-$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)}}"
+# shellcheck source=.mise/lib/common.sh
+source "$framework_root/.mise/lib/common.sh"
+# shellcheck source=.mise/lib/consumer.sh
+source "$framework_root/.mise/lib/consumer.sh"
+# shellcheck source=.mise/lib/consumer-integration.sh
+source "$framework_root/.mise/lib/consumer-integration.sh"
+# shellcheck source=.mise/lib/apple-container.sh
+source "$framework_root/.mise/lib/apple-container.sh"
+
+if [ -n "${usage_consumer:-}" ]; then
+  export MAISON_CONSUMER_ROOT="$usage_consumer"
+fi
+root="$(maison_consumer_root "${BASH_SOURCE[0]}")"
+require_consumer_repository "$root"
+consumer_integration_require_commands
+maison_ref="$(consumer_integration_maison_ref "$root")"
+github_token="$(consumer_integration_require_github_token)"
+
+name="maison-test-bootstrap-$$"
+image="${MAISON_TEST_IMAGE:-local/maison-test-linux:24.04}"
+hostname="${usage_hostname:-ci-bootstrap}"
+profiles='["base", "linux"]'
+if [ "${usage_dev:-false}" = true ]; then
+  profiles='["base", "dev", "linux"]'
+fi
+stage_dir="$(mktemp -d "${TMPDIR:-/tmp}/maison-bootstrap.XXXXXX")"
+chmod 700 "$stage_dir"
+consumer_stage="$stage_dir/consumer"
+bootstrap_file="$stage_dir/bootstrap.sh"
+token_file="$stage_dir/.github-token"
+install_apple_container_test_signal_handlers "$name"
+
+cleanup() {
+  local status=$?
+  trap - EXIT HUP INT TERM
+  rm -f "$bootstrap_file" "$token_file"
+  rm -rf "$stage_dir"
+  stop_and_delete_apple_test_container "$name"
+  exit "$status"
+}
+trap cleanup EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+consumer_integration_stage "$root" "$consumer_stage" "$hostname" "$profiles"
+consumer_integration_fetch_bootstrap "$maison_ref" "$github_token" "$bootstrap_file"
+run_apple_container_test_command env -u MAISON_HOME MISE_PROJECT_ROOT="$framework_root" \
+  MAISON_TEST_IMAGE="$image" mise -C "$framework_root" run test:image
+
+printf "==> Recreating Apple container '%s'\n" "$name"
+container delete --force "$name" >/dev/null 2>&1 || true
+container run -d \
+  --name "$name" \
+  --memory 4G \
+  --cap-add ALL \
+  --tmpfs /run \
+  --tmpfs /tmp \
+  --dns 1.1.1.1 \
+  --dns 8.8.8.8 \
+  "$image" \
+  /lib/systemd/systemd --system >/dev/null
+wait_for_apple_container "$name"
+
+consumer_integration_copy_stage_to_container "$consumer_stage" "$name" /workspace/consumer
+container exec "$name" chown -R tester:tester /workspace/consumer
+container cp "$bootstrap_file" "$name:/workspace/bootstrap.sh"
+container exec "$name" chmod 0755 /workspace/bootstrap.sh
+umask 077
+printf '%s' "$github_token" >"$token_file"
+chmod 600 "$token_file"
+container cp "$token_file" "$name:/workspace/.github-token"
+container exec "$name" chown tester:tester /workspace/bootstrap.sh /workspace/.github-token
+container exec "$name" chmod 600 /workspace/.github-token
+rm -f "$token_file"
+
+github_token=""
+run_bootstrap() {
+  container exec --interactive "$name" sudo -iu tester bash -s -- "$hostname" "$maison_ref" <<'BOOTSTRAP'
+set -euo pipefail
+trap 'sudo rm -f /workspace/.github-token /workspace/bootstrap.sh' EXIT
+github_token="$(cat /workspace/.github-token)"
+export GITHUB_TOKEN="$github_token"
+unset github_token
+unset LC_ALL
+export LANG=C.UTF-8
+export LC_CTYPE=C.UTF-8
+export HOME_MANAGER_USER=tester
+export NIX_BUILD_CORES=1
+export CARGO_BUILD_JOBS=1
+export NIX_INSTALLER_NO_SANDBOX=true
+export MISE_TASK_RUN_AUTO_INSTALL=false
+MAISON_FNOX_PREFLIGHT_DONE=true bash /workspace/bootstrap.sh \
+  --host "$1" \
+  --consumer /workspace/consumer \
+  --repo RobertDeRose/maison \
+  --ref "$2"
+unset MAISON_FNOX_PREFLIGHT_DONE
+bash /workspace/bootstrap.sh \
+  --host "$1" \
+  --consumer /workspace/consumer \
+  --repo RobertDeRose/maison \
+  --ref "$2"
+unset GITHUB_TOKEN
+BOOTSTRAP
+}
+
+printf "==> Running pinned Maison bootstrap in '%s'\n" "$name"
+run_apple_container_test_command run_bootstrap
+
+run_apple_container_test_command container exec --interactive "$name" sudo -iu tester bash -s -- "$hostname" "$maison_ref" <<'VERIFY'
+set -euo pipefail
+expected_hostname="$1"
+expected_revision="$2"
+test -x "$HOME/.local/bin/mise"
+test -x "$HOME/.local/bin/fnox"
+test -x "$HOME/.local/bin/maison"
+test -f "$HOME/.maison/flake.nix"
+test "$(git -C "$HOME/.maison" rev-parse HEAD)" = "$expected_revision"
+test -f "$HOME/.config/mise/config.toml" || test -L "$HOME/.config/mise/config.toml"
+test -f /etc/nix/nix.custom.conf
+systemctl is-active --quiet system-manager.target
+grep -Fq "[hosts.$expected_hostname]" "$HOME/.maison/inventory.toml"
+test "$(locale charmap)" = "UTF-8"
+test "$LANG" = "C.UTF-8"
+test "$LC_CTYPE" = "C.UTF-8"
+zsh -lc 'test "$LANG" = C.UTF-8 && test "$LC_CTYPE" = C.UTF-8 && [[ -o multibyte ]]'
+test ! -e /workspace/.github-token
+test ! -e /workspace/bootstrap.sh
+VERIFY
+
+printf "\nBootstrap test completed in container '%s'.\n" "$name"

@@ -151,6 +151,30 @@ a global PATH change, or a launch agent.
 The Lume prerequisite is host-local test infrastructure. It does not install a VM image, alter the production
 consumer, or authorize running Darwin bootstrap on the current host outside a disposable VM.
 
+## Linux consumer integration
+
+The Linux integration lane runs only through direct hidden Mise tasks against an explicit external consumer checkout:
+
+```bash
+mise -C "$MAISON_HOME" run test:bootstrap:linux -- --consumer "$MAISON_CONSUMER_ROOT"
+mise -C "$MAISON_HOME" run test:bootstrap:linux -- --consumer "$MAISON_CONSUMER_ROOT" --dev
+mise -C "$MAISON_HOME" run test:deploy -- --consumer "$MAISON_CONSUMER_ROOT"
+```
+
+The consumer must be a clean Git checkout. The harness materializes only its committed `HEAD` with `git archive`,
+replaces the staged inventory with only a disposable test user and host outside the source checkout, and creates a
+new temporary Git history for the stage. It excludes source `.git`, `.beads`, ignored local fnox material,
+documentation output, build results, tokens, private keys, and private endpoints. The Maison input must be the public
+`RobertDeRose/maison` GitHub node at a full
+40-character revision; `bootstrap.sh` is downloaded to a file and its GitHub blob identity is checked against
+`git hash-object` before execution.
+
+The lane builds the pinned Maison Apple Container image, creates a disposable systemd container, keeps tokens in
+owner-only temporary files, uses public-key-only SSH for deployment, and deletes the container and host staging on
+success, failure, or interruption. The unqualified integration command `test:bootstrap` is not retained; the normal
+`maison bootstrap` task is unchanged. The upstream `system-manager` read-only `/nix/store` failure is reported as
+validation evidence when reproduced and is not hidden or treated as a consumer configuration failure.
+
 ## Validation
 
 ```bash
