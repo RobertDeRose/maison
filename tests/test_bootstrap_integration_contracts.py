@@ -154,6 +154,13 @@ printf '%s  %s\\n' "$digest" "${2:-${1:-}}"
         executable(
             payload,
             """#!/bin/sh
+exec "$(dirname "$0")/lume.app/Contents/MacOS/lume" "$@"
+""",
+        )
+        app_binary = root / "lume.app/Contents/MacOS/lume"
+        executable(
+            app_binary,
+            """#!/bin/sh
 if [ "${1:-}" = "--version" ]; then
   printf 'lume 0.5.1\\n'
 else
@@ -161,9 +168,6 @@ else
 fi
 """,
         )
-        app_binary = root / "lume.app/Contents/MacOS/lume"
-        app_binary.parent.mkdir(parents=True)
-        app_binary.write_text("bundle marker\n")
         archive = root / "lume.tar.gz"
         with tarfile.open(archive, "w:gz") as handle:
             handle.add(payload, arcname="lume")
@@ -212,6 +216,13 @@ fi
             installed = self.install_path(environment)
             self.assertTrue(installed.is_file())
             self.assertTrue(installed.stat().st_mode & 0o777 == 0o700)
+            self.assertTrue((installed.parent / "lume.app/Contents/MacOS/lume").is_file())
+            self.assertEqual(
+                subprocess.run(
+                    [str(installed), "--version"], capture_output=True, text=True, check=False
+                ).stdout.strip(),
+                "lume 0.5.1",
+            )
             self.assertIn(str(installed), first.stdout)
             self.assertEqual(len((root / "curl.log").read_text().splitlines()), 1)
 

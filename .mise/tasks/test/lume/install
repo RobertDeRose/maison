@@ -76,13 +76,13 @@ lock_dir="$(maison_lume_lock_dir)"
 install_dir="$(maison_lume_data_root)"
 lume_binary="$install_dir/lume"
 temporary_root=""
-temporary_binary=""
+temporary_install_dir=""
 lock_owned=false
 
 cleanup() {
   local status=$?
-  if [ -n "$temporary_binary" ]; then
-    rm -f "$temporary_binary"
+  if [ -n "$temporary_install_dir" ]; then
+    rm -rf "$temporary_install_dir"
   fi
   if [ -n "$temporary_root" ]; then
     rm -rf "$temporary_root"
@@ -143,16 +143,23 @@ while IFS= read -r entry; do
 done <<< "$entries"
 tar -xzf "$archive_path" -C "$extract_dir"
 staged_binary="$extract_dir/lume"
+staged_app="$extract_dir/lume.app"
+staged_app_binary="$staged_app/Contents/MacOS/lume"
 [ -f "$staged_binary" ] && [ ! -L "$staged_binary" ] || die "Lume archive did not contain a regular top-level executable"
-chmod 700 "$staged_binary"
+[ -d "$staged_app" ] && [ ! -L "$staged_app" ] || die "Lume archive did not contain its app bundle"
+[ -f "$staged_app_binary" ] && [ ! -L "$staged_app_binary" ] || die "Lume app bundle did not contain its executable"
+chmod 700 "$staged_binary" "$staged_app_binary"
 verify_lume_version "$staged_binary" || die "downloaded Lume does not report version ${MAISON_LUME_VERSION}"
 
-mkdir -p "$install_dir"
-chmod 700 "$(dirname "$install_dir")" "$install_dir"
-temporary_binary="$install_dir/.lume.$$"
-rm -f "$temporary_binary"
-cp "$staged_binary" "$temporary_binary"
-chmod 700 "$temporary_binary"
-mv -f "$temporary_binary" "$lume_binary"
-temporary_binary=""
+install_parent="$(dirname "$install_dir")"
+mkdir -p "$install_parent"
+chmod 700 "$install_parent"
+temporary_install_dir="$install_parent/.lume-install.$$"
+rm -rf "$temporary_install_dir"
+mkdir -m 700 "$temporary_install_dir"
+cp "$staged_binary" "$temporary_install_dir/lume"
+cp -R "$staged_app" "$temporary_install_dir/lume.app"
+chmod 700 "$temporary_install_dir/lume" "$temporary_install_dir/lume.app/Contents/MacOS/lume"
+mv "$temporary_install_dir" "$install_dir"
+temporary_install_dir=""
 printf 'Installed Lume %s at %s\n' "$MAISON_LUME_VERSION" "$lume_binary"

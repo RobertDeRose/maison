@@ -142,9 +142,10 @@ bootstrap, apply, deploy, and update commands never install Lume or mutate host 
 
 The macOS lane's host prerequisite is pinned to Trycua CUA release `lume-v0.5.1`, archive
 `lume-0.5.1-darwin-arm64.tar.gz`, and SHA-256
-`7f10cfbe66a800f98a5db88129f7dc024600fcdc139e0be124845bc7a3dc1359`. The verified executable is installed only at
-`${XDG_DATA_HOME:-$HOME/.local/share}/maison/lume/0.5.1/lume` on Apple Silicon macOS 13 or newer. The installer
-validates the archive before extraction, uses a user-owned concurrency lock, is idempotent, and fails rather than
+`7f10cfbe66a800f98a5db88129f7dc024600fcdc139e0be124845bc7a3dc1359`. The verified launcher is installed at
+`${XDG_DATA_HOME:-$HOME/.local/share}/maison/lume/0.5.1/lume` with its adjacent signed `lume.app` bundle on Apple
+Silicon macOS 13 or newer. The installer validates the archive before extraction, uses a user-owned concurrency lock,
+is idempotent, and fails rather than
 replacing an incompatible existing version. It never uses the upstream shell installer, a privileged package manager,
 a global PATH change, or a launch agent.
 
