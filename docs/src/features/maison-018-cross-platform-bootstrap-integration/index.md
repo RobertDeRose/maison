@@ -4,8 +4,8 @@
 
 - Beads feature root: `maison-mol-90l`
 - Status: delivered
-- Pull request: pending delivery action
-- Merge commit: pending delivery action
+- Pull request: not created
+- Merge commit: `e6c7cb3a12d9c6c87856256dae53302bbc7729d8` (fast-forward)
 - Design record: [design.md](design.md)
 
 ## Delivered Capability
@@ -102,7 +102,7 @@ external evidence in `maison-jkh`.
 - A prepared host with enough capacity must complete the pinned Tahoe pull and macOS guest lane; `maison-fea` records
   the required follow-up evidence.
 - The Linux `system-manager` integration blocker remains external work under `maison-jkh`.
-- Pull-request and merge metadata remain pending the delivery action selected after close-out.
+- Delivery completed locally by fast-forwarding `main`; no pull request was created.
 
 ### Rejected or Removed Scope
 
@@ -130,5 +130,6 @@ external evidence in `maison-jkh`.
 - Lume default-root provenance/lock correction and macOS lane: `a6666fec92a5761bce6df89863117ad5abfafec0`,
   `d900b9f64dc26cc514c59452bc1114285e095277`.
 - Implementation children `.1`, `.2`, and `.3` are closed; `.4` is explicitly deferred.
-- Implementation and child reviews approved the bounded changes. Close-out delivery and drift reviews remain part of
-  the current lifecycle.
+- Implementation and child reviews approved the bounded changes. Close-out delivery and drift reviews approved the
+  final implementation and documentation boundary.
+- Delivery merge: `e6c7cb3a12d9c6c87856256dae53302bbc7729d8` (fast-forward); pull request: not created.

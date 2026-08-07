@@ -41,7 +41,7 @@ selection.
 | `maison-017-maison-terroir-repository-split`      | MAISON-017: Maison/Terroir repository split               | `maison-mol-jfhs` | Delivered     | `maison-016-pi-typescript-validation`           | [record](features/maison-017-maison-terroir-repository-split/index.md)      |
 | `maison-overlay-copier-bootstrap`                 | Copier fresh consumer bootstrap                           | `maison-mol-5s9`  | Delivered     | `maison-017-maison-terroir-repository-split`    | [record](features/maison-overlay-copier-bootstrap/index.md)                 |
 | `maison-overlay-authoring-lifecycle`              | Retired alternate repository command surface              | `maison-mol-3jb`  | Retired       | `maison-overlay-copier-bootstrap`               | [record](features/maison-overlay-authoring-lifecycle/index.md)              |
-| `maison-018-cross-platform-bootstrap-integration` | MAISON-018: Cross-platform consumer bootstrap integration | `maison-mol-90l`  | Implemented   | `maison-017-maison-terroir-repository-split`    | [record](features/maison-018-cross-platform-bootstrap-integration/index.md) |
+| `maison-018-cross-platform-bootstrap-integration` | MAISON-018: Cross-platform consumer bootstrap integration | `maison-mol-90l`  | Delivered     | `maison-017-maison-terroir-repository-split`    | [record](features/maison-018-cross-platform-bootstrap-integration/index.md) |
 
 The alternate repository command surface remains retired. The supported architecture is the public Maison framework
 plus one selected consumer repository; the retained Copier starter is setup-time only, and consumer Git history is managed
