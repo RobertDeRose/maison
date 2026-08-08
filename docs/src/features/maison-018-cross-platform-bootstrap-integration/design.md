@@ -14,18 +14,17 @@
 
 Provide explicit consumer bootstrap integration tasks for both supported execution environments: Linux in an Apple
 Container and macOS in a disposable Lume virtual machine. Port the unpublished consumer-side Linux integration as the
-new platform-explicit Maison task, use Trycua's published Tahoe image rather than maintaining a Maison VM image, and
-record a future SIP-enabled macOS lane without making it part of the required delivery. The implementation also
+new platform-explicit Maison task, use the user's supplied Nix-prepared local Tahoe Lume image rather than pulling or
+publishing a Maison image, and validate the SIP-enabled guest as part of the required delivery. The implementation also
 includes a Mise-only task that installs a pinned Lume release when the macOS lane needs it; those test tasks are hidden
 from the `maison` CLI wrapper.
 
 ## User Intent
 
 The user wants the transferred existing `test:bootstrap` integration command renamed to `test:bootstrap:linux`,
-wants a new `test:bootstrap:mac` command, and wants an SIP-enabled lane tracked as deferred work inside the same
-feature epic.
-The macOS test must exercise the real bootstrap path without changing the current Mac host. A prebuilt Trycua Lume
-image is preferred over creating or maintaining a Maison-owned image. Lume installation belongs to an explicit Mise
+wants a new `test:bootstrap:mac` command that consumes the supplied local Tahoe image. The macOS test must exercise
+the real bootstrap path without changing the current Mac host. The required lane validates the SIP-enabled guest;
+the former separate SIP lane remains reserved but is not required. Lume installation belongs to an explicit Mise
 test-task dependency, not to the public `maison` command surface.
 
 ## Goals
@@ -33,18 +32,21 @@ test-task dependency, not to the public `maison` command surface.
 - Expose `test:bootstrap:linux` for the existing disposable Apple Container bootstrap test.
 - Expose `test:bootstrap:mac` for full bootstrap validation in a disposable Apple Silicon macOS VM.
 - Use the pinned Maison revision from the consumer lock for both lanes.
-- Use the published, versioned `macos-tahoe-cua:26.5.2` Trycua image through Lume for the macOS lane.
+- Use the supplied local Nix-prepared Lume VM `macos-tahoe-with-nix` through Lume for the macOS lane, with a
+  base-name override for another stopped local copy.
 - Keep consumer staging, credentials, SSH, VM/container lifecycle, and cleanup owned by the Maison test harness.
 - Make the exact immutable source and artifact contracts executable without requiring implementation-time policy choices.
 - Make successful and interrupted runs unable to modify the production host, production inventory, or private source.
-- Track an SIP-enabled macOS lane as an explicitly deferred child task that does not block the required lanes or epic.
+- Verify the supplied SIP-enabled macOS image as part of the required lane; do not publish or delete that user-owned
+  base.
 
 ## Non-Goals
 
 - Building or publishing a Maison-owned macOS VM image.
 - Running Darwin activation against the current macOS host, even under a temporary host account.
 - Copying Maison implementation, schemas, private Git objects, credentials, private keys, or a duplicate product test suite into a consumer.
-- Changing Maison's core bootstrap or public CLI command semantics beyond adding hidden test-task support.
+- Changing Maison's public CLI semantics beyond adding hidden test-task support; the reviewed bootstrap source-branch
+  detection and explicit macOS branch-test override are included in this follow-up.
 - Making the SIP-enabled lane a prerequisite for the first macOS lane or for feature close-out.
 - Resolving an upstream Linux `system-manager` permission failure discovered while executing the consumer lane; record it as related Maison validation evidence if it remains.
 
@@ -79,39 +81,42 @@ implementation can be delivered.
 4. The Linux task retains the transferred pinned Maison bootstrap behavior, committed-content consumer stage, token
    handling, public-key-only SSH behavior, disposable Apple Container lifecycle, convergence assertions, and
    interruption cleanup.
-5. The macOS task requires Lume 0.5.1 on Apple Silicon, uses the versioned Trycua image
-   `macos-tahoe-cua:26.5.2`, and clones a uniquely named worker from a stopped base VM for each run.
+5. The macOS task requires Lume 0.5.1 on Apple Silicon, uses the supplied local Nix-prepared Lume base
+   `macos-tahoe-with-nix` (or its configured stopped copy), and clones a uniquely named worker from that base for each
+   run.
 6. The macOS task runs headlessly through Lume's VM/SSH interface, stages a disposable committed-content consumer
    with a temporary `aarch64-darwin` host and test user, and invokes the public Maison bootstrap script at the full
    locked revision after validating its GitHub blob identity.
-7. The macOS task verifies the locked Maison revision, the published guest identity and `csrutil status: disabled`,
+7. The macOS task verifies the selected Maison revision, the supplied guest identity and `csrutil status: enabled`,
    Nix-Darwin/system convergence, mise/fnox/Maison user convergence, UTF-8 locale state, and disposable host identity.
 8. Both required lanes delete or stop their disposable resources and remove staging, token, temporary SSH key, and
    downloaded-script material on success, failure, and interruption.
-9. The future SIP lane is represented as a deferred Beads child with an acceptance contract for the same bootstrap
-   assertions under SIP-enabled guest state; it has no blocking edge into the required Linux or macOS lane.
+9. The former future SIP lane remains represented as a deferred Beads child, but the required macOS lane now asserts
+   the supplied SIP-enabled guest state directly; the child has no blocking edge into the required Linux or macOS lane.
 
 ### Quality Requirements
 
-- Never pipe an unreviewed, floating, or network-downloaded script into a shell; download the exact locked Maison
-  revision and the pinned prerequisite artifacts to files, validate them, then execute them.
+- Never pipe an unreviewed or network-downloaded script into a shell; download the exact locked Maison revision by
+  default (or an explicitly selected, resolved branch ref for branch testing) and the pinned prerequisite artifacts to
+  files, validate them, then execute them.
 - Never mount or copy a host private SSH key; generate a temporary host key when needed and transfer only its public
   half into a disposable guest.
 - Keep GitHub tokens out of repositories, command-line arguments, logs, and committed test artifacts.
 - Require a clean consumer Git checkout and materialize only committed content with `git archive`; never stage the
   source `.git`, `.beads`, ignored files, local fnox material, or build results.
 - Validate VM/image identity, host names, addresses, and paths before interpolation into inventory or remote commands.
-- Use versioned image, VM, Lume artifact, and Maison revision values, never `latest`, for reproducible evidence.
-- Assert the published base's expected macOS build, Command Line Tools path, SSH/unattended-login state, and SIP
-  status before running bootstrap.
+- Use the named local VM, fixed guest version/build, pinned Lume artifact, and Maison revision values for reproducible
+  evidence; never infer identity from a floating image tag.
+- Assert the supplied base's expected macOS build, installed Nix daemon, `xcode-select`, SSH/unattended-login state,
+  and SIP status before running bootstrap; final verification must confirm Command Line Tools after bootstrap.
 
 ### Compatibility and Migration Requirements
 
 - Existing Linux users must replace `mise run test:bootstrap` with `mise run test:bootstrap:linux`.
 - Existing `mise run test:deploy` behavior remains unchanged except for shared helper refactoring required by the
   platform-specific bootstrap tasks.
-- The public documentation must explain that the macOS image is a published Trycua base with known preconditions,
-  including its SIP state, rather than a Maison-built pristine image.
+- The public documentation must explain that the macOS image is a user-supplied local Lume base with known version,
+  build, SSH, unattended-login, and SIP preconditions, rather than a Maison-built or task-published image.
 
 ## Existing Context
 
@@ -128,10 +133,10 @@ Maison owns the bootstrap script, runtime tasks, schemas, reusable orchestration
 installation dependencies. A consumer owns its inventory, host modules, and configuration. The current production
 macOS host must never be used as the test target.
 
-Lume provides local Apple Virtualization.framework VMs on Apple Silicon. Trycua documents the public versioned image
-`macos-tahoe-cua:26.5.2`, which supplies a Tahoe guest with Command Line Tools, SSH, and unattended login setup.
-That base has SIP disabled; this is recorded as a precondition for the required lane and is not silently presented as
-SIP-on coverage.
+Lume provides local Apple Virtualization.framework VMs on Apple Silicon. The supplied local Tahoe VM reports
+macOS 26.6.1/build 25G76, an installed Nix daemon, SSH, unattended login, and SIP enabled. It may not contain Command
+Line Tools or passwordless sudo, so the worker prepares only its disposable privilege boundary and installs the tools
+before the pinned bootstrap runs; final verification confirms the tools.
 
 ## Proposed Design
 
@@ -182,35 +187,41 @@ Add a platform-specific task and a small Lume helper layer. The task will:
    `flake.lock`; require `type=github`, `owner=RobertDeRose`, `repo=maison`, and a full 40-character `rev`.
 2. Require the verified Lume 0.5.1 executable, `jq`, `git`, `ssh`, `ssh-keygen`, `tar`, `curl`, and the existing
    consumer/staging prerequisites.
-3. Use `lume pull macos-tahoe-cua:26.5.2 <base-name>` only when the exact host-local base is absent; stop and inspect
-   the base without mutating it. Verify macOS 26.5.2/build 25F84, `/Library/Developer/CommandLineTools`, SSH,
-   unattended login, and `csrutil status` reports disabled before cloning.
+3. Resolve the supplied local Lume base from `MAISON_MACOS_BASE_NAME` or the default `macos-tahoe-with-nix`; fail
+   clearly when it is absent, stop it for inspection, and never pull, publish, or delete it. Verify macOS
+   26.6.1/build 25G76, the installed Nix daemon, `xcode-select`, SSH, unattended login, and `csrutil status` reports
+   enabled before cloning. The base may lack `/Library/Developer/CommandLineTools` and passwordless sudo; the worker
+   prepares its disposable privilege boundary, installs the tools, and final verification confirms them.
 4. Clone the stopped base into a unique worker, boot it with `lume run <worker> --detach --display none`, and obtain
    its address from `lume get <worker> --format json`.
-5. Generate a temporary host SSH key pair, use the published `lume` account/password only to install the public key,
-   then use noninteractive SSH/SCP with the temporary private key. The private key never enters the guest or logs.
+5. Use the disposable `lume` account/password to grant passwordless sudo only to the disposable `lume` and `tester`
+   accounts, create the test user, and install missing Command Line Tools. Then generate a temporary host SSH key pair
+   and install its public half. Use noninteractive SSH/SCP with the temporary private key; the private key never enters
+   the guest or logs.
 6. Copy a deterministic committed-content consumer stage into the guest. The stage adds only a test user and a
    temporary Darwin host, and uses no production host record, private endpoint, or source `.git` directory.
-7. Download `bootstrap.sh` from the public GitHub contents/raw endpoints at the locked revision. Compare the GitHub
-   blob SHA returned for `bootstrap.sh` with `git hash-object` of the downloaded file before execution, then run it
-   with `--consumer`, `--host`, `--repo`, and the full locked `--ref`. A missing/unpublished revision fails clearly.
-8. Run verification in the guest, including locked Maison `HEAD`, `sw_vers`, `csrutil status: disabled`, Nix-Darwin/system
+7. Download `bootstrap.sh` from the public GitHub contents/raw endpoints at the full locked revision by default.
+   Compare the GitHub blob SHA returned for `bootstrap.sh` with `git hash-object` of the downloaded file before
+   execution, then run it with `--consumer`, `--host`, `--repo`, and the locked `--ref`. For reviewed branch testing,
+   `MAISON_MACOS_BOOTSTRAP_REF` (or the `feat/test-bootstrap-macos` checkout default) resolves the branch head,
+   verifies the branch blob, and passes that branch through the same bootstrap clone path. A missing/unpublished ref
+   fails clearly.
+8. Run verification in the guest, including selected Maison `HEAD`, `sw_vers`, `csrutil status: enabled`, Nix-Darwin/system
    convergence, mise/fnox/Maison user convergence, UTF-8 locale, and expected disposable host identity. Write only
    sanitized result output to the host log.
 9. Shut down/stop and delete the worker, remove host-side stage, token, temporary key, and downloaded script files, and
    clean up on signals.
 
-The test uses the published image's disposable `lume` account and keeps all privilege setup inside the worker. No host
-sudoers, account, defaults, launchd, Nix, Homebrew, or other production state may change. Lume itself may be installed
-on the host only by the explicit hidden Mise dependency described above.
+The test uses the supplied local image's disposable `lume` account and keeps all privilege setup and test-user
+creation inside the disposable worker. No host sudoers, account, defaults, launchd, Nix, Homebrew, or other production
+state may change. The user-owned base is never deleted or published by the task. Lume itself may be installed on the host only by the explicit hidden Mise
+dependency described above.
 
 ### SIP lane
 
 Reserve `test:bootstrap:mac-sip` as a deferred child and do not ship a task file until that child is activated. When
-activated, it will use a SIP-enabled disposable macOS worker and repeat the required macOS assertions, including
-`csrutil status` enabled before and after the run. Its guest source/preparation may be selected when the task is
-activated, but the required feature lanes do not depend on it and the first macOS lane explicitly reports that it is
-SIP-disabled.
+activated, it may provide separate SIP-focused coverage. The required macOS lane already uses the supplied
+SIP-enabled base and verifies that state before and after bootstrap.
 
 ## Architecture Consistency
 
@@ -228,17 +239,20 @@ SIP-disabled.
 
 - No production activation from tests.
 - No private Git history, credentials, private keys, or Maison internals cross the consumer boundary.
-- A full immutable Maison revision is required.
+- A full immutable Maison revision is required by default; branch testing resolves and records the selected branch head
+  before execution.
 - Cleanup is safe on success, failure, and interruption.
 - The public consumer remains self-contained and does not require a published Terroir remote.
 
 ### New Decisions Introduced
 
 - Platform is part of the bootstrap task name: `test:bootstrap:linux` and `test:bootstrap:mac`.
-- The required macOS base is the published, versioned Trycua Tahoe image rather than a Maison-built image.
+- The required macOS base is the user-supplied local Tahoe VM rather than a pulled or Maison-published image.
 - Lume 0.5.1 is a verified, host-user installation dependency with a checked-in archive digest.
-- The required macOS lane asserts the published base is SIP-disabled; SIP-enabled coverage is deferred and does not
-  block the first macOS lane.
+- The required macOS lane asserts the supplied base is SIP-enabled; the reserved SIP child does not add a second
+  required task.
+- The macOS lane remains immutable by default while allowing an explicit, resolved branch ref for reviewed bootstrap
+  testing.
 
 ### Architecture Documentation Changes
 
@@ -248,10 +262,10 @@ consumer input contract. No new architecture page is required.
 ## Operational Considerations
 
 The macOS lane is local Apple Silicon infrastructure and can install Lume 0.5.1 through its explicit hidden Mise
-prerequisite. It requires macOS 13 or newer, sufficient host disk/memory, `jq`, and the versioned Trycua image. The
-base VM is host-local test infrastructure and must remain stopped and unmodified. Each worker is single-use and must
-be deleted even after failed bootstrap. Lume telemetry should be disabled for privacy-sensitive runs. Standard CI
-runners are not assumed to support nested macOS virtualization. The installer uses the versioned archive and digest
+prerequisite. It requires macOS 13 or newer, sufficient host disk/memory, `jq`, and the user-supplied local Tahoe VM.
+The base VM is host-local test infrastructure and is never deleted or published by the task. Each worker is single-use
+and must be deleted even after failed bootstrap. Lume telemetry should be disabled for privacy-sensitive runs. Standard
+CI runners are not assumed to support nested macOS virtualization. The installer uses the versioned archive and digest
 recorded in this design rather than the upstream shell installer.
 
 ## Documentation Impact
@@ -321,12 +335,16 @@ production activation or default repository checks.
 
 ## Risks and Tradeoffs
 
-- The Trycua base is SIP-disabled, so the required lane does not prove SIP-on behavior.
+- The supplied local base is SIP-enabled and Nix-prepared, but may lack Command Line Tools and passwordless sudo; the
+  worker grants passwordless sudo only to its disposable `lume` and `tester` accounts, creates the test user, installs
+  the tools, and verifies them before convergence assertions.
 - Installing Lume from a Mise task mutates host tooling and must remain opt-in, pinned, checksum-verified, and hidden
   from the public Maison CLI.
-- Large VM pulls and Nix-Darwin builds make the macOS lane slower than the container lane.
+- Nix-Darwin builds make the macOS lane slower than the container lane, even though the local base avoids a large image
+  pull.
 - Lume and macOS guest support are host-local and cannot be assumed in ordinary hosted CI.
-- VM image tags and Lume behavior are external dependencies; versioned tags and preflight assertions limit drift.
+- The local VM and Lume behavior are host-local dependencies; a fixed guest version/build and preflight assertions
+  limit drift.
 - Homebrew/system-extension behavior in the macOS profile may require a prepared guest or visible first-run setup;
   the task must fail clearly rather than modify the host to compensate.
 
@@ -336,9 +354,10 @@ production activation or default repository checks.
   launchd, system defaults, or other privileged state.
 - Building a Maison-owned macOS image: it duplicates upstream image maintenance and violates the chosen public-base
   boundary.
-- Using `curl | bash`, a floating Maison branch, or an unverified release API response: these do not provide an
-  auditable bootstrap or host-tooling input.
-- Making SIP-enabled coverage a prerequisite: it would delay the useful published-base lane and is explicitly deferred.
+- Using an unverified network-piped script or an unresolved Maison branch: these do not provide an auditable bootstrap
+  or host-tooling input. Branch testing must use the verified file and resolved head path described above.
+- Making a second SIP-enabled task a prerequisite: the supplied image already provides SIP-enabled coverage in the
+  required lane.
 
 ## Open Questions
 
@@ -346,8 +365,8 @@ None required for the first implementation lanes.
 
 ## Deferred Decisions
 
-- The exact SIP-enabled guest preparation method is owned by the deferred SIP child; it must produce an SIP-enabled
-  worker without changing the current host and must not block the required macOS lane.
+- Any future SIP-specific guest preparation remains owned by the deferred SIP child; it must not change the current
+  host or duplicate the required local-image lane.
 
 ## Specification Review Reconciliation
 
@@ -362,10 +381,23 @@ approved. Architecture, simplicity, and execution findings were reconciled in th
   atomic installation and incompatible-version failure behavior.
 - The full Maison lock node and GitHub `bootstrap.sh` blob identity are required before bootstrap execution.
 - Consumer stages use clean committed Git content, never the source repository's private or mutable state.
-- The required macOS lane asserts the published base is SIP-disabled; the SIP command remains reserved and absent until
-  its deferred child is activated.
+- The required macOS lane asserts the supplied local base is SIP-enabled; the SIP command remains reserved and absent
+  until any future separate coverage is activated.
 - The Linux upstream bug is related provenance/validation evidence, not an implementation blocking edge. Shared helper
   and documentation ownership is sequenced explicitly between implementation children.
+
+### Post-delivery contract revision — 2026-08-07
+
+The user explicitly superseded the original published-Trycua image contract after the current host could not complete
+that image pull. The macOS task now consumes the user-owned Nix-prepared local Lume VM `macos-tahoe-with-nix` by default, accepts
+`MAISON_MACOS_BASE_NAME` for another stopped local copy, and never pulls, publishes, or deletes the base. The verified
+local guest contract is macOS 26.6.1/build 25G76, an installed Nix daemon, SSH and unattended login available, and SIP
+enabled. Command Line Tools and passwordless sudo are allowed to be absent at base preflight: the worker prepares its
+own disposable `lume` privilege boundary, creates the test user, installs Command Line Tools, and final worker
+verification requires `/Library/Developer/CommandLineTools`.
+
+This revision supersedes the earlier Trycua `macos-tahoe-cua:26.5.2`/build `25F84` and SIP-disabled assumptions for the
+implemented task. The historical planning record below remains unchanged as an audit of the original decision.
 
 ### Planning Record
 

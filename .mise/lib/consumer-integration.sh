@@ -37,6 +37,30 @@ consumer_integration_maison_root() {
     --expr "(builtins.getFlake \"github:RobertDeRose/maison/$ref\").outPath"
 }
 
+consumer_integration_resolve_github_ref() {
+  local ref="$1" token="${2:-}" metadata api_url
+  if [[ "$ref" =~ ^[0-9a-f]{40}$ ]]; then
+    printf '%s\n' "$ref"
+    return 0
+  fi
+  [ -n "$token" ] || {
+    printf 'error: resolving a Maison branch requires GitHub authentication\n' >&2
+    return 1
+  }
+  case "$ref" in
+    '' | *[!A-Za-z0-9._/-]* | */ | */.* | *..* | *'@{'*)
+      printf 'error: invalid Maison branch reference: %s\n' "$ref" >&2
+      return 1
+      ;;
+  esac
+  api_url="https://api.github.com/repos/RobertDeRose/maison/git/ref/heads/$ref"
+  metadata="$(consumer_integration_curl_with_token "$token" \
+    --fail --silent --show-error --location --proto '=https' --tlsv1.2 \
+    --header 'Accept: application/vnd.github+json' --url "$api_url")" || return 1
+  printf '%s\n' "$metadata" |
+    jq -er '.object.sha | select(type == "string" and test("^[0-9a-f]{40}$"))'
+}
+
 consumer_integration_require_commands() {
   local command
   for command in container curl git jq mise nix python3 ssh ssh-keygen tar; do
@@ -139,6 +163,12 @@ PY
 
 consumer_integration_fetch_bootstrap() {
   local ref="$1" token="$2" destination="$3" metadata blob_sha actual
+  case "$ref" in
+    '' | *[!A-Za-z0-9._/-]*)
+      printf 'error: invalid Maison bootstrap reference: %s\n' "$ref" >&2
+      return 1
+      ;;
+  esac
   local api_url="https://api.github.com/repos/RobertDeRose/maison/contents/bootstrap.sh?ref=$ref"
   local raw_url="https://raw.githubusercontent.com/RobertDeRose/maison/$ref/bootstrap.sh"
 

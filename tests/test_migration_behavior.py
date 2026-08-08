@@ -798,6 +798,10 @@ class MigrationBehaviorTest(unittest.TestCase):
         )
         self.assertEqual(direct.stdout, piped.stdout)
         self.assertNotIn("run_root()", piped.stdout)
+        bootstrap = read("bootstrap.sh")
+        self.assertIn("_detect_from_curl", bootstrap)
+        self.assertIn("raw.githubusercontent.com", bootstrap)
+        self.assertIn('ref="${REF:-${BRANCH:-${_detected_branch:-main}}}"', bootstrap)
 
         with tempfile.TemporaryDirectory() as directory:
             temp = Path(directory)
@@ -854,6 +858,69 @@ class MigrationBehaviorTest(unittest.TestCase):
             calls = log.read_text()
             self.assertIn("trust", calls)
             self.assertNotIn("run --skip-tools bootstrap", calls)
+            self.assertIn("consumer repository is required", result.stderr)
+
+    def test_bootstrap_detects_repository_branch_from_raw_source_url(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            temp = Path(directory)
+            source = temp / "source"
+            source.mkdir()
+            copy_files(
+                source,
+                "mise.toml",
+                "flake.nix",
+                "bin/maison",
+                ".mise/lib/common.sh",
+                ".mise/lib/platform.sh",
+                ".mise/lib/bootstrap.sh",
+            )
+            git_init(source)
+            git_commit_all(source)
+            run(["git", "switch", "-q", "-c", "feat/bootstrap"], cwd=source, env=fixture_git_env(), check=True)
+
+            fake_bin = temp / "bin"
+            fake_bin.mkdir()
+            executable(
+                fake_bin / "ps",
+                "#!/bin/sh\nprintf '%s\\n' 'tester 1 sh -c curl https://raw.githubusercontent.com/RobertDeRose/maison/feat/bootstrap/bootstrap.sh | bash'\n",
+            )
+            executable(fake_bin / "mise", '#!/bin/sh\nprintf \'%s\\n\' "$*" >>"$MISE_LOG"\n')
+            home = temp / "home"
+            home.mkdir()
+            env = os.environ.copy()
+            env.update(
+                {
+                    "HOME": str(home),
+                    "MAISON_HOME": str(home / ".maison"),
+                    "PATH": f"{fake_bin}{os.pathsep}{env['PATH']}",
+                    "REPO": str(source),
+                    "MISE_LOG": str(temp / "mise-log"),
+                }
+            )
+            env.pop("BRANCH", None)
+            env.pop("REF", None)
+
+            result = run(
+                [str(ROOT / "bootstrap.sh"), "--host", "fixture-host"],
+                cwd=temp,
+                env=env,
+                capture_output=True,
+                text=True,
+            )
+
+            self.assertNotEqual(result.returncode, 0)
+            cloned = home / ".maison"
+            self.assertEqual(
+                run(
+                    ["git", "branch", "--show-current"],
+                    cwd=cloned,
+                    env=fixture_git_env(),
+                    capture_output=True,
+                    text=True,
+                    check=True,
+                ).stdout.strip(),
+                "feat/bootstrap",
+            )
             self.assertIn("consumer repository is required", result.stderr)
 
     def test_maison_version_uses_deployment_revision_without_git(self) -> None:

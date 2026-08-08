@@ -113,6 +113,38 @@ class LinuxIntegrationContractTest(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(result.stdout.strip(), valid)
 
+            resolved = run(
+                [
+                    "bash",
+                    "-c",
+                    'source "$1"; consumer_integration_resolve_github_ref "$2"',
+                    "_",
+                    str(HELPER),
+                    valid,
+                ],
+                cwd=ROOT,
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(resolved.returncode, 0, resolved.stderr)
+            self.assertEqual(resolved.stdout.strip(), valid)
+
+            invalid = run(
+                [
+                    "bash",
+                    "-c",
+                    'source "$1"; consumer_integration_resolve_github_ref "$2" token',
+                    "_",
+                    str(HELPER),
+                    "feat/bad?ref",
+                ],
+                cwd=ROOT,
+                capture_output=True,
+                text=True,
+            )
+            self.assertNotEqual(invalid.returncode, 0)
+            self.assertIn("invalid Maison branch reference", invalid.stderr)
+
             locked = json.loads((root / "flake.lock").read_text())
             locked["nodes"]["maison"]["locked"]["owner"] = "untrusted"
             (root / "flake.lock").write_text(json.dumps(locked))

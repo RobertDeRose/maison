@@ -9,6 +9,41 @@
 
 set -euo pipefail
 
+_detect_from_curl() {
+  local url path owner repo branch
+
+  # Preserve the branch selected by a raw.githubusercontent.com bootstrap URL
+  # when this script is invoked through the historical piped-shell entrypoint.
+  # Explicit REPO/BRANCH/REF values remain authoritative overrides.
+  # shellcheck disable=SC2009 # inspect the complete parent command line for the source URL
+  url="$(ps -ef 2>/dev/null |
+    grep -F 'raw.githubusercontent.com' |
+    grep -F 'bootstrap.sh' |
+    grep -v grep |
+    head -n 1 |
+    grep -oE 'https://raw\.githubusercontent\.com/[^[:space:]]+' |
+    head -n 1)" || true
+  url="$(printf '%s\n' "$url" | sed -E "s#(/bootstrap\.sh).*#\1#; s/[\"'[:space:]].*$//")"
+  [ -n "$url" ] || return 0
+
+  path="${url#https://raw.githubusercontent.com/}"
+  owner="${path%%/*}"
+  path="${path#*/}"
+  repo="${path%%/*}"
+  path="${path#*/}"
+  branch="${path%/bootstrap.sh}"
+  [ -n "$owner" ] && [ -n "$repo" ] && [ -n "$branch" ] || return 0
+  printf '%s %s\n' "$owner/$repo" "$branch"
+}
+
+_detected_source=""
+if [ -z "${REPO:-}" ] || [ -z "${BRANCH:-}" ]; then
+  _detected_source="$( _detect_from_curl )" || true
+  IFS=' ' read -r _detected_repo _detected_branch <<EOF
+$_detected_source
+EOF
+fi
+
 show_help() {
   cat << 'HELP'
 Install Maison and hand machine setup to a consumer repository.
@@ -38,9 +73,10 @@ bootstrap_die() {
 }
 
 host="$(hostname -s)"
-repo="${REPO:-RobertDeRose/maison}"
-ref="${REF:-${BRANCH:-main}}"
+repo="${REPO:-${_detected_repo:-RobertDeRose/maison}}"
+ref="${REF:-${BRANCH:-${_detected_branch:-main}}}"
 profiles="${PROFILES:-}"
+unset _detected_source _detected_repo _detected_branch
 consumer="${MAISON_CONSUMER_ROOT:-${MAISON_REPOSITORY:-${MAISON_REPO:-}}}"
 consumer_setup=""
 

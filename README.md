@@ -96,8 +96,10 @@ runs require `--consumer` or `--setup` and fail clearly instead of activating ne
 Copier starter does not create saved alternate roots or runtime overlay state.
 
 Bootstrap first installs verified pinned mise, trusts only the Maison project configuration, installs verified Nix/Lix
-artifacts when needed, and runs the bootstrap task with the consumer root. Use `--user-only` on the mise task when system
-activation should be skipped. Do not use pipe-to-shell bootstrap examples; verify downloaded bootstrap artifacts against
+artifacts when needed, and runs the bootstrap task with the consumer root. `--ref` accepts a branch, tag, or immutable
+commit; when the script is invoked from a raw GitHub bootstrap URL, its repository and branch are detected unless
+`REPO`, `BRANCH`, or `REF` explicitly overrides them. Use `--user-only` on the mise task when system activation should
+be skipped. Do not use pipe-to-shell bootstrap examples; verify downloaded bootstrap artifacts against
 `bootstrap/artifacts.toml` before execution.
 
 ## Common commands

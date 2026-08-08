@@ -30,16 +30,21 @@ class MacOSIntegrationContractTest(unittest.TestCase):
         self.assertEqual(public.returncode, 0, public.stderr)
         self.assertNotIn("test:bootstrap:mac", public.stdout.splitlines())
 
-    def test_mac_task_uses_pinned_disposable_lume_worker(self) -> None:
+    def test_mac_task_uses_supplied_local_disposable_lume_worker(self) -> None:
         text = TASK.read_text()
         for contract in (
-            "macos-tahoe-cua:26.5.2",
-            "lume_command pull",
-            "base_provenance",
-            "image=$image",
+            'base_name="${MAISON_MACOS_BASE_NAME:-macos-tahoe-with-nix}"',
+            "MAISON_MACOS_BASE_NAME",
+            "local Lume VM",
+            "[A-Za-z0-9]*)",
             "lume_get_json",
+            "wait_for_lume_ssh",
+            "wait_for_lume_nix",
             "--format json",
             "lume_command clone",
+            "--source-storage default",
+            "--dest-storage default",
+            "--storage default",
             "lume_command run",
             "--detach",
             "--display none",
@@ -47,23 +52,62 @@ class MacOSIntegrationContractTest(unittest.TestCase):
             '"$lume_binary" delete',
             "--force",
             "csrutil status",
-            "25F84",
+            "26.6.1",
+            "25G76",
+            "enabled",
             "/Library/Developer/CommandLineTools",
+            "xcode-select",
+            "/nix/var/nix/profiles/default/bin/nix",
+            "/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh",
+            "/nix/var/nix/daemon-socket/socket",
+            "Preparing disposable macOS worker privilege",
+            "sudoers.d/lume",
+            "tester ALL=(ALL) NOPASSWD: ALL",
+            "softwareupdate -l",
+            "Command Line Tools for Xcode",
+            "installondemand.in-progress",
+            "experimental-features = nix-command flakes",
+            "find /nix/store -maxdepth 3 -path '*/bin/bash'",
+            "Nix Bash is unavailable",
+            "sysadminctl -addUser tester",
+            "mkdir -p /Users/tester",
+            "chown tester:staff /Users/tester",
             "autoLoginUser",
             "IdentitiesOnly=yes",
+            "BatchMode=yes",
+            "PreferredAuthentications=publickey",
+            "PasswordAuthentication=no",
+            "KbdInteractiveAuthentication=no",
+            'test "$(defaults read /Library/Preferences/com.apple.loginwindow autoLoginUser 2>/dev/null)" = "lume"',
+            "locale -a",
             "ssh-keygen",
             "scp",
             "consumer_integration_stage",
             "consumer_integration_fetch_bootstrap",
+            "consumer_integration_resolve_github_ref",
+            "MAISON_MACOS_BOOTSTRAP_REF",
+            "feat/test-bootstrap-macos",
+            "bootstrap_revision",
+            '--ref "$bootstrap_ref"',
+            "consumer_integration_fetch_framework_artifact",
+            "Installing consumer fnox prerequisite",
+            "remote_root/mise",
+            'trust "$remote_root/consumer/mise.toml"',
             "MAISON_CONSUMER_ROOT",
         ):
             with self.subTest(contract=contract):
                 self.assertIn(contract, text)
 
+        self.assertNotIn("lume_command pull", text)
+        self.assertNotIn("base_provenance", text)
+        self.assertNotIn("grep -Fq lume", text)
+        verify_text = text[text.index("<<'REMOTE_VERIFY'") :]
+        self.assertNotIn("export LANG=C.UTF-8", verify_text)
+        self.assertNotIn("export LC_CTYPE=C.UTF-8", verify_text)
         self.assertIn('system = "aarch64-darwin"', text)
         self.assertIn('profiles = ["base", "mac"]', text)
-        self.assertIn('test "$LANG" = "C.UTF-8"', text)
-        self.assertIn('test "$LC_CTYPE" = "C.UTF-8"', text)
+        self.assertIn("locale -a | grep -Fx 'C.UTF-8'", text)
+        self.assertIn("env -i LANG=C.UTF-8 LC_CTYPE=C.UTF-8", text)
 
     def test_mac_task_does_not_copy_private_host_state_or_pipe_installers(self) -> None:
         text = TASK.read_text()

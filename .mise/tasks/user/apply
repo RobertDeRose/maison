@@ -12,6 +12,8 @@ source "$framework_root/.mise/lib/fnox.sh"
 maison_fnox_preflight "$root"
 source "$framework_root/.mise/lib/consumer.sh"
 load_maison_consumer_environment "$root"
-args=()
-[ "${usage_force_dotfiles:-false}" != true ] || args+=(--force-dotfiles)
-maison_fnox_exec "$root" python3 "$framework_root/.mise/lib/user_convergence.py" apply --root "$root" "${args[@]}"
+if [ "${usage_force_dotfiles:-false}" = true ]; then
+  maison_fnox_exec "$root" python3 "$framework_root/.mise/lib/user_convergence.py" apply --root "$root" --force-dotfiles
+else
+  maison_fnox_exec "$root" python3 "$framework_root/.mise/lib/user_convergence.py" apply --root "$root"
+fi

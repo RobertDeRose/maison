@@ -55,18 +55,25 @@ exit path. The known `system-manager` builder failure remains external validatio
 
 ### macOS integration task contracts
 
-| Task                 | Arguments and contract                                              |
-|----------------------|---------------------------------------------------------------------|
-| `test:bootstrap:mac` | `--consumer PATH`; runs the pinned Trycua Tahoe worker through Lume |
+| Task                 | Arguments and contract                                                                |
+|----------------------|---------------------------------------------------------------------------------------|
+| `test:bootstrap:mac` | `--consumer PATH`; runs a worker cloned from the supplied local Tahoe VM through Lume |
 
 The macOS lane requires Apple Silicon macOS 13 or newer, verified Lume 0.5.1, GitHub authentication, `jq`, and
-SSH/SCP tooling. It uses the stopped `macos-tahoe-cua:26.5.2` base, verifies macOS 26.5.2/build `25F84`, Command
-Line Tools, SSH, and SIP disabled, then clones a unique headless worker. The base is published Trycua infrastructure,
-not a Maison-owned image, and is never deleted by task cleanup.
+SSH/SCP tooling. It uses the Nix-prepared local Lume base named `macos-tahoe-with-nix` by default; set
+`MAISON_MACOS_BASE_NAME` to use another stopped local copy. It verifies macOS 26.6.1/build `25G76`, the installed Nix
+daemon, SSH, unattended login, and SIP enabled, then clones a unique headless worker. The local base is never pulled,
+published, or deleted by task cleanup. The worker grants passwordless sudo only to its disposable `lume` and `tester`
+accounts, creates the disposable test user, and installs Command Line Tools before the pinned bootstrap runs; final
+worker verification requires them.
 
 The task stages committed external consumer content with a temporary `aarch64-darwin` host and test user, verifies
-`bootstrap.sh` against the GitHub blob for the full locked Maison revision, and uses the disposable `lume` account only
-to install the generated public SSH key. Subsequent SSH/SCP uses `IdentitiesOnly=yes`; private host keys never enter
+`bootstrap.sh` against the GitHub blob for the full locked Maison revision by default, and uses the disposable `lume`
+account for local-base preflight, worker privilege preparation, and generated public SSH-key installation. Set
+`MAISON_MACOS_BOOTSTRAP_REF` to a reviewed branch for branch-based bootstrap testing; when running from the
+`feat/test-bootstrap-macos` checkout, that branch is selected automatically. Branch mode resolves and verifies the
+branch head before execution and passes the branch through bootstrap's `--ref` clone path. Subsequent SSH/SCP uses
+`IdentitiesOnly=yes`; private host keys never enter
 the worker. It verifies Darwin/system and user convergence, mise/fnox/Maison state, locked revision, UTF-8 locale,
 and worker identity. Worker, stage, token, key, and downloaded script cleanup runs on success, failure, and signals.
 The reserved SIP-enabled task is not shipped.

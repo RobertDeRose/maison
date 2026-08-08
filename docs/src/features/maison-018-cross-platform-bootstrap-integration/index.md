@@ -14,7 +14,7 @@ Maison now owns hidden, direct-Mise integration lanes for consumer bootstrap val
 platforms:
 
 - `test:bootstrap:linux` runs the committed external consumer in an Apple Container.
-- `test:bootstrap:mac` runs the pinned consumer bootstrap in a headless Trycua Tahoe worker through Lume.
+- `test:bootstrap:mac` runs the consumer bootstrap in a headless worker cloned from the supplied local Tahoe VM through Lume.
 - `test:lume:install` installs the checksum-verified, user-local Lume 0.5.1 prerequisite.
 
 The public `maison` command surface omits every `test:*` task. Consumer configuration remains external input; Maison
@@ -31,32 +31,35 @@ mise -C "$MAISON_HOME" run test:deploy -- --consumer "$MAISON_CONSUMER_ROOT"
 ```
 
 The macOS lane requires Apple Silicon macOS 13 or newer, verified Lume 0.5.1, GitHub authentication, and sufficient
-host capacity. It uses the published `macos-tahoe-cua:26.5.2` base, verifies Tahoe 26.5.2/build `25F84`, Command
-Line Tools, SSH/unattended login, and SIP disabled, then clones a disposable worker. SIP-enabled coverage remains
-the deferred `maison-mol-4pv.4` child; no `test:bootstrap:mac-sip` task is shipped.
+host capacity. It uses the Nix-prepared local `macos-tahoe-with-nix` base by default, or `MAISON_MACOS_BASE_NAME`
+for another stopped local copy, verifies macOS 26.6.1/build `25G76`, the installed Nix daemon, SSH/unattended login,
+and SIP enabled, then clones a disposable worker. The worker grants passwordless sudo only to its disposable `lume` and
+`tester` accounts, creates the disposable test user, and installs Command Line Tools when the supplied image does not
+already contain them, before running the pinned bootstrap.
+No image is pulled or published by the task.
 
 ## Design Integration
 
 The implementation preserves the two-layer ownership boundary: Maison owns generic orchestration, schemas, staging,
 bootstrap verification, task hiding, and disposable test infrastructure; consumers own inventory, host modules, and
 configuration. Stages contain only committed external consumer content with generated temporary topology. GitHub
-bootstrap content is fetched at the consumer's full public Maison lock revision and checked against its Git blob ID.
+bootstrap content is fetched at the consumer's full public Maison lock revision by default and checked against its Git
+blob ID. Reviewed branch testing may set `MAISON_MACOS_BOOTSTRAP_REF` (or use the `feat/test-bootstrap-macos`
+checkout default); the harness resolves the branch head, verifies its blob, and passes the branch through bootstrap's
+`--ref` clone path.
 
 Deployment uses generated ephemeral ed25519 keys, transfers only public keys, and uses `IdentitiesOnly=yes`. Tokens,
 keys, downloaded scripts, stages, workers, and containers are removed on every success, failure, and interruption path.
-The macOS task records pinned-base provenance before allowing a same-name base to be reused.
+The macOS task validates the supplied local base before cloning it and never deletes the user-owned base.
 
 ## Operational Impact
 
 Integration lanes are opt-in host operations, not public bootstrap/apply/deploy behavior. Linux uses Apple Container;
-macOS uses host-local Lume infrastructure and a published Trycua base rather than a Maison-owned image. The base is
-never deleted by normal cleanup. The macOS lane's persistent result log, when `MAISON_MAC_LOG` is set, contains only
-sanitized summaries; detailed command output remains in owner-only temporary files.
-
-The authenticated macOS lane was attempted twice on the current host but could not complete the large pinned image
-pull because of host capacity. No guest or production host was used. This remains external validation evidence in
-Beads `maison-fea`, not a hidden pass claim. The known Linux `system-manager` read-only `/nix/store` failure remains
-external evidence in `maison-jkh`.
+macOS uses host-local Lume infrastructure and the user-supplied local Tahoe base. The base is never deleted by normal
+cleanup. The macOS lane's persistent result log, when `MAISON_MAC_LOG` is set, contains only sanitized summaries;
+detailed command output remains in owner-only temporary files. Earlier Trycua pull failures remain historical evidence in
+Beads `maison-fea`; the task no longer attempts that external pull. The known Linux `system-manager` read-only
+`/nix/store` failure remains external evidence in `maison-jkh`.
 
 ## Reference and Contracts
 
@@ -75,8 +78,9 @@ external evidence in `maison-jkh`.
 - Focused Linux/bootstrap/Lume contract tests — passed, 19 tests.
 - Real pinned Lume 0.5.1 host installation, adjacent app-bundle execution, and default-root lock behavior — passed;
   installation evidence is retained in `/tmp/maison-018-lume-host-reinstall-r3.log`.
-- Authenticated macOS integration — unavailable on this host at the pinned image pull; r1/r2 evidence is retained in
-  `/tmp/maison-018-mac-run-r1.log` and `/tmp/maison-018-mac-run-r2.log` and tracked by `maison-fea`.
+- Authenticated macOS integration — pending the local-base run after this contract update; earlier Trycua pull evidence
+  is retained in `/tmp/maison-018-mac-run-r1.log`, `/tmp/maison-018-mac-run-r2.log`, and
+  `/tmp/maison-fea-mac-run-r3.log`.
 - Linux integration/deployment — the known upstream `system-manager` blocker is tracked by `maison-jkh`.
 
 ## Design Reconciliation
@@ -84,31 +88,33 @@ external evidence in `maison-jkh`.
 ### Delivered as Designed
 
 - Added explicit Linux and macOS hidden task names without retaining the ambiguous integration alias.
-- Added the pinned Lume dependency and published Trycua Tahoe worker lifecycle.
+- Added the pinned Lume dependency and local Tahoe worker lifecycle using the supplied Lume base.
 - Reused shared consumer staging, lock parsing, GitHub blob verification, token, SSH, and cleanup behavior.
 - Kept the deferred SIP lane non-blocking and absent from the shipped task surface.
 
 ### Intentional Changes
 
-- The macOS lane records owner-only provenance for task-managed pinned bases so a same-name unmanaged VM cannot bypass
-  the image contract.
-- The macOS task uses the published disposable `lume` account for initial public-key installation, then validates the
-  staged test user's user-layer convergence separately.
+- The macOS lane validates the supplied local base's version, build, Nix daemon, SSH/unattended-login state, and SIP
+  status before cloning it; the user-owned base remains outside task cleanup.
+- The macOS task uses the disposable `lume` account for local-base preflight, worker privilege preparation, test-user
+  creation, and public-key installation, then validates the staged test user's user-layer convergence separately.
 - Prepared-host integration remains an explicit external limitation rather than a waived or simulated success.
 
 ### Deferred Work
 
-- `test:bootstrap:mac-sip` and SIP-enabled worker preparation remain deferred under `maison-mol-4pv.4`.
-- A prepared host with enough capacity must complete the pinned Tahoe pull and macOS guest lane; `maison-fea` records
-  the required follow-up evidence.
+- `test:bootstrap:mac-sip` remains absent under `maison-mol-4pv.4`; the required local-image lane now exercises a
+  SIP-enabled base directly.
+- The local-base macOS guest lane must complete and record its bootstrap evidence under `maison-fea`.
 - The Linux `system-manager` integration blocker remains external work under `maison-jkh`.
-- Delivery completed locally by fast-forwarding `main`; no pull request was created.
+- Original feature delivery completed locally by fast-forwarding `main`; this follow-up updates the macOS validation
+  contract in the standalone blocker task and adds an explicit branch-bootstrap testing path.
 
 ### Rejected or Removed Scope
 
-- No current-host Darwin activation, production inventory use, private SSH state, or Maison-owned macOS image was added.
-- No network-piped installer, floating Maison revision, private consumer history, or public `test:*` command surface was
-  introduced.
+- No current-host Darwin activation, production inventory use, private SSH state, or Maison-owned macOS image was added;
+  the task consumes the user-owned local Lume base without publishing or deleting it.
+- No network-piped installer, unresolved Maison revision, private consumer history, or public `test:*` command
+  surface was introduced; branch testing remains an explicit verified harness override.
 
 ## Documentation Updated
 

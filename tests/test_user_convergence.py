@@ -29,6 +29,18 @@ def executable(path: Path, content: str) -> None:
     path.chmod(0o755)
 
 
+class UserApplyShellCompatibilityTest(unittest.TestCase):
+    def test_apply_does_not_expand_an_empty_array_under_macos_bash_nounset(self) -> None:
+        text = (ROOT / ".mise/tasks/user/apply").read_text()
+
+        self.assertIn('if [ "${usage_force_dotfiles:-false}" = true ]; then', text)
+        self.assertIn(
+            'maison_fnox_exec "$root" python3 "$framework_root/.mise/lib/user_convergence.py" apply --root "$root"',
+            text,
+        )
+        self.assertNotIn('"${args[@]}"', text)
+
+
 class UserConvergencePlanTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
